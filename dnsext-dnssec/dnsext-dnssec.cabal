@@ -22,6 +22,7 @@ library
         DNS.SEC.Imports
         DNS.SEC.Time
         DNS.SEC.Types
+        DNS.SEC.Verify.RRSIG
 
     default-language: Haskell2010
     ghc-options:      -Wall
