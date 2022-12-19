@@ -5,12 +5,10 @@ module DNS.SEC.Verify.NSEC3 where
 import Data.String (fromString)
 import Data.ByteString.Short (fromShort)
 
--- base32
-import qualified Data.ByteString.Base32.Hex as B32Hex
-
 -- dnsext-types
 import DNS.Types hiding (qname)
 import qualified DNS.Types.Opaque as Opaque
+import DNS.Types.Internal (decodeBase32Hex)
 
 -- this package
 import DNS.SEC.Imports
@@ -166,7 +164,7 @@ n3RangeRefines ranges0 = do
       []   ->  Nothing
 
     decodeBase32 :: ShortByteString -> [Opaque]
-    decodeBase32 part = either (const []) ((: []) . Opaque.fromByteString) $ B32Hex.decodeBase32 $ fromShort part
+    decodeBase32 part = either (const []) ((: []) . Opaque.fromByteString) $ decodeBase32Hex $ fromShort part
 
     takeRefines :: [(Opaque, (NSEC3_Range, Domain -> Opaque))] -> Either String [(Domain -> Maybe (RangeProp_ NSEC3_Witness))]
     takeRefines ranges

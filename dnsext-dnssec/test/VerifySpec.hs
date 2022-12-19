@@ -11,11 +11,11 @@ import Data.Int
 import Data.Word
 import Data.ByteString (ByteString)
 
-import Data.ByteString.Base32.Hex (decodeBase32)
 import Data.ByteArray.Encoding (Base (Base16, Base64), convertFromBase)
 
 import DNS.Types
 import qualified DNS.Types.Opaque as Opaque
+import DNS.Types.Internal (decodeBase32Hex)
 
 import DNS.SEC
 import DNS.SEC.Verify
@@ -458,7 +458,7 @@ opaqueFromB16Hex =
 opaqueFromB32Hex :: String -> Opaque
 opaqueFromB32Hex =
   either (error "opaqueFromB32Hex: fail to decode base32hex") Opaque.fromByteString .
-  decodeBase32 . (fromString :: String -> ByteString) . filter (/= ' ')
+  decodeBase32Hex . (fromString :: String -> ByteString) . filter (/= ' ')
 
 opaqueFromB64 :: String -> Opaque
 opaqueFromB64 =
