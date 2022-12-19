@@ -40,9 +40,11 @@ module DNS.Types.Internal (
   , getSeconds
   -- * Low level
   , module DNS.StateBinary
+  , module DNS.Types.BaseEncoding
   ) where
 
 import DNS.StateBinary
+import DNS.Types.BaseEncoding
 import DNS.Types.Dict
 import DNS.Types.Domain
 import DNS.Types.EDNS
