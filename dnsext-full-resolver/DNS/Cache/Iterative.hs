@@ -567,7 +567,7 @@ resolveJustDC dc n typ
   nss <- iterative_ dc rootNS $ reverse $ DNS.superDomains n
   sa <- selectDelegation dc nss
   lift $ logLn Log.DEBUG $ "resolve-just: norec: " ++ show (sa, n, typ)
-  (,) <$> norec sa n typ <*> pure nss
+  (,) <$> norec [sa] n typ <*> pure nss
     where
       mdc = maxNotSublevelDelegation
 
@@ -629,7 +629,7 @@ iterative_ dc nss (x:xs) =
     stepQuery nss_@(srcDom, _) = do
       sa <- selectDelegation dc nss_  -- 親ドメインから同じ NS の情報が引き継がれた場合も、NS のアドレスを選択しなおすことで balancing する.
       lift $ logLn Log.INFO $ "iterative: norec: " ++ show (sa, name, A)
-      msg <- norec sa name A
+      msg <- norec [sa] name A
       lift $ delegationWithCache srcDom name msg
 
     step :: Delegation -> DNSQuery (Maybe Delegation)  -- Nothing のときは委任情報無し
@@ -753,18 +753,20 @@ cnameList dom h = foldr takeCNAME []
       | rrname rr == dom, Just cn <- DNS.rdataField rd DNS.cname_domain  =  h cn rr : xs
     takeCNAME _      xs   =  xs
 
--- 権威サーバーから答えの DNSMessage を得る. 再起検索フラグを落として問い合わせる.
-norec :: IP -> Domain -> TYPE -> DNSQuery DNSMessage
-norec aserver name typ = dnsQueryT $ \cxt -> do
-  let ri = defaultResolvInfo {
-          rinfoHostName   = show aserver
-        , rinfoGenId      = idGen_ cxt
-        , rinfoGetTime    = currentSeconds_ cxt
-        }
+-- get DNSMessage from authoritative servers, without Recursive Desired flag
+norec :: [IP] -> Domain -> TYPE -> DNSQuery DNSMessage
+norec aservers name typ = dnsQueryT $ \cxt -> do
+  let ris = [ defaultResolvInfo {
+                rinfoHostName   = show aserver
+              , rinfoGenId      = idGen_ cxt
+              , rinfoGetTime    = currentSeconds_ cxt
+              }
+            | aserver <- aservers
+            ]
       renv = ResolvEnv {
           renvResolver    = udpTcpResolver 3 -- 3 is retry
-        , renvConcurrent  = False -- should set True if multiple RIs are provided
-        , renvResolvInfos = [ri]
+        , renvConcurrent  = True -- apply multiple RIs cocurrently
+        , renvResolvInfos = ris
         }
       q = Question name typ classIN
       qctl = DNS.rdFlag FlagClear
