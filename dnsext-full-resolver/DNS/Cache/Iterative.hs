@@ -773,6 +773,14 @@ norec aservers name typ = dnsQueryT $ \cxt -> do
   either (Left . DnsError) (handleResponseError Left Right) <$>
     E.try (DNS.resolve renv q qctl)
 
+{-
+selectDelegation :: Int -> Delegation -> DNSQuery [IP]
+selectDelegation dc (srcDom, des) = do
+  disableV6NS <- lift $ asks disableV6NS_
+
+  return []
+ -}
+
 -- Select an authoritative server from the delegation information and resolve to an IP address.
 -- If the resolution result is NODATA, IllegalDomain is returned.
 selectDelegation :: Int -> Delegation -> DNSQuery IP
