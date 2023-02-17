@@ -62,6 +62,8 @@ data Reaper workload item = Reaper {
     reaperAdd  :: item -> IO ()
     -- | Reading workload.
   , reaperRead :: IO workload
+    -- | Pruning independently of the Reaper thread
+  , reaperPrune :: IO ()
     -- | Stopping the reaper thread if exists.
     --   The current workload is returned.
   , reaperStop :: IO workload
@@ -82,10 +84,12 @@ mkReaper settings@ReaperSettings{..} = do
     lookupRef <- newIORef NoReaper  {- only allowed after reduced thunk pointer -}
     tidRef    <- newIORef Nothing
     return Reaper {
-        reaperAdd  = add settings stateRef lookupRef tidRef
-      , reaperRead = readRef lookupRef
-      , reaperStop = stop stateRef
-      , reaperKill = kill tidRef
+        reaperAdd   = add settings stateRef lookupRef tidRef
+      , reaperRead  = readRef lookupRef
+      , reaperPrune = do (postPrune, _next) <- pruneActions settings stateRef lookupRef tidRef
+                         postPrune
+      , reaperStop  = stop stateRef
+      , reaperKill  = kill tidRef
       }
   where
     readRef lookupRef = do
@@ -128,24 +132,29 @@ reaper :: ReaperSettings workload item
        -> IO ()
 reaper settings@ReaperSettings{..} stateRef lookupRef tidRef = do
     threadDelay reaperDelay
-    prune <- reaperAction
-    next <- atomicModifyIORef'' stateRef (checkPrune prune)
+    (postPrune, next) <- pruneActions settings stateRef lookupRef tidRef
+    postPrune
     next
+
+pruneActions :: ReaperSettings workload item
+             -> IORef (State workload) -> IORef (State workload) -> IORef (Maybe ThreadId)
+             -> IO (IO (), IO ())
+pruneActions settings@ReaperSettings{..} stateRef lookupRef tidRef = do
+    prune <- reaperAction
+    atomicModifyIORef'' stateRef (checkPrune prune)
   where
     checkPrune _ NoReaper   = error "Control.Reaper.reaper: unexpected NoReaper (1)"
     checkPrune prune current@(Workload wl) = case mayWl' of
-      Nothing            ->      (current,  do callback
-                                               reaper settings stateRef lookupRef tidRef )
+      Nothing            ->      (current,  (callback,
+                                             reaper settings stateRef lookupRef tidRef) )
       Just wl'
         -- If there is no job, reaper is terminated.
-        | reaperNull wl' ->      (NoReaper, do callback
-                                               writeIORef lookupRef NoReaper
-                                               writeIORef tidRef Nothing     )
+        | reaperNull wl' ->      (NoReaper, (callback *> writeIORef lookupRef NoReaper,
+                                             writeIORef tidRef Nothing)       )
         -- If there are jobs, carry them out.
         | otherwise      ->  let thunk = Workload wl'
-                             in  (thunk,    do callback
-                                               writeIORef lookupRef thunk
-                                               reaper settings stateRef lookupRef tidRef )
+                             in  (thunk,    (callback *> writeIORef lookupRef thunk,
+                                             reaper settings stateRef lookupRef tidRef) )
       where
         mayWl' = prune wl
         callback = reaperCallback mayWl'
