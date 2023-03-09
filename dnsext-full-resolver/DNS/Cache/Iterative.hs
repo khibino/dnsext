@@ -738,6 +738,51 @@ delegationWithCache zoneDom dom msg =
                しかしCNAME 先の NS に問い合わせないと返答で使える rank のレコードは得られない. -}
               where (cns, crrs) = unzip $ cnameList dom (,) rrs
 
+-- assume sorted NE input
+takeDelegationSrcNE :: NE (Domain, ResourceRecord) -> [ResourceRecord] -> Delegation
+takeDelegationSrcNE nsps adds = Delegation (rrname rr) ents [] []
+  where
+    ((_, rr), _) = nsps
+    nss = mapNE fst nsps
+    ents = concatNE $ mapNE (uncurry dentries) $ rrnamePairsNE nss addgroups
+
+    addgroups = groupBy ((==) `on` rrname) $ sortOn ((,) <$> rrname <*> rrtype) adds
+
+    dentries :: Domain -> [ResourceRecord] -> NE DEntry
+    dentries d     []  =  (DEonlyNS d, [])
+    dentries d as@(_:_) =
+      fromMaybe (DEonlyNS d, [])$ uncons
+      $ axList False (const True {- paired by rrnamePairs -}) (\ip _ -> DEwithAx d ip) as
+
+    mapNE :: (a -> b) -> NE a -> NE b
+    mapNE f (x,xs) = (f x, map f xs)
+
+    concatNE :: NE (NE a) -> NE a
+    concatNE ((z,zs),cs) = (z, zs ++ foldr append [] cs)
+      where
+        append (x,xs) ys = x : xs ++ ys
+
+-- |
+--
+-- >>> let agroup n = [ ResourceRecord { rrname = n, rrtype = A, DNS.rrclass = DNS.classIN, DNS.rrttl = 60, rdata = DNS.rd_a a } | a <- ["10.0.0.1", "10.0.0.2"] ]
+-- >>> rrnamePairsNE ("s", ["t", "u"]) [agroup "s", agroup "t", agroup "u"] == (("s", agroup "s"), [("t", agroup "t"), ("u", agroup "u")])
+-- True
+-- >>> rrnamePairsNE ("t", []) [agroup "s", agroup "t", agroup "u"] == (("t", agroup "t"), [])
+-- True
+-- >>> rrnamePairsNE ("s", ["t", "u"]) [agroup "t"] == (("s", []), [("t", agroup "t"), ("u", [])])
+-- True
+rrnamePairsNE :: NE Domain -> [[ResourceRecord]] -> NE (Domain, [ResourceRecord])
+rrnamePairsNE (d, [])        []     =  ((d, []), [])
+rrnamePairsNE (d, e:ds)      []     =  ((d, []), uncurry (:) $ rrnamePairsNE (e,ds) [])
+rrnamePairsNE dds@(d, ds) ggs@(g:gs)
+  | d <  an                   =  ((d, []), maybe [] (nexts ggs) $ uncons ds)
+  | d == an                   =  ((d, g),  maybe [] (nexts gs)  $ uncons ds)
+  | otherwise {- d >  an  -}  =            rrnamePairsNE dds gs  -- unknown additional RRs. just skip
+  where
+    an = rrname a
+    a = head g
+    nexts gs' xs = uncurry (:) $ rrnamePairsNE xs gs'
+
 takeDelegationSrc :: [(Domain, ResourceRecord)]
                   -> [RD_DS]
                   -> [ResourceRecord]
