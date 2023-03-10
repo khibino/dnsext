@@ -729,7 +729,8 @@ iterative_ dc nss0 (x:xs) =
       let withNXC nxc
             | nxc        =  return NoDelegation
             | otherwise  =  stepQuery nss
-      maybe (withNXC =<< lift lookupNX) return =<< lift (lookupDelegation name)
+      md <- maybe (withNXC =<< lift lookupNX) return =<< lift (lookupDelegation name)
+      mayDelegation (return NoDelegation) (fmap HasDelegation . fillDelegationDNSKEY) md
 
 -- If Nothing, it is a miss-hit against the cache.
 -- If Just NoDelegation, cache hit but no delegation information.
