@@ -816,14 +816,10 @@ rootPriming = do
       msgNS <- norec True ips "." NS
 
       (nsps, nsSet, cacheNS, verified) <- withSection rankedAnswer msgNS $ \rrs rank -> do
-        now <- liftIO =<< lift (asks currentSeconds_)
         let nsps = nsList "." (,) rrs
             (nss, nsRRs) = unzip nsps
-            (sigrds, _sigRRs) = unzip $ rrListWith RRSIG (sigrdWith NS <=< DNS.fromRData) "." (,) rrs
-            verified = [ sig | key <- dnskeys, sig <- sigrds, Right () <- [SEC.verifyRRSIG now "." key "." sig nsRRs] ]
-            cacheNS = case verified of
-              []   ->  cacheSection nsRRs rank
-              _:_  ->  cacheSection nsRRs rank  {- TODO: cache with RRSIG of NS -}
+            rrsigs = rrsigList "." NS rrs
+        (_, verified, cacheNS) <- lift $ verifyAndCache dnskeys nsRRs rrsigs rank
         return (nsps, Set.fromList nss, cacheNS, verified)
 
       (axRRs, cacheAX) <- withSection rankedAdditional msgNS $ \rrs rank -> do
