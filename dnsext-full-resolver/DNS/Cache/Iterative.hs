@@ -18,7 +18,7 @@ module DNS.Cache.Iterative (
   TimeCache,
   Result,
   -- * low-level interfaces
-  DNSQuery, runDNSQuery,
+  DNSQuery, runDNSQuery, rrListWithSIG,
   replyMessage, replyResult, replyResultCached,
   refreshRoot, resolve, resolveJust, iterative,
   IterativeControls (..), defaultIterativeControls,
@@ -62,7 +62,7 @@ import DNS.Types
    TYPE(A, NS, AAAA, CNAME, SOA), ResourceRecord (..),
    RCODE, DNSHeader, EDNSheader, DNSMessage, classIN, Question(..))
 import qualified DNS.Types as DNS
-import DNS.SEC (TYPE (DNSKEY, DS, RRSIG), RD_DNSKEY, RD_DS (..), RD_RRSIG (..))
+import DNS.SEC (TYPE (DNSKEY, DS, RRSIG, NSEC, NSEC3), RD_DNSKEY, RD_DS (..), RD_RRSIG (..))
 import qualified DNS.SEC.Verify as SEC
 import DNS.Do53.Client (FlagOp (..), defaultResolvActions, ractionGenId, ractionGetTime )
 import qualified DNS.Do53.Client as DNS
@@ -228,7 +228,7 @@ type Result = (RCODE, [ResourceRecord], [ResourceRecord])
 
 -- 最終的な解決結果を得る
 runResolve :: Env -> Domain -> TYPE -> IterativeControls
-           -> IO (Either QueryError (([ResourceRecord] -> [ResourceRecord], Domain), Either Result DNSMessage))
+           -> IO (Either QueryError (([([ResourceRecord], [RD_RRSIG])], Domain), Either Result (DNSMessage, [([ResourceRecord], [RD_RRSIG])], [([ResourceRecord], [RD_RRSIG])])))
 runResolve cxt n typ cd = runDNSQuery (resolve n typ) cxt cd
 
 -- 権威サーバーからの解決結果を得る
@@ -478,75 +478,99 @@ replyMessage eas ident rqs =
 -- 反復検索を使って返答メッセージ用の結果コードと応答セクションを得る.
 replyResult :: Domain -> TYPE -> DNSQuery Result
 replyResult n typ = do
-  ((aRRs, _rn), etm) <- resolve n typ
-  let fromMessage msg = (DNS.rcode $ DNS.flags $ DNS.header msg, DNS.answer msg, allowAuthority $ DNS.authority msg)
-      makeResult (rcode, ans, auth) = (rcode, aRRs ans, auth)
+  ((cnames, _rn), etm) <- resolve n typ
+  reqDO <- lift . lift $ asks requestDO
+  let fromMessage (msg, vans, vauth) = (DNS.rcode $ DNS.flags $ DNS.header msg, concatMap (rrListWithSIG reqDO) vans, concatMap (rrListWithSIG reqDO) vauth)
+      makeResult (rcode, ans, auth) = (rcode, denyAnswer reqDO $ concat $ map (rrListWithSIG reqDO) cnames ++ [ans], allowAuthority reqDO auth)
   return $ makeResult $ either id fromMessage etm
     where
-      allowAuthority = foldr takeSOA []
-      takeSOA rr@ResourceRecord { rrtype = SOA } xs  =  rr : xs
-      takeSOA _                                  xs  =  xs
+      denyAnswer DnssecOK   rrs  =  rrs
+      denyAnswer NoDnssecOK rrs  =  foldr takeNODNSSEC [] rrs
+        where
+          takeNODNSSEC rr@ResourceRecord{..} xs
+            | rrtype `elem` dnssecTypes  =  xs
+            | otherwise                  =  rr : xs
+
+      allowAuthority NoDnssecOK = foldr takeSOA []
+        where
+          takeSOA rr@ResourceRecord { rrtype = SOA } xs  =  rr : xs
+          takeSOA _                                  xs  =  xs
+      allowAuthority DnssecOK   = foldr takeAuth []
+        where
+          allowTypes = SOA : dnssecTypes
+          takeAuth rr@ResourceRecord{..} xs
+            | rrtype `elem` allowTypes  =  rr : xs
+            | otherwise                 =  xs
+
+      dnssecTypes = [ DNSKEY, DS, RRSIG, NSEC, NSEC3 ]
 
 replyResultCached :: Domain -> TYPE -> DNSQuery (Maybe Result)
 replyResultCached n typ = do
-  ((aRRs, _rn), e) <- resolveByCache n typ
-  let makeResult (rcode, ans, auth) = (rcode, aRRs ans, auth)
+  ((withsigs, _rn), e) <- resolveByCache n typ
+  reqDO <- lift . lift $ asks requestDO
+  let makeResult (rcode, ans, auth) = (rcode, concat $ map (rrListWithSIG reqDO) withsigs ++ [ans], auth)
   return $ either (Just . makeResult) (const Nothing) e
+
+type RRwithSIG = ([ResourceRecord], [RD_RRSIG])
+
+rrListWithSIG :: RequestDO -> RRwithSIG -> [ResourceRecord]
+rrListWithSIG NoDnssecOK (rrs, _)   =  rrs
+rrListWithSIG DnssecOK   ([], _)    =  []
+rrListWithSIG DnssecOK   (rrs@(ResourceRecord{..}:_),  sigs)  = rrs ++ [ ResourceRecord rrname rrtype rrclass rrttl $ DNS.toRData rd | rd <- sigs ]
 
 maxCNameChain :: Int
 maxCNameChain = 16
 
-type DRRList = [ResourceRecord] -> [ResourceRecord]
-
-resolveByCache :: Domain -> TYPE -> DNSQuery ((DRRList, Domain), Either Result ())
-resolveByCache = resolveLogic "cache" (\_ -> pure ()) (\_ _ -> pure ((), Nothing))
+resolveByCache :: Domain -> TYPE -> DNSQuery (([RRwithSIG], Domain), Either Result ((), [RRwithSIG], [RRwithSIG]))
+resolveByCache = resolveLogic "cache" (\_ -> pure ((), [], [])) (\_ _ -> pure ((), [], ([], []), []))
 
 {- 反復検索を使って最終的な権威サーバーからの DNSMessage を得る.
    目的の TYPE の RankAnswer 以上のキャッシュ読み出しが得られた場合はそれが結果となる.
    目的の TYPE が CNAME 以外の場合、結果が CNAME なら繰り返し解決する. その際に CNAME レコードのキャッシュ書き込みを行なう.
    目的の TYPE の結果レコードをキャッシュする. -}
-resolve :: Domain -> TYPE -> DNSQuery ((DRRList, Domain), Either Result DNSMessage)
+resolve :: Domain -> TYPE -> DNSQuery (([RRwithSIG], Domain), Either Result (DNSMessage, [RRwithSIG], [RRwithSIG]))
 resolve = resolveLogic "query" resolveCNAME resolveTYPE
 
 resolveLogic :: String
-             -> (Domain -> DNSQuery a)
-             -> (Domain -> TYPE -> DNSQuery (a, Maybe (Domain, ResourceRecord)))
-             -> Domain -> TYPE -> DNSQuery ((DRRList, Domain), Either Result a)
+             -> (Domain -> DNSQuery (a, [RRwithSIG], [RRwithSIG]))
+             -> (Domain -> TYPE -> DNSQuery (a, [RRwithSIG], RRwithSIG, [RRwithSIG]))
+             -> Domain -> TYPE -> DNSQuery (([RRwithSIG], Domain), Either Result (a, [RRwithSIG], [RRwithSIG]))
 resolveLogic logMark cnameHandler typeHandler n0 typ =
   maybe notSpecial special $ takeSpecialRevDomainResult n0
   where
-    special result = return ((id, n0), Left result)
+    special result = return (([], n0), Left result)
     notSpecial
-      | typ == Cache.nxTYPE = called *> return ((id, n0), Left (DNS.NoErr, [], []))
+      | typ == Cache.nxTYPE = called *> return (([], n0), Left (DNS.NoErr, [], []))
       | typ == CNAME  =  called *> justCNAME n0
       | otherwise     =  called *> recCNAMEs 0 n0 id
     called = lift $ logLn Log.DEBUG $ "resolve: " ++ logMark ++ ": " ++ show (n0, typ)
     justCNAME bn = do
       let noCache = do
             msg <- cnameHandler bn
-            pure ((id, bn), Right msg)
+            pure (([], bn), Right msg)
 
-          withNXC (soa, _rank) = pure ((id, bn), Left (DNS.NameErr, [], soa))
+          withNXC (soa, _rank) = pure (([], bn), Left (DNS.NameErr, [], soa))
 
-          cachedCNAME (rrs, soa) = pure ((id, bn), Left (DNS.NoErr, rrs, soa))  {- target RR is not CNAME destination but CNAME, so NoErr -}
+          cachedCNAME (rrs, soa) = pure (([], bn), Left (DNS.NoErr, rrs, soa))  {- target RR is not CNAME destination but CNAME, so NoErr -}
 
       maybe
         (maybe noCache withNXC =<< lift (lookupNX bn))
-        (cachedCNAME . either (\soa -> ([], soa)) (\(_cn, cnRR) -> ([cnRR], [])))
+        (cachedCNAME . either (\soa -> ([], soa)) (\(_cn, (cnRRs, _sigs {- TODO: apply cached RRSIG -})) -> (cnRRs, [])))
         =<< lift (lookupCNAME bn)
 
     -- CNAME 以外のタイプの検索について、CNAME のラベルで検索しなおす.
-    -- recCNAMEs :: Int -> Domain -> DRRList -> DNSQuery ((DRRList, Domain), Either Result a)
-    recCNAMEs cc bn aRRs
+    -- recCNAMEs :: Int -> Domain -> ([RRwithSIG] -> [RRwithSIG]) -> DNSQuery (([RRwithSIG], Domain), Either Result a)
+    recCNAMEs cc bn dwithsigs
       | cc > mcc  = lift (logLn Log.NOTICE $ "query: cname chain limit exceeded: " ++ show (n0, typ))
                     *> throwDnsError DNS.ServerFailure
       | otherwise = do
-      let recCNAMEs_ (cn, cnRR) = recCNAMEs (succ cc) cn (aRRs . (cnRR :))
+      let recCNAMEs_ (cn, withsig) = recCNAMEs (succ cc) cn (dwithsigs . (withsig :))
           noCache = do
-            (msg, cname) <- typeHandler bn typ
-            maybe (pure ((aRRs, bn), Right msg)) recCNAMEs_ cname
+            (msg, vanswer, vcname@(cnames, _), vauth) <- typeHandler bn typ
+            let takeCN (rr, _) = (,) <$> DNS.rdataField (rdata rr) DNS.cname_domain <*> pure vcname
+            maybe (pure ((dwithsigs [], bn), Right (msg, vanswer, vauth))) recCNAMEs_ $ takeCN =<< uncons cnames
 
-          withNXC (soa, _rank) = pure ((aRRs, bn), Left (DNS.NameErr, [], soa))
+          withNXC (soa, _rank) = pure ((dwithsigs [], bn), Left (DNS.NameErr, [], soa))
 
           noTypeCache =
             maybe
@@ -555,7 +579,7 @@ resolveLogic logMark cnameHandler typeHandler n0 typ =
             =<< lift (joinE <$> lookupCNAME bn)  {- CNAME が NODATA だったときは CNAME による再検索をしないケースとして扱う -}
             where joinE = (either (const Nothing) Just =<<)
 
-          cachedType (tyRRs, soa) = pure ((aRRs, bn), Left (DNS.NoErr, tyRRs, soa))
+          cachedType (tyRRs, soa) = pure ((dwithsigs [], bn), Left (DNS.NoErr, tyRRs, soa))
 
       maybe
         noTypeCache
@@ -573,12 +597,14 @@ resolveLogic logMark cnameHandler typeHandler n0 typ =
 
     -- Nothing のときはキャッシュに無し
     -- Just Left のときはキャッシュに有るが CNAME レコード無し
-    lookupCNAME :: Domain -> ContextT IO (Maybe (Either [ResourceRecord] (Domain, ResourceRecord)))
+    lookupCNAME :: Domain -> ContextT IO (Maybe (Either [ResourceRecord] (Domain, RRwithSIG)))
     lookupCNAME bn = do
       maySOAorCNRRs <- lookupType bn CNAME
       return $ do
         let soa (rrs, _rank) = Just $ Left rrs
-            cname rrs = Right . fst <$> uncons (cnameList bn (,) rrs)  {- empty ではないはずなのに cname が空のときはキャッシュ無しとする -}
+            cname rrs  =  fmap Right $ (,) <$> cnDomain <*> pure (rrs, [] {- TODO: get CNAME RRSIG from cache -})
+              where cnDomain = fst . fst <$> uncons (cnameList bn (,) rrs)
+                    {- Should not be possible, but cache miss hit when empty CNAME list -}
         either soa cname =<< maySOAorCNRRs
 
     lookupType bn t = (replyRank =<<) <$> lookupCacheEither logMark bn t
@@ -589,43 +615,45 @@ resolveLogic logMark cnameHandler typeHandler n0 typ =
       | otherwise               =  Just x
 
 {- CNAME のレコードを取得し、キャッシュする -}
-resolveCNAME :: Domain -> DNSQuery DNSMessage
+resolveCNAME :: Domain -> DNSQuery (DNSMessage, [RRwithSIG], [RRwithSIG])
 resolveCNAME bn = do
   (msg, _nss@Delegation{..}) <- resolveJust bn CNAME
-  lift $ cacheAnswer delegationZoneDomain delegationDNSKEY bn CNAME msg
-  return msg
+  (vanswer, vauth) <- lift $ cacheAnswer delegationZoneDomain delegationDNSKEY bn CNAME msg
+  return (msg, vanswer, vauth)
 
 {- 目的の TYPE のレコードの取得を試み、結果の DNSMessage を返す.
    結果が CNAME なら、その RR も返す.
    どちらの場合も、結果のレコードをキャッシュする. -}
 resolveTYPE :: Domain -> TYPE
-            -> DNSQuery (DNSMessage, Maybe (Domain, ResourceRecord))  {- result msg and cname RR involved in -}
+            -> DNSQuery (DNSMessage, [RRwithSIG], RRwithSIG, [RRwithSIG])  {- result msg, verified answer, cname RR, verified authority -}
 resolveTYPE bn typ = do
   (msg, _nss@Delegation{..}) <- resolveJust bn typ
-  cname <- withSection rankedAnswer msg $ \rrs rank -> do
-    let ps = cnameList bn (,) rrs
-    lift $ do
-      (_, _cnameGoodSigs, cacheCNAME) <- verifyAndCache delegationDNSKEY (map snd ps) (rrsigList bn CNAME rrs) rank
-      cacheCNAME
-    return $ fst <$> uncons ps
+  vcname@(cnameRRs, _) <- lift $ withSection rankedAnswer msg $ \rrs rank -> do
+    let cnameRRs = cnameList bn (\_ rr -> rr) rrs
+    (sortedRRs, goodSigs, cacheCNAME) <- verifyAndCache delegationDNSKEY cnameRRs (rrsigList bn CNAME rrs) rank
+    cacheCNAME
+    return (sortedRRs, goodSigs)
   let checkTypeRR =
         when (any ((&&) <$> (== bn) . rrname <*> (== typ) . rrtype) $ DNS.answer msg) $
           throwDnsError DNS.UnexpectedRDATA  -- CNAME と目的の TYPE が同時に存在した場合はエラー
-  maybe (lift $ cacheAnswer delegationZoneDomain delegationDNSKEY bn typ msg) (const checkTypeRR) cname
-  return (msg, cname)
+  (vanswer, vauth) <-  if null cnameRRs
+               then lift $ cacheAnswer delegationZoneDomain delegationDNSKEY bn typ msg
+               else checkTypeRR *> return ([], [])
+  return (msg, vanswer, vcname, vauth)
 
-cacheAnswer :: Domain -> [RD_DNSKEY] -> Domain -> TYPE -> DNSMessage -> ContextT IO ()
+cacheAnswer :: Domain -> [RD_DNSKEY] -> Domain -> TYPE -> DNSMessage -> ContextT IO ([RRwithSIG], [RRwithSIG])
 cacheAnswer zoneDom dnskeys dom typ msg
   | null $ DNS.answer msg  =  do
       case rcode of
-        DNS.NoErr    ->  cacheEmptySection zoneDom dnskeys dom typ rankedAnswer msg
-        DNS.NameErr  ->  cacheEmptySection zoneDom dnskeys dom Cache.nxTYPE rankedAnswer msg
-        _            ->  return ()
+        DNS.NoErr    ->  (,) [] <$> cacheEmptySection zoneDom dnskeys dom typ rankedAnswer msg
+        DNS.NameErr  ->  (,) [] <$> cacheEmptySection zoneDom dnskeys dom Cache.nxTYPE rankedAnswer msg
+        _            ->  return ([], [])
   | otherwise              =  do
       withSection rankedAnswer msg $ \rrs rank -> do
         let isX rr = rrname rr == dom && rrtype rr == typ
-        (_, _xGoodSigs, cacheX) <- verifyAndCache dnskeys (filter isX rrs) (rrsigList dom typ rrs) rank
+        (sortedRRs, goodSigs, cacheX) <- verifyAndCache dnskeys (filter isX rrs) (rrsigList dom typ rrs) rank
         cacheX
+        return ([(sortedRRs, goodSigs)], [])
   where
     rcode = DNS.rcode $ DNS.flags $ DNS.header msg
 
@@ -795,7 +823,7 @@ delegationWithCache zoneDom dnskeys dom msg = do
           if hasCNAME then      do cacheCNAME
                                    cacheEmptySection zoneDom dnskeys dom NS rankedAuthority msg
           else                     cacheEmptySection zoneDom dnskeys dom Cache.nxTYPE rankedAuthority msg
-        | otherwise             =  pure ()
+        | otherwise             =  pure []
         where rcode = DNS.rcode $ DNS.flags $ DNS.header msg
 
   let withCache x = do
@@ -1256,18 +1284,21 @@ cacheSection rs rank = mapM_ (`cacheNoRRSIG` rank) $ rrsList rs
 -- | The `cacheEmptySection zoneDom dom typ getRanked msg` caches two pieces of information from `msg`.
 --   One is that the data for `dom` and `typ` are empty, and the other is the SOA record for the zone of
 --   the sub-domains under `zoneDom`.
---   The `getRanked` function returns the section with the empty information.
+--   The result of the `getRanked` function is used only for `Ranking`, not for the section RR list.
+--
+--   Returns verified authority section.
 cacheEmptySection :: Domain -> [RD_DNSKEY] -> Domain -> TYPE
                   -> (DNSMessage -> ([ResourceRecord], Ranking))
-                  -> DNSMessage -> ContextT IO ()
+                  -> DNSMessage -> ContextT IO [RRwithSIG]
 cacheEmptySection zoneDom dnskeys dom typ getRanked msg = do
-  (takePair, cacheSOA) <- withSection rankedAuthority msg $ \rrs rank -> do
+  (takePair, soaRRs, soaGoodSigs, cacheSOA) <- withSection rankedAuthority msg $ \rrs rank -> do
     let (ps, soaRRs) = unzip $ foldr takeSOA [] rrs
-    (_, _soaGoodSigs, cacheSOA_) <- verifyAndCache dnskeys soaRRs (rrsigList dom SOA rrs) rank
-    return (single ps, cacheSOA_)
+    (soaRRs_, soaGoodSigs_, cacheSOA_) <- verifyAndCache dnskeys soaRRs (rrsigList dom SOA rrs) rank
+    return (single ps, soaRRs_, soaGoodSigs_, cacheSOA_)
   let doCache (soaDom, ncttl) = do
         cacheSOA
         withSection getRanked msg $ \_rrs rank -> cacheEmpty soaDom dom typ ncttl rank
+        return [(soaRRs, soaGoodSigs)]
 
   either ncWarn doCache takePair
   where
@@ -1287,16 +1318,18 @@ cacheEmptySection zoneDom dnskeys dom typ getRanked msg = do
       [x]   ->  Right x
       _:_:_ ->  Left "multiple SOA records found"
     ncWarn s
-      | not $ null answer  =  logLines Log.DEBUG $
-                              [ "cacheEmptySection: from-domain=" ++ show zoneDom ++ ", domain=" ++ show dom ++ ": " ++ s
-                              , "  because of non empty answers:"
-                              ] ++
-                              map (("  " ++) . show) answer
-      | otherwise          =  logLines Log.NOTICE $
-                              [ "cacheEmptySection: from-domain=" ++ show zoneDom ++ ", domain=" ++ show dom ++ ": " ++ s
-                              , "  authority section:"
-                              ] ++
-                              map (("  " ++) . show) (DNS.authority msg)
+      | not $ null answer  =  do logLines Log.DEBUG $
+                                   [ "cacheEmptySection: from-domain=" ++ show zoneDom ++ ", domain=" ++ show dom ++ ": " ++ s
+                                   , "  because of non empty answers:"
+                                   ] ++
+                                   map (("  " ++) . show) answer
+                                 return []
+      | otherwise          =  do logLines Log.NOTICE $
+                                   [ "cacheEmptySection: from-domain=" ++ show zoneDom ++ ", domain=" ++ show dom ++ ": " ++ s
+                                   , "  authority section:"
+                                   ] ++
+                                   map (("  " ++) . show) (DNS.authority msg)
+                                 return []
 
       where answer = DNS.answer msg
 
