@@ -1819,11 +1819,12 @@ cacheRRset
     -> [RData]
     -> [RD_RRSIG]
     -> ContextT IO ()
-cacheRRset rank dom typ cls ttl rds _sigrds = do
+cacheRRset rank dom typ cls ttl rds sigrds = do
     insertRRSet <- asks insert_
     logLn Log.DEBUG $
         "cacheRRset: " ++ show (((dom, typ, cls), ttl), rank) ++ "  " ++ show rds
-    liftIO $ insertRRSet (DNS.Question dom typ cls) ttl (Right rds) rank {- TODO: cache with RD_RRSIG -}
+    let key = DNS.Question dom typ cls
+    liftIO $ insertRRSet key ttl (Right (rds, Just sigrds)) rank
 
 cacheNoRRSIG :: [ResourceRecord] -> Ranking -> ContextT IO ()
 cacheNoRRSIG rrs0 rank = do
@@ -1840,7 +1841,8 @@ cacheNoRRSIG rrs0 rank = do
                 , show (((dom, typ, cls), ttl), rank)
                 , ' ' : show rds
                 ]
-            liftIO $ insertRRSet (DNS.Question dom typ cls) ttl (Right rds) rank
+            let key = DNS.Question dom typ cls
+            liftIO $ insertRRSet key ttl (Right (rds, Nothing)) rank
     (_, sortedRRs) = unzip $ SEC.sortCanonical rrs0
 
 cacheSection :: [ResourceRecord] -> Ranking -> ContextT IO ()
