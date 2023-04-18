@@ -273,6 +273,8 @@ cachedWorker cxt getSec incHit incFailed enqDec enqResp (bs, addr) =
       noResponse replyErr = liftIO incFailed >> throwE ("cached: response cannot be generated: " ++ replyErr ++ ": " ++ show (q, addr))
       enqueue respM = liftIO $ do
         incHit
+        -- logLn Log.DEBUG $ "cachedWorker: response msg: " ++ show respM
+        logLines_ cxt Log.DEBUG $ "cachedWorker: response answer: " : [ "  " ++ show rr | rr <- DNS.answer respM ]
         let rbs = DNS.encode respM
         rbs `seq` enqResp (rbs, addr)
   maybe enqueueDec (either noResponse enqueue) =<< liftIO (getReplyCached cxt reqH reqEH qs)
@@ -289,6 +291,8 @@ resolvWorker cxt incMiss incFailed enqResp (reqH, reqEH, qs@(q, _), addr) =
   either (logLn Log.NOTICE) return <=< runExceptT $ do
   let noResponse replyErr = liftIO incFailed >> throwE ("resolv: response cannot be generated: " ++ replyErr ++ ": " ++ show (q, addr))
       enqueue respM = liftIO $ do
+        -- logLn Log.DEBUG $ "resolvWorker: response msg: " ++ show respM
+        logLines_ cxt Log.DEBUG $ "resolvWorker: response answer: " : [ "  " ++ show rr | rr <- DNS.answer respM ]
         incMiss
         let rbs = DNS.encode respM
         rbs `seq` enqResp (rbs, addr)
