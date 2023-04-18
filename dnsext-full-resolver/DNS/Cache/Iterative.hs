@@ -516,7 +516,7 @@ type RRwithSIG = ([ResourceRecord], [RD_RRSIG])
 rrListWithSIG :: RequestDO -> RRwithSIG -> [ResourceRecord]
 rrListWithSIG NoDnssecOK (rrs, _)   =  rrs
 rrListWithSIG DnssecOK   ([], _)    =  []
-rrListWithSIG DnssecOK   (rrs@(ResourceRecord{..}:_),  sigs)  = rrs ++ [ ResourceRecord rrname rrtype rrclass rrttl $ DNS.toRData rd | rd <- sigs ]
+rrListWithSIG DnssecOK   (rrs@(ResourceRecord{..}:_),  sigs)  = rrs ++ [ ResourceRecord rrname RRSIG rrclass rrttl $ DNS.toRData rd | rd <- sigs ]
 
 maxCNameChain :: Int
 maxCNameChain = 16
