@@ -31,6 +31,8 @@ module DNS.StateBinary.SGet (
   , pushDomain
   , popDomain
   , getAtTime
+
+  , getPstDomains
   ) where
 
 import Control.Monad.State.Strict (StateT)
@@ -83,6 +85,9 @@ pushDomain n d = do
 
 popDomain :: Position -> SGet (Maybe [RawDomain])
 popDomain n = ST.gets (IM.lookup n . pstDomain)
+
+getPstDomains :: SGet (IntMap [RawDomain])
+getPstDomains = ST.gets pstDomain
 
 ----------------------------------------------------------------
 

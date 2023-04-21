@@ -26,6 +26,7 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Short as Short
 import Data.Functor (($>))
 import Data.Word8
+import qualified Data.IntMap as IM
 
 import DNS.StateBinary
 import DNS.Types.Error
@@ -396,7 +397,9 @@ getDomain' allowCompression ptrLimit = do
               failSGet "invalid pointer: forward pointing"
           mx <- popDomain offset
           case mx of
-            Nothing -> failSGet "invalid pointer: invalid area"
+            Nothing -> do
+              domains <- getPstDomains
+              failSGet $ "invalid pointer: invalid area: offset=" ++ show offset ++ ", "++ show (IM.toList domains)
             Just lls -> do
                 -- Supporting double pointers.
                 pushDomain pos lls
