@@ -968,6 +968,7 @@ rootPriming :: DNSQuery (Either String Delegation)
 rootPriming = do
   disableV6NS <- lift $ asks disableV6NS_
   let ips = takeDEntryIPs disableV6NS hintDes
+  lift $ logLines Log.INFO $ "root addresses for priming:" : [ "  " ++ show ip | ip <- ips ]
   ekeys <- cachedDNSKEY [rootSepDS] ips "."
   either (return . Left . emsg) (body ips) ekeys
   where
