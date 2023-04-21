@@ -104,13 +104,13 @@ udpResolver retry ri@ResolvInfo{..} q _qctl =
         ans <- recv `E.catch` \e -> E.throwIO $ NetworkFailure e
         now <- ractionGetTime rinfoActions
         case decodeAt now ans of
-            Left  e -> E.throwIO e
+            Left  e -> putStrLn ("udpResolver.getAnswer: decodeAt Left: " ++ rinfoHostName ++ ", " ++ show ans) *> E.throwIO e
             Right msg
               | checkResp q ident msg -> do
                     let rx = BS.length ans
                     return $ Reply msg tx rx
               -- Just ignoring a wrong answer.
-              | otherwise             -> getAnswer ident recv tx
+              | otherwise             -> putStrLn ("udpResolver.getAnswer: checkResp-error: " ++ rinfoHostName ++ ", " ++ show msg) *>  getAnswer ident recv tx
 
     open = UDP.clientSocket rinfoHostName (show rinfoPortNumber) True -- connected
 
