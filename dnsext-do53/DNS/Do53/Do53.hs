@@ -103,8 +103,12 @@ udpResolver retry ri@ResolvInfo{..} q _qctl =
     getAnswer ident recv tx = do
         ans <- recv `E.catch` \e -> E.throwIO $ NetworkFailure e
         now <- ractionGetTime rinfoActions
+        let showHex8 w
+              | w >= 16    = showHex w
+              | otherwise  =  ('0' :) . showHex w
+            dumpBS = ("\"" ++) . (++ "\"" ) . foldr (\w s -> "\\x" ++ showHex8 w s) "" . BS.unpack
         case decodeAt now ans of
-            Left  e -> putStrLn ("udpResolver.getAnswer: decodeAt Left: " ++ rinfoHostName ++ ", " ++ show ans) *> E.throwIO e
+            Left  e -> putStrLn ("udpResolver.getAnswer: decodeAt Left: " ++ rinfoHostName ++ ", " ++ dumpBS ans) *> E.throwIO e
             Right msg
               | checkResp q ident msg -> do
                     let rx = BS.length ans
