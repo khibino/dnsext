@@ -50,6 +50,7 @@ import qualified Data.Map as Map
 import Data.Maybe (listToMaybe, isJust, fromMaybe)
 import qualified Data.Set as Set
 import Numeric (readDec, readHex, showHex)
+import System.Environment (lookupEnv)
 
 -- other packages
 import System.Random (randomR, getStdRandom)
@@ -1160,7 +1161,8 @@ axList disableV6NS pdom h = foldr takeAx []
   * EDNS must be enable for DNSSEC OK request -}
 norec :: Bool -> [IP] -> Domain -> TYPE -> DNSQuery DNSMessage
 norec dnsssecOK aservers name typ = dnsQueryT $ \cxt _qctl -> do
-  logLines_ cxt Log.DEBUG $ ["norec: " ++ show name ++ ", " ++ show typ ++ ", " ++ show aservers]
+  concurrent <- maybe True (not . (== "1") . take 1) <$> lookupEnv "NOT_CONCURRENT"
+  logLines_ cxt Log.DEBUG $ ["norec: " ++ show name ++ ", " ++ show typ ++ ", " ++ show aservers ++ ", concurrent: " ++ show concurrent]
   let ris =
         [ defaultResolvInfo {
             rinfoHostName   = show aserver
@@ -1173,7 +1175,7 @@ norec dnsssecOK aservers name typ = dnsQueryT $ \cxt _qctl -> do
         ]
       renv = ResolvEnv {
           renvResolver    = udpTcpResolver 3 (32 * 1024) -- 3 is retry
-        , renvConcurrent  = True -- should set True if multiple RIs are provided
+        , renvConcurrent  = concurrent -- should set True if multiple RIs are provided
         , renvResolvInfos = ris
         }
       q = Question name typ classIN
