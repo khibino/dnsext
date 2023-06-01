@@ -789,8 +789,8 @@ lookupDelegation :: Domain -> ContextT IO (Maybe MayDelegation)
 lookupDelegation dom = do
   disableV6NS <- asks disableV6NS_
   let lookupDEs ns = do
-        let deListA    = rrListWith A    (`DNS.rdataField` DNS.a_ipv4)    ns (\v4 _ -> DEwithAx ns (IPv4 v4))
-            deListAAAA = rrListWith AAAA (`DNS.rdataField` DNS.aaaa_ipv6) ns (\v6 _ -> DEwithAx ns (IPv6 v6))
+        let deListA    = rrListWith A    (`DNS.rdataField` DNS.a_ipv4)    (== ns) (\v4 _ -> DEwithAx ns (IPv4 v4))
+            deListAAAA = rrListWith AAAA (`DNS.rdataField` DNS.aaaa_ipv6) (== ns) (\v6 _ -> DEwithAx ns (IPv6 v6))
 
         lk4 <- fmap (deListA . fst)    <$> lookupCache ns A
         lk6 <- fmap (deListAAAA . fst) <$> lookupCache ns AAAA
@@ -819,7 +819,7 @@ delegationWithCache :: Domain -> [RD_DNSKEY] -> Domain -> DNSMessage -> ContextT
 delegationWithCache zoneDom dnskeys dom msg = do
   -- There is delegation information only when there is a selectable NS
   (verifyMsg, verifyColor, dss, cacheDS) <- withSection rankedAuthority msg $ \rrs rank -> do
-    let (dsrds, dsRRs) = unzip $ rrListWith DS DNS.fromRData dom (,) rrs
+    let (dsrds, dsRRs) = unzip $ rrListWith DS DNS.fromRData (== dom) (,) rrs
     (RRset{..}, cacheDS) <- verifyAndCache dnskeys dsRRs (rrsigList dom DS rrs) rank
     let (verifyMsg, verifyColor)
           | null nsps         =  ("no delegation", Nothing)
@@ -916,7 +916,7 @@ fillDelegationDS dc src dest
   | otherwise                       = do
       maybe query (lift . fill . toDSs) =<< lift (lookupCache (delegationZoneDomain dest) DS)
   where
-    toDSs (rrs, _rank) = rrListWith DS DNS.fromRData (delegationZoneDomain dest) const rrs
+    toDSs (rrs, _rank) = rrListWith DS DNS.fromRData (== delegationZoneDomain dest) const rrs
     fill dss = return dest { delegationDS = dss }
     query = do
       ips <- delegationIPs dc src
@@ -930,7 +930,7 @@ queryDS :: [RD_DNSKEY] -> [IP] -> Domain -> DNSQuery (Either String [RD_DS])
 queryDS dnskeys ips dom = do
   msg <- norec True ips dom DS
   withSection rankedAnswer msg $ \rrs rank -> do
-    let (dsrds, dsRRs) = unzip $ rrListWith DS DNS.fromRData dom (,) rrs
+    let (dsrds, dsRRs) = unzip $ rrListWith DS DNS.fromRData (== dom) (,) rrs
         rrsigs = rrsigList dom DS rrs
     (rrset, cacheDS) <- lift $ verifyAndCache dnskeys dsRRs rrsigs rank
     let verifyResult
@@ -946,7 +946,7 @@ fillDelegationDNSKEY dc d@Delegation{delegationDS = _:_, delegationDNSKEY = [], 
   maybe query (lift . fill . toDNSKEYs) =<< lift (lookupCache delegationZoneDomain DNSKEY)
 
   where
-    toDNSKEYs (rrs, _) = rrListWith DNSKEY DNS.fromRData delegationZoneDomain const rrs
+    toDNSKEYs (rrs, _) = rrListWith DNSKEY DNS.fromRData (== delegationZoneDomain) const rrs
     fill dnskeys = return d { delegationDNSKEY = dnskeys }
     query = do
       ips <- delegationIPs dc d
@@ -1057,7 +1057,7 @@ verifySEP dss dom rrs = do
   let rrsigs = rrsigList dom DNSKEY rrs
   when (null rrsigs) $ Left $ verifyError "no RRSIG found for DNSKEY"
 
-  let dnskeys = rrListWith DNSKEY DNS.fromRData dom (,) rrs
+  let dnskeys = rrListWith DNSKEY DNS.fromRData (== dom) (,) rrs
       seps =
         [ (key, ds)
         | (key, _) <- dnskeys
@@ -1145,26 +1145,26 @@ recoverRRset rrs =
 
 nsList :: Domain -> (Domain ->  ResourceRecord -> a)
        -> [ResourceRecord] -> [a]
-nsList = rrListWith NS $ \rd -> DNS.rdataField rd DNS.ns_domain
+nsList dom = rrListWith NS (\rd -> DNS.rdataField rd DNS.ns_domain) (== dom)
 
 cnameList :: Domain -> (Domain -> ResourceRecord -> a)
           -> [ResourceRecord] -> [a]
-cnameList = rrListWith CNAME $ \rd -> DNS.rdataField rd DNS.cname_domain
+cnameList dom = rrListWith CNAME (\rd -> DNS.rdataField rd DNS.cname_domain) (== dom)
 
 rrListWith :: TYPE -> (DNS.RData -> Maybe rd)
-           -> Domain -> (rd -> ResourceRecord -> a)
+           -> (Domain -> Bool) -> (rd -> ResourceRecord -> a)
            -> [ResourceRecord] -> [a]
-rrListWith typ fromRD dom h = foldr takeRR []
+rrListWith typ fromRD rrnSatisfy h = foldr takeRR []
   where
     takeRR rr@ResourceRecord { rdata = rd } xs
-      | rrname rr == dom, rrtype rr == typ, Just ds <- fromRD rd  =  h ds rr : xs
+      | rrnSatisfy $ rrname rr, rrtype rr == typ, Just ds <- fromRD rd  =  h ds rr : xs
     takeRR _                                xs                    =  xs
 
 sigrdWith :: TYPE -> RD_RRSIG -> Maybe RD_RRSIG
 sigrdWith sigType sigrd = guard (rrsig_type sigrd == sigType) *> return sigrd
 
 rrsigList :: Domain -> TYPE -> [ResourceRecord] -> [(RD_RRSIG, TTL)]
-rrsigList dom typ rrs = rrListWith RRSIG (sigrdWith typ <=< DNS.fromRData) dom pair rrs
+rrsigList dom typ rrs = rrListWith RRSIG (sigrdWith typ <=< DNS.fromRData) (== dom) pair rrs
   where pair rd rr = (rd, rrttl rr)
 
 axList :: Bool
