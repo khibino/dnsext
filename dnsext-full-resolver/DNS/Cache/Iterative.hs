@@ -1250,6 +1250,8 @@ queryDS
     -> Domain
     -> DNSQuery (Either String [RD_DS], (Maybe (Color, String)))
 queryDS dnskeys ips dom = do
+    lift . logLn Log.DEMO . unwords $
+        ["query", show (dom, DS), "selected addresses:"] <> [show sa | sa <- ips]
     msg <- norec True ips dom DS
     withSection rankedAnswer msg $ \rrs rank -> do
         let (dsrds, dsRRs) = unzip $ rrListWith DS DNS.fromRData dom (,) rrs
@@ -1375,6 +1377,8 @@ cachedDNSKEY
     :: [RD_DS] -> [IP] -> Domain -> DNSQuery (Either String [RD_DNSKEY])
 cachedDNSKEY [] _ _ = return $ Left "cachedDSNKEY: no DS entry"
 cachedDNSKEY dss aservers dom = do
+    lift . logLn Log.DEMO . unwords $
+        ["query", show (dom, DNSKEY), "selected addresses:"] <> [show sa | sa <- aservers]
     msg <- norec True aservers dom DNSKEY
     let rcode = DNS.rcode $ DNS.flags $ DNS.header msg
     case rcode of
