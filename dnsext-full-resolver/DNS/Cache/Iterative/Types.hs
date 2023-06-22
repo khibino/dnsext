@@ -105,7 +105,10 @@ data RRset = RRset
     , rrsClass :: CLASS
     , rrsTTL :: TTL
     , rrsRDatas :: [RData]
-    , rrsGoodSigs :: [RD_RRSIG]
+    , rrsGoodSigs :: Maybe [RD_RRSIG]
+    {- Nothing     - not verified
+       Just []     - verification failed
+       Just (_:_)  - verification success -}
     }
     deriving (Show)
 

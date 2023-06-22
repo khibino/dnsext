@@ -5,6 +5,7 @@ import Control.Monad (guard, (<=<))
 import Control.Monad.Trans.Except (throwE)
 import Data.Function (on)
 import Data.List (groupBy, sort, sortOn, uncons)
+import Data.Maybe (fromMaybe)
 
 -- other packages
 
@@ -52,8 +53,11 @@ rrsigList dom typ rrs = rrListWith RRSIG (sigrdWith typ <=< DNS.fromRData) dom p
   where
     pair rd rr = (rd, rrttl rr)
 
+rrsetGoodSigs :: RRset -> [RD_RRSIG]
+rrsetGoodSigs = fromMaybe [] . rrsGoodSigs
+
 rrsetVerified :: RRset -> Bool
-rrsetVerified = not . null . rrsGoodSigs
+rrsetVerified = not . null . rrsetGoodSigs
 
 sigrdWith :: TYPE -> RD_RRSIG -> Maybe RD_RRSIG
 sigrdWith sigType sigrd = guard (rrsig_type sigrd == sigType) *> return sigrd
