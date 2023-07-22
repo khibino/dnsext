@@ -156,9 +156,8 @@ cacheEmpty zoneDom dom typ ttl rank = do
 
 cacheAnswer :: Delegation -> Domain -> TYPE -> DNSMessage -> DNSQuery ([RRset], [RRset])
 cacheAnswer Delegation{..} dom typ msg = do
-    (ans, auth, cacheX, raiseOnVerifyFailure) <- lift verify
+    (ans, auth, raiseOnVerifyFailure) <- lift verify
     raiseOnVerifyFailure
-    lift cacheX
     return (ans, auth)
   where
     verify = Verify.withCanonical dnskeys rankedAnswer msg dom typ Just nullX ncX $ \_ xRRset cacheX -> do
@@ -169,14 +168,15 @@ cacheAnswer Delegation{..} dom typ msg = do
                 | NotFilledDS o <- delegationDS = ("not consumed not-filled DS: case=" ++ show o ++ ", " ++ qinfo, Nothing, pure ())
                 | otherwise = ("verification failed - RRSIG of " ++ qinfo, Just Red, throwDnsError DNS.ServerFailure)
         clogLn Log.DEMO verifyColor verifyMsg
-        return ([xRRset], [], cacheX, raiseOnVerifyFailure)
-    nullX = doCacheEmpty <&> \e -> ([], e, pure (), pure ())
+        cacheX
+        return ([xRRset], [], raiseOnVerifyFailure)
+    nullX = doCacheEmpty <&> \e -> ([], e, pure ())
     doCacheEmpty = case rcode of
         {- authority sections for null answer -}
         DNS.NoErr -> cacheEmptySection zone dnskeys dom typ rankedAnswer msg
         DNS.NameErr -> cacheEmptySection zone dnskeys dom Cache.NX rankedAnswer msg
         _ -> return []
-    ncX = pure ([], [], pure (), pure ())
+    ncX = pure ([], [], pure ())
     rcode = DNS.rcode $ DNS.flags $ DNS.header msg
     zone = delegationZone
     dnskeys = delegationDNSKEY
