@@ -7,7 +7,7 @@ module DNS.SEC.Verify.Types where
 -- this package
 import DNS.SEC.Imports
 import DNS.SEC.PubKey
-import DNS.SEC.Types (RD_NSEC, RD_NSEC3)
+import DNS.SEC.Types
 import DNS.Types
 
 data RRSIGImpl = forall pubkey sig.
@@ -32,10 +32,20 @@ data NSEC3Impl = forall hash.
 ---
 
 -- | owner name and NSEC3 rdata express hashed domain-name range
-type NSEC3_Range = (Domain, RD_NSEC3)
+type NSEC3_RangeData = (Domain, RD_NSEC3)
+
+{- FOURMOLU_DISABLE -}
+-- | range type guaranteed to yield a lower boundary (hashed-owner) and upper boundary (next-hashed-owner)
+data NSEC3_Range =
+    NSEC3_Range
+    { n3range_hashed_owner :: Opaque
+    , n3range_data :: NSEC3_RangeData
+    }
+    deriving Show
+{- FOURMOLU_ENABLE -}
 
 -- | range and qname which is owner of it or covered by it
-type NSEC3_Witness = (NSEC3_Range, Domain)
+type NSEC3_Witness = (NSEC3_RangeData, Domain)
 
 {- FOURMOLU_DISABLE -}
 data NSEC3_NameError =
