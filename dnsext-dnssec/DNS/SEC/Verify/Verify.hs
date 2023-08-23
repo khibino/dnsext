@@ -305,13 +305,22 @@ hashNSEC3PARAM nsec3p domain =
 
 ---
 
+withSectionNSEC3 :: [ResourceRecord] -> (String -> a) -> ([(ResourceRecord, NSEC3_Range, [RD_RRSIG])] -> a) -> a
+withSectionNSEC3 = NSEC3.withSection
+
+refineRangeDataNSEC3 :: NSEC3_RangeData -> Either String NSEC3_Range
+refineRangeDataNSEC3 = NSEC3.refineRangeData
+
+---
+
 getNSEC3Result :: NSEC3.Logic a -> Maybe Domain -> [NSEC3_Range] -> Domain -> TYPE -> Either String a
 getNSEC3Result hl mayZone cs qname qtype =
-    withImpls $ \ps -> NSEC3.getResult hl mayZone [(c, hashNSEC3with impl nsec3) | (impl, c@(_, nsec3)) <- ps] qname qtype
+    withImpls $ \ps -> NSEC3.getResult hl mayZone [(c, hashNSEC3with impl $ n3rangeRD c) | (impl, c) <- ps] qname qtype
   where
     withImpls h = h =<< mapM addImpl cs
-    addImpl r@(_, nsec3) = do
-        let alg = nsec3_hashalg nsec3
+    n3rangeRD NSEC3_Range{n3range_data = (_, nsec3)} = nsec3
+    addImpl r = do
+        let alg = nsec3_hashalg $ n3rangeRD r
         impl <- maybe (Left $ "NSEC3: unsupported algorithm: " ++ show alg) Right $ Map.lookup alg nsec3Dicts
         return (impl, r)
 
@@ -332,6 +341,11 @@ wildcardNoDataNSEC3 = getNSEC3Result NSEC3.get_wildcardNoData
 
 detectNSEC3 :: Maybe Domain -> [NSEC3_Range] -> Domain -> TYPE -> Either String NSEC3_Result
 detectNSEC3 = getNSEC3Result NSEC3.detect
+
+---
+
+withSectionNSEC :: [ResourceRecord] -> (String -> a) -> ([(ResourceRecord, NSEC_Range, [RD_RRSIG])] -> a) -> a
+withSectionNSEC = NSEC.withSection
 
 ---
 
