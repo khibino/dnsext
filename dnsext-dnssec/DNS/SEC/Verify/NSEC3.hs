@@ -15,6 +15,25 @@ import DNS.SEC.Flags (NSEC3_Flag (OptOut))
 import DNS.SEC.Imports
 import DNS.SEC.Types
 import DNS.SEC.Verify.Types
+import qualified DNS.SEC.Verify.NSECxRange as NSECx
+
+withSection :: [ResourceRecord] -> (String -> a) -> ([(ResourceRecord, NSEC3_Range, [RD_RRSIG])] -> a) -> a
+withSection = NSECx.withSectionRanges takeRange NSEC3 lower upper
+  where
+    takeRange = fmap refineRangeData . getRangeData
+    getRangeData ResourceRecord{..} = do
+        rd@RD_NSEC3{} <- fromRData rdata
+        Just (rrname, rd)
+    lower = n3range_hashed_owner
+    upper = nsec3_next_hashed_owner_name . snd . n3range_data
+
+refineRangeData :: NSEC3_RangeData -> Either String NSEC3_Range
+refineRangeData d@(rrn, RD_NSEC3{}) = do
+    (owner32h, _zone) <- unconsLabels rrn (Left $ "range-data: not hashed domain: " ++ show rrn) (curry Right)
+    ownerBytes <- either (Left . ("range-data: " ++)) Right $ Opaque.fromBase32Hex $ fromShort owner32h
+    Right $ NSEC3_Range ownerBytes d
+
+---
 
 type Logic a = (Domain -> [RangeProp]) -> TYPE -> [[RangeProp]] -> Maybe (Either String a)
 
@@ -226,10 +245,10 @@ n3CoversR :: Ord a => a -> a -> a -> Bool
 n3CoversR lower upper qv = qv < upper || lower < qv
 
 {- get func to compute 'match' or 'cover' with ranges from NSEC3 record-set -}
-n3RefineWithRanges
-    :: [(NSEC3_Range, Hash)]
+n3RefineWithRangesData
+    :: [(NSEC3_RangeData, Hash)]
     -> Either String (Domain, Domain -> [RangeProp])
-n3RefineWithRanges ranges0 = do
+n3RefineWithRangesData ranges0 = do
     (((owner1, _), _), _) <- maybe (Left "NSEC3.n3RefineWithRanges: no NSEC3 records") Right $ uncons ranges0
     zname <- unconsLabels owner1 (Left "NSEC3.n3RefineWithRanges: no zone name") (const Right)
 
@@ -248,7 +267,7 @@ n3RefineWithRanges ranges0 = do
     decodeBase32 :: ShortByteString -> [Opaque]
     decodeBase32 part = either (const []) (: []) $ Opaque.fromBase32Hex $ fromShort part
 
-    takeRefines :: [(Opaque, (NSEC3_Range, Hash))] -> Either String (Domain -> [RangeProp])
+    takeRefines :: [(Opaque, (NSEC3_RangeData, Hash))] -> Either String (Domain -> [RangeProp])
     takeRefines ranges
         | length (filter fst results) > 1 = Left "NSEC3.n3RefineWithRanges: multiple rotated records found."
         | otherwise = Right props
@@ -263,6 +282,42 @@ n3RefineWithRanges ranges0 = do
                     {- owner and next are decoded range, not base32hex -}
                     | hash qname == owner = Just $ M $ Matches (rangeB32H, qname)
                     | cover owner next (hash qname) = Just $ C $ Covers (rangeB32H, qname)
+                    | otherwise = Nothing
+                  result
+                    | rotated = refineWithRange n3CoversR
+                    | otherwise = refineWithRange n3Covers
+                    {- base32hex does not change hash ordering. https://datatracker.ietf.org/doc/html/rfc5155#section-1.3
+                       "Terminology: Hash order:
+                        Note that this order is the same as the canonical DNS name order specified in [RFC4034],
+                        when the hashed owner names are in base32, encoded with an Extended Hex Alphabet [RFC4648]." -}
+            ]
+
+n3RefineWithRanges
+    :: [(NSEC3_Range, Hash)]
+    -> Either String (Domain, Domain -> [RangeProp])
+n3RefineWithRanges ranges0 = do
+    ((NSEC3_Range{..}, _hash), _) <- maybe (Left "NSEC3.n3RefineWithRanges: no NSEC3 records") Right $ uncons ranges0
+    let (owner1, _rd) = n3range_data
+    zname <- unconsLabels owner1 (Left "NSEC3.n3RefineWithRanges: no zone name") (const Right)
+    (,) zname <$> takeRefines ranges0
+  where
+    takeRefines :: [(NSEC3_Range, Hash)] -> Either String (Domain -> [RangeProp])
+    takeRefines ranges
+        | length (filter fst results) > 1 = Left "NSEC3.n3RefineWithRanges: multiple rotated records found."
+        | otherwise = Right props
+      where
+        props qname = [prop | (_, refine) <- results, Just prop <- [refine qname]]
+        results =
+            [ (rotated, result)
+            | (NSEC3_Range{..}, hash) <- ranges
+            , let owner = n3range_hashed_owner
+                  rangeData@(_, RD_NSEC3{..}) = n3range_data
+                  next = nsec3_next_hashed_owner_name {- binary hashed value, not base32hex -}
+                  rotated = owner > next
+                  refineWithRange cover qname
+                    {- owner and next are decoded range, not base32hex -}
+                    | hash qname == owner = Just $ M $ Matches (rangeData, qname)
+                    | cover owner next (hash qname) = Just $ C $ Covers (rangeData, qname)
                     | otherwise = Nothing
                   result
                     | rotated = refineWithRange n3CoversR
