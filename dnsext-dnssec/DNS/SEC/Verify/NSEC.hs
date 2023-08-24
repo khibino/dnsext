@@ -12,6 +12,18 @@ import DNS.Types hiding (qname)
 import DNS.SEC.Imports
 import DNS.SEC.Types
 import DNS.SEC.Verify.Types
+import qualified DNS.SEC.Verify.NSECxRange as NSECx
+
+withSection :: [ResourceRecord] -> (String -> a) -> ([(ResourceRecord, NSEC_Range, [RD_RRSIG])] -> a) -> a
+withSection = NSECx.withSectionRanges takeRange NSEC lower upper
+  where
+    takeRange ResourceRecord{..} = do
+        rd@RD_NSEC{} <- fromRData rdata
+        Just $ Right (rrname, rd)
+    lower = fst
+    upper = nsecNextDomain . snd
+
+---
 
 getResult :: Logic a -> Domain -> [NSEC_Range] -> Domain -> TYPE -> Either String a
 getResult nlogic zone ranges qname qtype = do
