@@ -38,6 +38,7 @@ library
         DNS.SEC.Verify.N3SHA
         DNS.SEC.Verify.NSEC
         DNS.SEC.Verify.NSEC3
+        DNS.SEC.Verify.NSECxRange
         DNS.SEC.Verify.Types
         DNS.SEC.Verify.Verify
 
