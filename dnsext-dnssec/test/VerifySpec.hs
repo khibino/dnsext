@@ -755,13 +755,14 @@ nsec3CheckResult result expect = case (result, expect) of
 
 caseNSEC3 :: NSEC3_CASE -> Expectation
 caseNSEC3 ((rds, qname, qtype), expect) = either expectationFailure (const $ pure ()) $ do
+    ranges <- mapM refineRangeDataNSEC3 rangeData
     let checkEach = getEach expect
     resEach <- checkEach Nothing ranges qname qtype
     nsec3CheckResult resEach expect
     result <- detectNSEC3 Nothing ranges qname qtype
     nsec3CheckResult result expect
   where
-    ranges = [(owner, nsec3) | (owner, rd) <- rds, Just nsec3 <- [fromRData rd]]
+    rangeData = [(owner, nsec3) | (owner, rd) <- rds, Just nsec3 <- [fromRData rd]]
     getEach ex mz rs qn qt = case ex of
         N3Expect_NameError{} -> N3R_NameError <$> nameErrorNSEC3 mz rs qn qt
         N3Expect_NoData{} -> N3R_NoData <$> noDataNSEC3 mz rs qn qt
