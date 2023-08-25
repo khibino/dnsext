@@ -99,7 +99,7 @@ analyzeReply rply qctl0
 --   UDP attempts must use the same ID and accept delayed answers.
 udpResolver :: OneshotResolver
 udpResolver ri@ResolveInfo{..} q _qctl = do
-    ractionLog rinfoActions Log.DEMO Nothing [qtag]
+    ractionLog rinfoActions Log.DEBUG Nothing [qtag]
     ex <- E.try $ go _qctl
     case ex of
         Right r -> return r
