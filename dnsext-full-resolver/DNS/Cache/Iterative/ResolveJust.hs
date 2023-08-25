@@ -192,11 +192,14 @@ fillDelegationDNSKEY dc d@Delegation{delegationDS = FilledDS dss@(_ : _), delega
     fill dnskeys = return d{delegationDNSKEY = dnskeys}
     nullIPs = logLn Log.WARN "fillDelegationDNSKEY: ip list is null" *> return d
     verifyFailed es = logLn Log.WARN ("fillDelegationDNSKEY: " ++ es) *> return d
+    zone = delegationZone
     query = do
         ips <- delegationIPs dc d
         if null ips
             then lift nullIPs
-            else lift . either verifyFailed fill =<< cachedDNSKEY dss ips delegationZone
+            else do
+                lift $ logLn Log.DEMO . unwords $ ["fillDelegationDNSKEY: query", show (zone, DNSKEY), "servers:"] ++ [show ip | ip <- ips]
+                lift . either verifyFailed fill =<< cachedDNSKEY dss ips zone
 
 -- 反復後の委任情報を得る
 runIterative
@@ -391,7 +394,10 @@ fillDelegationDS dc src dest
                 either verifyFailed fill e
         if null ips
             then lift nullIPs
-            else result =<< queryDS (delegationDNSKEY src) ips (delegationZone dest)
+            else do
+                let zone = delegationZone dest
+                lift $ logLn Log.DEMO . unwords $ ["fillDelegationDS: query", show (zone, DS), "servers:"] ++ [show ip | ip <- ips]
+                result =<< queryDS (delegationDNSKEY src) ips zone
 
 queryDS
     :: [RD_DNSKEY]
