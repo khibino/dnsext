@@ -69,7 +69,7 @@ ioErrorToDNSError q ResolvInfo{..} protoName ioe = throwIO $ NetworkFailure aioe
 --   UDP attempts must use the same ID and accept delayed answers.
 udpResolver :: UDPRetry -> Resolver
 udpResolver retry ri@ResolvInfo{..} q@Question{..} _qctl = do
-    ractionLog rinfoActions Log.DEMO Nothing [tag]
+    ractionLog rinfoActions Log.DEBUG Nothing [tag]
     E.handle (ioErrorToDNSError q ri "UDP") $ go _qctl
   where
     ~tag =
