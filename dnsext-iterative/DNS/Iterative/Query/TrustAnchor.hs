@@ -76,7 +76,7 @@ rootPriming =
     left s = Left $ "root-priming: " ++ s
     logResult delegationNS color s = do
         clogLn Log.DEMO (Just color) $ "root-priming: " ++ s
-        putDelegation PPFull delegationNS (logLn Log.DEMO) (logLn Log.DEBUG . ("zone: \".\":\n" ++))
+        putDelegation PPShort delegationNS (logLn Log.DEMO) (logLn Log.DEBUG . ("zone: \".\":\n" ++))
     nullNS = pure $ left "no NS RRs"
     ncNS _ncLog = pure $ left "not canonical NS RRs"
     pairNS rr = (,) <$> rdata rr `DNS.rdataField` DNS.ns_domain <*> pure rr
