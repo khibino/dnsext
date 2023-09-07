@@ -186,7 +186,7 @@ iterative_ dc nss0 (x : xs)  = do
         (,) msg <$> (handlers =<< delegationWithCache zone dnskeys name msg)
     logDelegation Delegation{..} = do
         let zplogLn lv = logLn lv . (("zone: " ++ show delegationZone ++ ":\n") ++)
-        putDelegation PPFull delegationNS (zplogLn Log.DEMO) (zplogLn Log.DEBUG)
+        putDelegation PPShort delegationNS (zplogLn Log.DEMO) (zplogLn Log.DEBUG)
 
     lookupERR = fmap fst <$> lookupErrorRCODE name
     withoutMsg md = pure (Nothing, md)
