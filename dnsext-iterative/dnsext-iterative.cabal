@@ -79,7 +79,7 @@ library
         iproute,
         network >=3.2.3 && <3.3,
         network-run,
-        psqueues,
+        psqueues-ext,
         quic >=0.3.0 && <0.4,
         ram,
         random,
