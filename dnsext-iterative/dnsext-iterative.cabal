@@ -75,7 +75,7 @@ library
         network,
         network-run,
         mtl,
-        psqueues,
+        psqueues-ext,
         quic >= 0.2.1 && < 0.3,
         random,
         recv,
