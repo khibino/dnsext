@@ -37,6 +37,8 @@ jobs:
     - run: git config --global core.autocrlf false
 
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
     - uses: haskell-actions/setup@v2
       with:
