@@ -1,0 +1,78 @@
+#!/bin/sh
+
+usage() {
+    cat <<EOF
+Usage: $0 SERVER_PROGRAM MODE
+
+Error! two params are required.
+
+SERVER_PROGRAM: server program name
+MODE: {scale|const}
+EOF
+}
+
+if [ x"$1" != x ]; then
+   server="$1"
+   shift
+else
+    usage
+    exit 1
+fi
+
+if [ x"$1" != x ]; then
+   mode="$1"
+   shift
+else
+    usage
+    exit 1
+fi
+
+no_exec=1
+if [ x"$1" = x-x ]; then
+    no_exec=0
+    shift
+fi
+
+workers=2
+if [ x"$1" != x ]; then
+    workers="$1"
+    shift
+fi
+
+caps=$(expr $workers + 1)
+if [ x"$1" != x ]; then
+    caps="$1"
+    shift
+fi
+
+a_per_worker=1
+
+case $mode in
+    const)
+        asize=${a_per_worker}
+        ;;
+
+    scale)
+        asize=$((${workers} * ${a_per_worker}))
+        ;;
+
+    *)
+        echo "Unknown MODE: $mode"
+        usage
+        exit 1
+        ;;
+esac
+
+set -x
+
+if [ x"$no_exec" = x1 ]; then
+    echo cmd-line: ./"$server" -p 1053 -w $workers +RTS -N$caps -A${asize}m -qg -RTS
+    exit 0
+fi
+
+./"$server" -p 1053 -w $workers +RTS -N$caps -A${asize}m -qg -RTS &
+sleep 1
+
+./r-batch.sh 1053 10
+echo quit | netcat 127.0.0.1 11023
+echo ''
