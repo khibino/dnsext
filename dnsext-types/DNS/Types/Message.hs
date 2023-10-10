@@ -714,7 +714,15 @@ putResourceRecord cf ResourceRecord{..} = do
     with16Length $ putRData cf rdata
 
 getResourceRecords :: Int -> SGet [ResourceRecord]
-getResourceRecords n = replicateM n getResourceRecord
+getResourceRecords n = go 0 id
+  where
+    go i b
+        | i == n = return $ b []
+        | otherwise = do
+            r <- getResourceRecord
+            if rrtype r == TYPE 0 && rrclass r == CLASS 0 -- skipping greasing RR
+                then go i b
+                else go (i + 1) (b . (r :))
 
 getResourceRecord :: SGet ResourceRecord
 getResourceRecord = do
