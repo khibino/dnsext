@@ -76,7 +76,14 @@ runConfig tcache mcache mng0 conf@Config{..} = do
     let tmout = timeout cnf_resolve_timeout
     env <- newEnv putLines putDNSTAP cnf_disable_v6_ns gcacheRRCacheOps tcache tmout
     creds <- getCreds conf
-    servers <- mapM (getServers env cnf_dns_addrs) $ trans creds
+    wstatss <- mapM getWStats cnf_dns_addrs
+    servers <-
+        sequence
+        [ server env port host
+        | (host, (_tag, wstats)) <- zip cnf_dns_addrs wstatss
+        , (True, server, port') <- trans creds wstats
+        , let port = fromIntegral port'
+        ]
     mng <- getControl env mng0
     monitor <- Mon.monitor conf env mng
     -- Run
@@ -92,8 +99,9 @@ runConfig tcache mcache mng0 conf@Config{..} = do
     return gcache
   where
     maybeKill = maybe (return ()) killThread
-    trans creds =
-        [ (cnf_udp, udpServer udpconf, cnf_udp_port)
+    getWStats host = (,) (host ++ ":" ++ show cnf_udp_port) <$> getUdpWorkerStats udpconf
+    trans creds wstats =
+        [ (cnf_udp, udpServer wstats udpconf, cnf_udp_port)
         , (cnf_tcp, tcpServer vcconf, cnf_tcp_port)
         , (cnf_h2c, http2cServer vcconf, cnf_h2c_port)
         , (cnf_h2, http2Server creds vcconf, cnf_h2_port)
@@ -126,19 +134,6 @@ main = do
         [] -> run (return defaultConfig)
         [confFile] -> run (parseConfig confFile)
         _ -> help
-
-----------------------------------------------------------------
-
-getServers
-    :: Env
-    -> [HostName]
-    -> (Bool, Server, Int)
-    -> IO [IO ()]
-getServers _ _ (False, _, _) = return []
-getServers env hosts (True, server, port') =
-    concat <$> mapM (server env port) hosts
-  where
-    port = fromIntegral port'
 
 ----------------------------------------------------------------
 
