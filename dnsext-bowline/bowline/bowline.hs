@@ -15,6 +15,7 @@ import qualified DNS.SVCB as DNS
 import qualified DNS.Types as DNS
 import Data.ByteString.Builder
 import qualified Data.IORef as I
+import Data.String (fromString)
 import GHC.Stats
 import Network.TLS (Credentials (..), credentialLoadX509)
 import System.Environment (getArgs)
@@ -84,7 +85,7 @@ runConfig tcache mcache mng0 conf@Config{..} = do
         , (True, server, port') <- trans creds wstats
         , let port = fromIntegral port'
         ]
-    mng <- getControl env mng0
+    mng <- getControl env wstatss mng0
     monitor <- Mon.monitor conf env mng
     -- Run
     tidW <- runWriter
@@ -175,13 +176,14 @@ getCreds Config{..}
 
 ----------------------------------------------------------------
 
-getControl :: Env -> Control -> IO Control
-getControl env mng0 = do
+getControl :: Env -> [(String, UdpWorkerStats)] -> Control -> IO Control
+getControl env wstatss mng0 = do
     qRef <- newTVarIO False
     let ucacheQSize = return (0, 0 {- TODO: update ServerMonitor to drop -})
         mng =
             mng0
                 { getStats = getStats' env ucacheQSize
+                , getWStats = getWStats' wstatss
                 , quitServer = atomically $ writeTVar qRef True
                 , waitQuit = readTVar qRef >>= guard
                 }
@@ -198,3 +200,13 @@ getStats' env _ucacheQSize = do
             else return mempty
     st <- Server.getStats env "bowline_"
     return (gc <> st)
+
+----------------------------------------------------------------
+
+getWStats' :: [(String, UdpWorkerStats)] -> IO Builder
+getWStats' wstatss =
+    mconcat <$> mapM formatWStats wstatss
+  where
+    formatWStats (name, wss) = do
+        pprs <- sequence $ zipWith Server.pprWorkerStats [1 :: Int ..] wss
+        return . fromString . unlines $ name : concat pprs
