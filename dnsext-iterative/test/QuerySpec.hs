@@ -22,6 +22,7 @@ import DNS.Iterative.Internal (
     Env (..),
     getResultIterative,
     newEnv,
+    queryContextIN,
     refreshRoot,
     replyMessage,
     rootHint,
@@ -125,9 +126,10 @@ querySpec disableV6NS putLines = describe "query" $ do
         runJust = runExactCXT cxt
         runResolveCXT cxt_ n ty = fmap snd <$> runResolve cxt_ (fromString n) ty mempty
         runResolve_ = runResolveCXT cxt
-        getReply n ty ident = do
-            e <- runDNSQuery (getResultIterative (fromString n) ty) cxt mempty
-            return $ replyMessage e ident [DNS.Question (fromString n) ty DNS.IN]
+        getReply n0 ty ident = do
+            let n = fromString n0
+            e <- runDNSQuery (getResultIterative n ty) cxt $ queryContextIN n ty mempty
+            return $ replyMessage e ident [DNS.Question n ty DNS.IN]
 
     let failLeft p = either (fail . ((p ++ ": ") ++) . show) pure
         printQueryError :: Show e => Either e a -> IO ()
@@ -156,13 +158,13 @@ querySpec disableV6NS putLines = describe "query" $ do
         checkResult = either (const Failed) (checkAnswer . fst)
 
     it "root-priming" $ do
-        result <- runDNSQuery rootPriming cxt mempty
+        result <- runDNSQuery rootPriming cxt $ queryContextIN (fromString ".") NS mempty
         printQueryError result
         either (expectationFailure . show) (`shouldSatisfy` isRight) result
 
     root <- runIO $ do
         icxt <- newEnv (\_ _ _ -> pure ()) (\_ -> return ()) disableV6NS cacheOps tcache
-        failLeft "refresh-root error" =<< runDNSQuery refreshRoot icxt mempty
+        failLeft "refresh-root error" =<< runDNSQuery refreshRoot icxt (queryContextIN (fromString ".") NS mempty)
 
     it "iterative" $ do
         result <- runIterative_ root "iij.ad.jp."
