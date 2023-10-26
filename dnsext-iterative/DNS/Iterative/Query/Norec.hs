@@ -8,7 +8,6 @@ import qualified Control.Exception as E
 -- dnsext packages
 import DNS.Do53.Client (
     FlagOp (..),
-    QueryControls (..),
     defaultResolvActions,
     ractionGenId,
     ractionGetTime,
@@ -79,6 +78,5 @@ handleResponseError e f msg
   where
     flags = DNS.flags $ DNS.header msg
 
-dnsQueryT
-    :: (Env -> QueryControls -> IO (Either QueryError a)) -> DNSQuery a
+dnsQueryT :: (Env -> QueryContext -> IO (Either QueryError a)) -> DNSQuery a
 dnsQueryT k = ExceptT $ ReaderT $ ReaderT . k
