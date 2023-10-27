@@ -15,6 +15,7 @@ library
         DNS.TAP.ProtocolBuffer
         DNS.TAP.Schema
         DNS.TimeCache
+        DNS.TimeStamp
         DNS.RRCache
 
     other-modules:
