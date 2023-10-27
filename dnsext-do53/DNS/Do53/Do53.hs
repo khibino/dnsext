@@ -19,6 +19,7 @@ import DNS.Do53.Imports
 import DNS.Do53.Query
 import DNS.Do53.Types
 import qualified DNS.Log as Log
+import DNS.TimeStamp
 import DNS.Types
 import DNS.Types.Decode
 import qualified Data.ByteString as BS
@@ -57,11 +58,21 @@ udpTcpResolver retry lim ri q qctl =
 
 ----------------------------------------------------------------
 
-ioErrorToDNSError :: Question -> ResolvInfo -> String -> IOError -> IO a
-ioErrorToDNSError q ResolvInfo{..} protoName ioe = throwIO $ NetworkFailure aioe
+ioErrorToDNSError :: String -> Question -> ResolvInfo -> String -> IOError -> IO a
+ioErrorToDNSError s q ResolvInfo{..} protoName ioe = throwIO $ NetworkFailure aioe
   where
-    loc = show q ++ ": " ++ protoName ++ show rinfoPortNumber ++ "@" ++ rinfoHostName
+    loc = s ++ show q ++ ": " ++ protoName ++ show rinfoPortNumber ++ "@" ++ rinfoHostName
     aioe = annotateIOError ioe loc Nothing Nothing
+
+intervalCatchDNSError :: Question -> ResolvInfo -> String -> IO a -> IO a
+intervalCatchDNSError q ri protoName body = do
+    t1 <- getTimeStamp
+    body `catch` (putLog t1)
+  where
+    putLog t1 ioe = do
+        t2 <- getTimeStamp
+        let isec = showDiffSec1 $ t2 `diffTimeStamp` t1
+        ioErrorToDNSError ("interval: " ++ isec ++ ": ") q ri protoName ioe
 
 ----------------------------------------------------------------
 
@@ -70,7 +81,7 @@ ioErrorToDNSError q ResolvInfo{..} protoName ioe = throwIO $ NetworkFailure aioe
 udpResolver :: UDPRetry -> Resolver
 udpResolver retry ri@ResolvInfo{..} q@Question{..} _qctl = do
     ractionLog rinfoActions Log.DEMO Nothing [tag]
-    E.handle (ioErrorToDNSError q ri "UDP") $ go _qctl
+    intervalCatchDNSError q ri "UDP" $ go _qctl
   where
     ~tag =
         "    query "
@@ -115,7 +126,7 @@ udpResolver retry ri@ResolvInfo{..} q@Question{..} _qctl = do
             getAnswer ident recv tx
 
     getAnswer ident recv tx = do
-        ans <- recv `E.catch` ioErrorToDNSError q ri "UDP"
+        ans <- intervalCatchDNSError q ri "UDP" recv
         now <- ractionGetTime rinfoActions
         case decodeAt now ans of
             Left e -> do
@@ -157,7 +168,7 @@ tcpResolver lim ri@ResolvInfo{..} q qctl = vcResolver "TCP" perform ri q qctl
 vcResolver :: String -> ((Send -> RecvMany -> IO Reply) -> IO Reply) -> Resolver
 vcResolver proto perform ri@ResolvInfo{..} q@Question{..} _qctl = do
     ractionLog rinfoActions Log.DEMO Nothing [tag]
-    E.handle (ioErrorToDNSError q ri proto) $ go _qctl
+    intervalCatchDNSError q ri proto $ go _qctl
   where
     ~tag =
         "    query "
@@ -196,7 +207,7 @@ vcResolver proto perform ri@ResolvInfo{..} q@Question{..} _qctl = do
             Just res -> return res
 
     getAnswer ident recv tx = do
-        (rx, bss) <- recv `E.catch` ioErrorToDNSError q ri proto
+        (rx, bss) <- intervalCatchDNSError q ri proto recv
         now <- ractionGetTime rinfoActions
         case decodeChunks now bss of
             Left e -> E.throwIO e
