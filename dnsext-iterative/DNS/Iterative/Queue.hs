@@ -247,3 +247,15 @@ instance WriteQueue Chan where
 instance QueueSize Chan where
     sizeMaxBound _ = -1
     readSizes _ = return (-1, -1)
+
+---
+
+instance ReadQueue TQueue where
+    readQueue = atomically . readTQueue
+
+instance WriteQueue TQueue where
+    writeQueue q = atomically . writeTQueue q
+
+instance QueueSize TQueue where
+    sizeMaxBound _ = -1
+    readSizes _ = return (-1, -1)

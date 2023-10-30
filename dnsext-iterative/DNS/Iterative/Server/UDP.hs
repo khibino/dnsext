@@ -6,6 +6,7 @@ module DNS.Iterative.Server.UDP where
 -- GHC packages
 import Control.Monad (forever, replicateM)
 import Data.ByteString (ByteString)
+import Control.Concurrent.STM (atomically, newTQueueIO, readTQueue, writeTQueue)
 
 -- dnsext-* packages
 import qualified DNS.Types as DNS
@@ -101,12 +102,12 @@ getPipelines udpconf@UdpServerConfig{..} env mysa
             wps = replicate udp_pipelines_per_socket $ getCacherWorkers reqQ resQ udpconf' env mysa
         return (wps, writeQueue reqQ, readQueue resQ)
     | udp_pipeline_share_queue = do
-        let qsize = udp_queue_size_per_pipeline * udp_pipelines_per_socket
-        reqQ <- newQueue qsize
-        resQ <- newQueue qsize
+        -- let qsize = udp_queue_size_per_pipeline * udp_pipelines_per_socket
+        reqQ <- newTQueueIO
+        resQ <- newTQueueIO
         {- share request queue and response queue -}
         let wps = replicate udp_pipelines_per_socket $ getCacherWorkers reqQ resQ udpconf env mysa
-        return (wps, writeQueue reqQ, readQueue resQ)
+        return (wps, atomically . writeTQueue reqQ, atomically $ readTQueue resQ)
     | otherwise = do
         reqQs <- replicateM udp_pipelines_per_socket $ newQueue udp_queue_size_per_pipeline
         enqueueReq <- Queue.writeQueue <$> Queue.makePutAny reqQs
@@ -132,12 +133,12 @@ getCacherWorkers
 getCacherWorkers reqQ resQ UdpServerConfig{..} env mysa = do
     let logr = putLn Log.WARN . ("Server.worker: error: " ++) . show
     (resolvLoop, enqueueDec, _decQSize) <- do
-        inQ <- newQueue udp_queue_size_per_pipeline
+        inQ <- newTQueueIO
         let loop = handledLoop logr $ do
-                (reqMsg, clisa@(UDP.ClientSockAddr peersa _)) <- readQueue inQ
+                (reqMsg, clisa@(UDP.ClientSockAddr peersa _)) <- atomically $ readTQueue inQ
                 let enqueueResp' x = enqueueResp (x, clisa)
                 workerLogic env enqueueResp' UDP mysa peersa reqMsg
-        return (loop, writeQueue inQ, queueSize inQ)
+        return (loop, atomically . writeTQueue inQ, pure (-1) :: IO Int)
 
     let logc = putLn Log.WARN . ("Server.cacher: error: " ++) . show
         cachedLoop = handledLoop logc $ do
