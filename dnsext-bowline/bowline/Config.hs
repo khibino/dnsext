@@ -138,8 +138,9 @@ showConfig2 conf =
     , field' "max cache size" cnf_cache_size
     , field' "disable queries to IPv6 NS" cnf_disable_v6_ns
     , field' "udp pipelines per socket" cnf_udp_pipelines_per_socket
-    , field' "udp worker shared queue" cnf_udp_pipeline_share_queue
+    , field' "udp workers per pipeline" cnf_udp_workers_per_pipeline
     , field' "udp queue size per worker" cnf_udp_queue_size_per_pipeline
+    , field' "udp worker shared queue" cnf_udp_pipeline_share_queue
     ]
   where
     field' label' get = field'_ label' (show . get)
