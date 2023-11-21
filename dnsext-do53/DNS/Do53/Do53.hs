@@ -178,7 +178,7 @@ tcpResolver ri@ResolveInfo{..} q qctl =
 -- | Generic resolver for virtual circuit.
 vcResolver :: String -> Send -> RecvMany -> OneshotResolver
 vcResolver proto send recv ri@ResolveInfo{..} q _qctl = do
-    ractionLog rinfoActions Log.DEMO Nothing [qtag]
+    ractionLog rinfoActions Log.DEBUG Nothing [qtag]
     ex <- E.try $ go _qctl
     case ex of
         Right r -> return r
