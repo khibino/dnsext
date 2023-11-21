@@ -156,7 +156,7 @@ tcpResolver lim ri@ResolvInfo{..} q qctl = vcResolver "TCP" perform ri q qctl
 -- | Generic resolver for virtual circuit.
 vcResolver :: String -> ((Send -> RecvMany -> IO Reply) -> IO Reply) -> Resolver
 vcResolver proto perform ri@ResolvInfo{..} q@Question{..} _qctl = do
-    ractionLog rinfoActions Log.DEMO Nothing [tag]
+    ractionLog rinfoActions Log.DEBUG Nothing [tag]
     E.handle (ioErrorToDNSError q ri proto) $ go _qctl
   where
     ~tag =
