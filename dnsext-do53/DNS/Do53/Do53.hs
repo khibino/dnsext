@@ -102,7 +102,9 @@ udpResolver retry ri@ResolvInfo{..} q@Question{..} _qctl = do
                     rc = rcode ans
                     eh = ednsHeader ans
                     qctl = ednsEnabled FlagClear <> qctl0
-                when tc $ E.throwIO TCPFallback
+                when tc $ do
+                    ractionLog rinfoActions Log.DEMO Nothing [tag ++ ": TCP fallback"]
+                    E.throwIO TCPFallback
                 if rc == FormatErr && eh == NoEDNS && qctl /= qctl0
                     then loop cnt ident qctl send recv
                     else return $ toResult ri "UDP" rply
