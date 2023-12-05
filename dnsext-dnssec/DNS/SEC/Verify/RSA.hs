@@ -7,6 +7,8 @@ module DNS.SEC.Verify.RSA (
 )
 where
 
+import Debug.Trace (trace)
+
 -- memory
 
 -- cryptonite
@@ -75,8 +77,15 @@ rsaVerify
     -> Either String Bool
 rsaVerify (alg, pkcs1) pubkey sig msg = do
     decoded <- unpadPKCS1Prefix $ ep pubkey $ Opaque.toByteString sig
+    debugShow decoded
     return $ hashWith' msg == decoded
   where
+    debug = True
+    debugShow decoded
+        | debug = trace (unlines ["RSASHA.rsaVerify:", "  msg: " ++ show msg, "  " ++ show hmsg, "  =?=", "  " ++ show decoded]) (Right ())
+        | otherwise = Right ()
+      where
+        hmsg = hashWith' msg
     unpadPKCS1Prefix :: ByteString -> Either String ByteString
     unpadPKCS1Prefix s0 = do
         s1 <- stripP "\x00\x01" s0
