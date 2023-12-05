@@ -5,6 +5,8 @@
 
 module DNS.SEC.Verify.Verify where
 
+import Debug.Trace (trace)
+
 -- GHC packages
 import qualified Data.ByteString.Internal as BS
 import Data.Map (Map)
@@ -167,7 +169,14 @@ verifyRRSIGwith RRSIGImpl{..} now dnskey@RD_DNSKEY{..} rrsig@RD_RRSIG{..} rrset_
                 + rlen
         sizeStr = sum $ sizeRRSIGHeader rrsig : map sizeRR rlengths
         str = runBuilder sizeStr putRRS
+        debug = True
+        debugShow
+            | debug = trace (unlines ["verifyRRSIGwith:", "  rrsig: " ++ show rrsig, "  sig_header: " ++ show sigH]) (Right ())
+            | otherwise = Right ()
+          where
+            sigH = runBuilder (sizeRRSIGHeader rrsig) (putRRSIGHeader rrsig)
     {- `Data.List.sort` is linear for sorted case -}
+    debugShow
     good <- rrsigIVerify pubkey sig str
     unless good $ Left "verifyRRSIGwith: rejected on verification"
 
