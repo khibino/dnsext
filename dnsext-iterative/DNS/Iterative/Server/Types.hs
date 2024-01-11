@@ -1,4 +1,5 @@
 module DNS.Iterative.Server.Types (
+    GetQSizes,
     Server,
     Env,
     HostName,
@@ -69,7 +70,8 @@ type FromCacher = IO (Input DNSMessage)
 type ToSender = Output -> IO ()
 type FromX = IO Output
 
-type Server = Env -> ToCacher -> PortNumber -> HostName -> IO ([IO ()])
+type GetQSizes = (IO (Int, Int), Int)
+type Server = Env -> ToCacher -> PortNumber -> HostName -> IO ([IO ()], GetQSizes)
 
 data VcServerConfig = VcServerConfig
     { vc_query_max_size :: Int
