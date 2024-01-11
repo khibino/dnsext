@@ -27,6 +27,7 @@ import UnliftIO.Exception (SomeException (..), catch, handle, throwIO)
 import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Query (CacheResult (..), getResponseCached, getResponseIterative)
 import DNS.Iterative.Server.Types
+import DNS.Iterative.Server.Queue
 import DNS.Iterative.Server.WorkerStats
 import DNS.Iterative.Stats
 
@@ -60,18 +61,18 @@ mkPipeline
     -> Int
     -- ^ The number of workers
     -> [WorkerStatOP]
-    -> IO ([IO ()], [IO ()], ToCacher)
+    -> IO ([IO ()], [IO ()], ToCacher, GetQSizes, GetQSizes)
     -- ^ (worker actions, cacher actions, input to cacher)
 mkPipeline env cachersN _workersN workerStats = do
-    qr <- newTQueueIO
-    let toCacher = atomically . writeTQueue qr
-        fromReceiver = atomically $ readTQueue qr
-    qw <- newTQueueIO
-    let toWorker = atomically . writeTQueue qw
-        fromCacher = atomically $ readTQueue qw
+    qr <- atomically $ newTQ 256
+    let toCacher = atomically . writeQueueSTM qr
+        fromReceiver = atomically $ readQueueSTM qr
+    qw <- atomically $ newTQ 256
+    let toWorker = atomically . writeQueueSTM qw
+        fromCacher = atomically $ readQueueSTM qw
     let cachers = replicate cachersN $ cacherLogic env fromReceiver toWorker
     let workers = [workerLogic env wstat fromCacher | wstat <- workerStats]
-    return (cachers, workers, toCacher)
+    return (cachers, workers, toCacher, (readSizes qr, sizeMaxBound qr), (readSizes qw, sizeMaxBound qw))
 
 ----------------------------------------------------------------
 
