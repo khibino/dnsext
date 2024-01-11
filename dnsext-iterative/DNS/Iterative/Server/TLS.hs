@@ -24,9 +24,10 @@ import DNS.Iterative.Stats (incStatsDoT)
 tlsServer :: VcServerConfig -> Server
 tlsServer VcServerConfig{..} env toCacher port host = do
     let tlsserver = withLoc $ H2.runTLS settings vc_credentials host port "dot" $ go
-    return [tlsserver]
+    return ([tlsserver], noQSize)
   where
     withLoc = withLocationIOE (show host ++ ":" ++ show port ++ "/dot")
+    noQSize = (pure (-1, -1), -1)
     maxSize = fromIntegral vc_query_max_size
     settings =
         H2.defaultSettings

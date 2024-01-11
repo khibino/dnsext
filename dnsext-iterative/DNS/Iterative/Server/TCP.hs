@@ -29,9 +29,10 @@ tcpServer :: VcServerConfig -> Server
 tcpServer VcServerConfig{..} env toCacher port host = do
     let tcpserver = T.withManager (vc_idle_timeout * 1000000) $ \mgr ->
             withLoc $ runTCPServer (Just host) (show port) $ go mgr
-    return ([tcpserver])
+    return ([tcpserver], noQSize)
   where
     withLoc = withLocationIOE (show host ++ ":" ++ show port ++ "/tcp")
+    noQSize = (pure (-1, -1), -1)
     maxSize = fromIntegral vc_query_max_size
     go mgr sock = do
         mysa <- getSocketName sock

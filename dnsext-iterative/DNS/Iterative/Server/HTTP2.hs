@@ -35,7 +35,7 @@ import DNS.Iterative.Stats (incStatsDoH2, incStatsDoH2C)
 http2Server :: VcServerConfig -> Server
 http2Server VcServerConfig{..} env toCacher port host = do
     let http2server = withLoc $ H2TLS.runIO settings vc_credentials host port $ doHTTP "h2" incQuery env toCacher
-    return [http2server]
+    return ([http2server], noQSize)
   where
     withLoc = withLocationIOE (show host ++ ":" ++ show port ++ "/h2")
     incQuery inet6 = incStatsDoH2 inet6 (stats_ env)
@@ -50,7 +50,7 @@ http2Server VcServerConfig{..} env toCacher port host = do
 http2cServer :: VcServerConfig -> Server
 http2cServer VcServerConfig{..} env toCacher port host = do
     let http2server = withLoc $ H2TLS.runIOH2C settings host port $ doHTTP "h2c" incQuery env toCacher
-    return [http2server]
+    return ([http2server], noQSize)
   where
     withLoc = withLocationIOE (show host ++ ":" ++ show port ++ "/h2c")
     incQuery inet6 = incStatsDoH2C inet6 (stats_ env)
@@ -60,6 +60,9 @@ http2cServer VcServerConfig{..} env toCacher port host = do
             , H2TLS.settingsSlowlorisSize = vc_slowloris_size
             , H2TLS.settingsSessionManager = vc_session_manager -- not used
             }
+
+noQSize :: GetQSizes
+noQSize = (pure (-1, -1), -1)
 
 doHTTP
     :: String -> (Bool -> IO ()) -> Env -> ToCacher -> ServerIO -> IO (IO ())

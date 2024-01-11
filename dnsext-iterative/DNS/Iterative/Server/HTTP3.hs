@@ -35,11 +35,12 @@ http3Server :: VcServerConfig -> Server
 http3Server VcServerConfig{..} env toCacher port host = do
     let http3server = T.withManager (vc_idle_timeout * 1000000) $ \mgr ->
             withLoc $ QUIC.run sconf $ \conn ->
-                withLoc $ H3.run conn (conf mgr) $ doHTTP env toCacher
-    return [http3server]
+                H3.run conn (conf mgr) $ doHTTP env toCacher
+    return ([http3server], noQSize)
   where
     withLoc = withLocationIOE (show host ++ ":" ++ show port ++ "/h3")
     sconf = getServerConfig vc_credentials vc_session_manager host port "h3"
+    noQSize = (pure (-1, -1), -1)
     conf mgr =
         H3.Config
             { confHooks = H3.defaultHooks
