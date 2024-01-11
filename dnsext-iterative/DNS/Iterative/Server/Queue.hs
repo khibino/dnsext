@@ -13,6 +13,8 @@ module DNS.Iterative.Server.Queue (
     makeGetAny,
     PutAny,
     makePutAny,
+
+    newTQ,
 ) where
 
 import Control.Concurrent.Chan (Chan, newChan, readChan, writeChan)
