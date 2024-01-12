@@ -113,8 +113,8 @@ runConfig tcache@TimeCache{..} mcache mng0 conf@Config{..} = do
     creds <- getCreds conf
     sm <- ST.newSessionTicketManager ST.defaultConfig{ST.ticketLifetime = cnf_tls_session_ticket_lifetime}
     workerStats <- Server.getWorkerStats cnf_workers
-    (cachers, workers, toCacher) <- Server.mkPipeline env cnf_cachers cnf_workers workerStats
-    servers <- mapM (getServers env cnf_dns_addrs toCacher) $ trans creds sm
+    (cachers, workers, toCacher, _toC, _toW) <- Server.mkPipeline env cnf_cachers cnf_workers workerStats
+    (servers, _toSs) <- unzip <$> mapM (getServers env cnf_dns_addrs toCacher) (trans creds sm)
     mng <- getControl env workerStats mng0
     monitor <- Mon.monitor conf env mng
     -- Run
@@ -179,13 +179,13 @@ getServers
     -> [HostName]
     -> Server.ToCacher
     -> (Bool, String, Server, SocketType, Int)
-    -> IO [(String, IO ())]
-getServers _ _ _ (False, _, _, _, _) = return []
+    -> IO ([(String, IO ())], [(IO (Int, Int), Int)])
+getServers _ _ _ (False, _, _, _, _) = pure ([], [])
 getServers env hosts toCacher (True, name, server, socktype, port') = do
     as <- ainfosSkipError putStrLn socktype port hosts
     let hosts' = [host | (_ai, host, _serv) <- as]
-    servs <- mapM (server env toCacher port) hosts'
-    pure [(name, s) | ss <- servs, s <- ss]
+    (servs, getQs) <- unzip <$> mapM (server env toCacher port) hosts'
+    pure ([ (name, s) | ss <- servs, s <- ss], getQs)
   where
     port = fromIntegral port'
 
