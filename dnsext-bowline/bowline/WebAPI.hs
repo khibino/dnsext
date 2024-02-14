@@ -5,10 +5,13 @@ module WebAPI (new) where
 
 import Control.Concurrent
 import Data.ByteString ()
+import qualified Data.ByteString.Char8 as B8
+import Data.String (fromString)
 import qualified Network.HTTP.Types as HTTP
 import Network.Socket
 import Network.Wai
 import Network.Wai.Handler.Warp
+import Network.Wai.Internal (Response (..))
 import qualified UnliftIO.Exception as E
 
 import DNS.Iterative.Server (withLocationIOE)
@@ -34,8 +37,13 @@ doQuit Control{..} = do
     return ok
 
 app :: Control -> Application
-app mng req sendResp = getResp >>= sendResp
+app mng req sendResp = getResp' >>= sendResp
   where
+    getResp' = do
+        resp <- getResp
+        let code = withRespStatus "uuu" (fromString . show . HTTP.statusCode) resp
+        B8.putStrLn $ B8.unwords [requestMethod req, rawPathInfo req, code]
+        pure resp
     getResp
         | requestMethod req == HTTP.methodGet = case rawPathInfo req of
             "/metrics" -> doStats mng
@@ -46,6 +54,15 @@ app mng req sendResp = getResp >>= sendResp
             "/quit" -> doQuit mng
             _ -> return $ ng HTTP.badRequest400
         | otherwise = return $ ng HTTP.methodNotAllowed405
+
+{- FOURMOLU_DISABLE -}
+withRespStatus :: a -> (HTTP.Status -> a) -> Response -> a
+withRespStatus r h resp = case resp of
+    ResponseFile s _ _ _   -> h s
+    ResponseBuilder s _ _  -> h s
+    ResponseStream s _ _   -> h s
+    _                      -> r
+{- FOURMOLU_ENABLE -}
 
 ok :: Response
 ok = responseLBS HTTP.ok200 [] "OK\n"
