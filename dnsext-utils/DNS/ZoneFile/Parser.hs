@@ -119,10 +119,10 @@ alabels = (rlabels' <|> pure id {- root case -}) <*> (dot $> [])
 rlabels :: Parser Labels
 rlabels = rlabels' <*> ( toLabels <$> gets cx_zone )
 
-toLabels :: IsRepresentation a CString => a -> Labels
+toLabels :: IsRepresentation a => a -> Labels
 toLabels = V.toList . toWireLabels
 
-fromLabels :: IsRepresentation a CString => Labels -> a
+fromLabels :: IsRepresentation a => Labels -> a
 fromLabels = fromWireLabels . V.fromList
 
 -- | absolute domain name
