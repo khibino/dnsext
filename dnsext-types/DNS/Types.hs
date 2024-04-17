@@ -162,6 +162,10 @@ module DNS.Types (
 
     -- * Basic types
     IsRepresentation (..),
+    fromRepresentation,
+    toRepresentation,
+    fromWireLabels,
+    toWireLabels,
 
     -- ** Domain
     Domain,

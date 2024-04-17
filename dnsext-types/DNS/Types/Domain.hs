@@ -6,6 +6,10 @@
 
 module DNS.Types.Domain (
     IsRepresentation (..),
+    fromRepresentation,
+    toRepresentation,
+    fromWireLabels,
+    toWireLabels,
     Domain,
     superDomains,
     isSubDomainOf,
@@ -44,11 +48,39 @@ import DNS.Wire
 -- $setup
 -- >>> :set -XOverloadedStrings
 
-class IsRepresentation a b where
-    fromRepresentation :: b -> a
-    toRepresentation :: a -> b
-    fromWireLabels :: Vector b -> a
-    toWireLabels :: a -> Vector b
+class IsLabelRep b where
+    fromLabel :: Label -> b
+    toLabel :: b -> Label
+
+instance IsLabelRep ShortByteString where
+    fromLabel = id
+    toLabel = id
+
+instance IsLabelRep ByteString where
+    fromLabel = Short.fromShort
+    toLabel = Short.toShort
+
+instance IsLabelRep String where
+    fromLabel = shortToString
+    toLabel = fromString
+
+class IsRepresentation a where
+    fromRepShort :: ShortByteString -> a
+    toRepShort :: a -> ShortByteString
+    fromLabelVector ::  Vector Label -> a
+    toLabelVector :: a -> Vector Label
+
+fromRepresentation :: (IsRepresentation a, IsLabelRep b) => b -> a
+fromRepresentation = fromRepShort . toLabel
+
+toRepresentation :: (IsRepresentation a, IsLabelRep b) => a -> b
+toRepresentation = fromLabel . toRepShort
+
+fromWireLabels :: (IsRepresentation a, IsLabelRep b) => Vector b -> a
+fromWireLabels = fromLabelVector . (toLabel <$>)
+
+toWireLabels :: (IsRepresentation a, IsLabelRep b) => a -> Vector b
+toWireLabels = (fromLabel <$>) . toLabelVector
 
 -- | The type for domain names. This holds the /wire format/ internally.
 --
@@ -179,23 +211,11 @@ instance IsString Domain where
 instance Semigroup Domain where
     d0 <> d1 = domainFromWireLabels (wireLabels d0 <> wireLabels d1)
 
-instance IsRepresentation Domain ShortByteString where
-    fromRepresentation = domain
-    toRepresentation = toDomainRep
-    fromWireLabels = domainFromWireLabels
-    toWireLabels = wireLabels
-
-instance IsRepresentation Domain ByteString where
-    fromRepresentation = domain . Short.toShort
-    toRepresentation = Short.fromShort . toDomainRep
-    fromWireLabels = domainFromWireLabels . (Short.toShort <$>)
-    toWireLabels = (Short.fromShort <$>) . wireLabels
-
-instance IsRepresentation Domain String where
-    fromRepresentation = domain . fromString
-    toRepresentation = shortToString . toDomainRep
-    fromWireLabels = domainFromWireLabels . (fromString <$>)
-    toWireLabels = (shortToString <$>) . wireLabels
+instance IsRepresentation Domain where
+    fromRepShort = domain
+    toRepShort = toDomainRep
+    fromLabelVector = domainFromWireLabels
+    toLabelVector = wireLabels
 
 -- | Wire size of domain.
 --
@@ -304,23 +324,11 @@ mailboxFromWireLabels lls
     | lls == V.empty = E.throw $ DecodeError "Broken mailbox"
     | otherwise = validateMailbox $ Mailbox $ Domain{wireLabels = lls}
 
-instance IsRepresentation Mailbox ShortByteString where
-    fromRepresentation = mailbox
-    toRepresentation = toMailboxRep
-    fromWireLabels = toMailbox . domainFromWireLabels
-    toWireLabels = wireLabels . fromMailbox
-
-instance IsRepresentation Mailbox ByteString where
-    fromRepresentation = mailbox . Short.toShort
-    toRepresentation = Short.fromShort . toMailboxRep
-    fromWireLabels = toMailbox . domainFromWireLabels . (Short.toShort <$>)
-    toWireLabels = (Short.fromShort <$>) . wireLabels . fromMailbox
-
-instance IsRepresentation Mailbox String where
-    fromRepresentation = mailbox . fromString
-    toRepresentation = shortToString . toMailboxRep
-    fromWireLabels = toMailbox . domainFromWireLabels . (fromString <$>)
-    toWireLabels = (shortToString <$>) . wireLabels . fromMailbox
+instance IsRepresentation Mailbox where
+    fromRepShort = mailbox
+    toRepShort = toMailboxRep
+    fromLabelVector = toMailbox . domainFromWireLabels
+    toLabelVector = wireLabels . fromMailbox
 
 mailboxSize :: Mailbox -> Int
 mailboxSize = domainSize . fromMailbox
