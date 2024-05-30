@@ -150,7 +150,7 @@ udpResolver ri@ResolveInfo{..} q _qctl = do
                             | otherwise = ('0' :) . showHex w
                         dumpBS = ("\"" ++) . (++ "\"") . foldr (\w s -> "\\x" ++ showHex8 w s) "" . BS.unpack
                      in ["udpResolver.recvAnswer: decodeAt Left: ", show rinfoIP ++ ", ", dumpBS ans]
-                E.throwIO e
+                E.throwIO (appendOnDecodeError (":" ++ tag) e)
             Right msg
                 | checkResp q ident msg -> do
                     let rx = BS.length ans
@@ -222,7 +222,7 @@ vcResolver proto send recv ri@ResolveInfo{..} q _qctl = do
         (rx, bss) <- recv
         now <- ractionGetTime rinfoActions
         case decodeChunks now bss of
-            Left e -> E.throwIO e
+            Left e -> E.throwIO (appendOnDecodeError (":" ++ tag) e)
             Right msg -> case checkRespM q ident msg of
                 Nothing -> return $ Reply msg tx rx
                 Just err -> E.throwIO err
@@ -236,3 +236,7 @@ toResult ResolveInfo{..} tag rply =
         , resultTag = tag
         , resultReply = rply
         }
+
+appendOnDecodeError :: String -> DNSError -> DNSError
+appendOnDecodeError ~s (DecodeError m) = DecodeError $ m ++ s
+appendOnDecodeError _  e               = e
