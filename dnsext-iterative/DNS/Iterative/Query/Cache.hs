@@ -283,6 +283,7 @@ cacheNegativeNoSOA rc dom typ ttl rank = do
     insertRRSet <- asks insert_
     liftIO $ cpsInsertNegativeNoSOA rc dom typ ttl rank insertRRSet
 
+{- TODO: avoid poisoning for CheckDisabled case -}
 {- FOURMOLU_DISABLE -}
 cacheAnswer :: Delegation -> Domain -> TYPE -> DNSMessage -> DNSQuery ([RRset], [RRset])
 cacheAnswer d@Delegation{..} dom typ msg = do
@@ -324,6 +325,7 @@ cacheAnswer d@Delegation{..} dom typ msg = do
     dnskeys = delegationDNSKEY
 {- FOURMOLU_ENABLE -}
 
+{- TODO: avoid poisoning for CheckDisabled case -}
 {- FOURMOLU_DISABLE -}
 cacheNoDelegation :: Delegation -> Domain -> [RD_DNSKEY] -> Domain -> DNSMessage -> DNSQuery ()
 cacheNoDelegation d zone dnskeys dom msg
