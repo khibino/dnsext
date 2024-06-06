@@ -97,14 +97,17 @@ noV4DEntry (DEstubA6  (_:|_))     = True
 -- Caching while retrieving delegation information from the authoritative server's reply
 delegationWithCache :: Domain -> [RD_DNSKEY] -> Domain -> DNSMessage -> DNSQuery MayDelegation
 delegationWithCache zone dnskeys dom msg = do
+    reqCD <- lift $ lift $ asks requestCD_
     {- There is delegation information only when there is a selectable NS -}
     getSec <- lift $ asks currentSeconds_
-    maybe (notFound $> noDelegation) (found getSec >>> (<&> hasDelegation)) $ findDelegation nsps adds
+    maybe (notFound $> noDelegation) (found reqCD getSec >>> (<&> hasDelegation)) $ findDelegation nsps adds
   where
     rankedDS = Cache.rkAuthority
-    found getSec k = Verify.cases getSec zone dnskeys (getRanked rankedDS) msg dom DS fromDS (nullDS k) ncDS (withDS k)
+    found reqCD getSec k = Verify.cases getSec zone dnskeys (getRanked rankedDS) msg dom DS fromDS (nullDS reqCD k) ncDS (withDS k)
     fromDS = DNS.fromRData . rdata
-    nullDS k = do
+    nullDS CheckDisabled   k =
+        lift $ vrfyLog (Just Yellow) "delegation - no DS, check disabled" $> k []
+    nullDS NoCheckDisabled k = do
         unsignedDelegationOrNoData $> ()
         lift $ vrfyLog (Just Yellow) "delegation - no DS, so no verification chain"
         lift $ cacheNoData dom DS (getRank rankedDS msg)
