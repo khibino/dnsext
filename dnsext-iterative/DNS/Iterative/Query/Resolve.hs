@@ -67,6 +67,7 @@ resolveLogic
     -> Question
     -> DNSQuery (([RRset], Domain), Either ResultRRS (ResultRRS' a))
 resolveLogic logMark cnameHandler typeHandler q@(Question n0 typ cls) = do
+    lift logFlags
     env <- lift ask
     maybe (called *> notLocal) local =<< takeLocalResult env q
   where
@@ -77,6 +78,11 @@ resolveLogic logMark cnameHandler typeHandler q@(Question n0 typ cls) = do
         | typ == ANY       = pure (([], n0), Left (DNS.NotImpl, [], []))
         | typ == CNAME     = justCNAME n0
         | otherwise        = recCNAMEs 0 n0 id
+    logFlags = do
+        let logQCxt tag sel = logLn_ Log.DEMO . ((tag ++ ": ") ++) . show =<< lift (asks sel)
+        logQCxt "DO" requestDO_
+        logQCxt "CD" requestCD_
+        logQCxt "AD" requestAD_
     logLn_ lv s = logLn lv $ "resolve-with-cname: " ++ logMark ++ ": " ++ s
     called = lift $ logLn_ Log.DEBUG $ show (n0, typ, cls)
     justCNAME bn = do
