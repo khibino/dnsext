@@ -6,8 +6,9 @@ module DNS.Log (
 ) where
 
 -- GHC packages
+import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.Monad (forever, void, when)
+import Control.Monad (when)
 import System.IO (
     BufferMode (LineBuffering),
     Handle,
@@ -50,10 +51,16 @@ newHandleLogger
 newHandleLogger outFh loggerLevel = do
     hSetBuffering outFh LineBuffering
     colorize <- hSupportsANSIColor outFh
+    termMutex <- newEmptyMVar
     inQ <- newTQueueIO
-    let logger = logLoop inQ
+    let logLoop = do
+            let nexts x  = E.tryAny (logit x) *> logLoop
+            maybe (putMVar termMutex ()) nexts =<< atomically (readTQueue inQ)
         put = logLines colorize inQ
-    return (logger, put, flush inQ)
+        terminate = do
+            atomically $ writeTQueue inQ Nothing
+            takeMVar termMutex
+    return (logLoop, put, terminate)
   where
     logLines colorize inQ lv color ~xs
         | colorize = withColor color
@@ -62,19 +69,7 @@ newHandleLogger outFh loggerLevel = do
         withColor c =
             when (loggerLevel <= lv) $
                 atomically $
-                    writeTQueue inQ (c, xs)
-
-    logLoop inQ = forever write
-      where
-        write = void $ E.tryAny (atomically (readTQueue inQ) >>= logit)
-
-    flush inQ = do
-        mx <- atomically $ tryReadTQueue inQ
-        case mx of
-            Nothing -> return ()
-            Just x -> do
-                logit x
-                flush inQ
+                    writeTQueue inQ $ Just (c, xs)
 
     logit (Nothing, xs) = hPutStr outFh $ unlines xs
     logit (Just c, xs) = do
