@@ -72,7 +72,7 @@ lookupRRset logMark dom typ = withLookupCache mkAlive logMark dom typ
     result ttl crs rank = (,) <$> Cache.foldHit (const Nothing) (const Nothing) (Just . positive) crs <*> pure rank
       where
         positive = Cache.positiveHit notVerified valid
-        notVerified = notVerifiedRRset dom typ DNS.IN ttl
+        notVerified = noSigRRset dom typ DNS.IN ttl
         valid = validRRset dom typ DNS.IN ttl
 
 guardValid :: Maybe (RRset, Ranking) -> Maybe (RRset, Ranking)
@@ -111,17 +111,17 @@ lookupRRsetEither logMark dom typ = withLookupCache mkAlive logMark dom typ
         negative soaDom = Cache.lookupAlive now (soaResult ttl soaDom) soaDom SOA DNS.IN cache
         negativeNoSOA = Just . LKNegativeNoSOA
         positive = Just . LKPositive . Cache.positiveHit notVerified valid
-        notVerified rds = notVerifiedRRset dom typ DNS.IN ttl rds
+        notVerified rds = noSigRRset dom typ DNS.IN ttl rds
         valid rds sigs = validRRset dom typ DNS.IN ttl rds sigs
 
     soaResult ettl srcDom ttl crs rank = LKNegative <$> Cache.foldHit (const Nothing) (const Nothing) (Just . positive) crs <*> pure rank
       where
         positive = Cache.positiveHit notVerified valid
-        notVerified = notVerifiedRRset srcDom SOA DNS.IN (ettl `min` ttl {- treated as TTL of empty data -})
+        notVerified = noSigRRset srcDom SOA DNS.IN (ettl `min` ttl {- treated as TTL of empty data -})
         valid = validRRset srcDom SOA DNS.IN (ettl `min` ttl {- treated as TTL of empty data -})
 
-notVerifiedRRset :: Domain -> TYPE -> CLASS -> TTL -> [RData] -> RRset
-notVerifiedRRset dom typ cls ttl rds = RRset dom typ cls ttl rds NotVerifiedRRS
+noSigRRset :: Domain -> TYPE -> CLASS -> TTL -> [RData] -> RRset
+noSigRRset dom typ cls ttl rds = RRset dom typ cls ttl rds notValidNoSig
 
 validRRset :: Domain -> TYPE -> CLASS -> TTL -> [RData] -> [RD_RRSIG] -> RRset
 validRRset dom typ cls ttl rds sigs = RRset dom typ cls ttl rds (ValidRRS sigs)
@@ -295,6 +295,7 @@ cacheAnswer d@Delegation{..} dom typ msg = do
     verify getSec = Verify.cases getSec zone dnskeys rankedAnswer msg dom typ Just nullX ncX $ \_ xRRset cacheX -> do
         nws <- witnessWildcardExpansion
         let (~verifyMsg, ~verifyColor, raiseOnVerifyFailure)
+                {- TODO: add case for check-disabled -}
                 | FilledDS [] <- delegationDS = ("no verification - no DS, " ++ qinfo, Just Yellow, pure ())
                 | rrsetValid xRRset = ("verification success - RRSIG of " ++ qinfo, Just Green, pure ())
                 | NotFilledDS o <- delegationDS = ("not consumed not-filled DS: case=" ++ show o ++ ", " ++ qinfo, Nothing, pure ())
