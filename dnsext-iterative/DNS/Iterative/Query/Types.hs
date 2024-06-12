@@ -21,6 +21,8 @@ module DNS.Iterative.Query.Types (
     MayVerifiedRRS (..),
     mayVerifiedRRS,
     DFreshState (..),
+    contextT,
+    liftDNS,
     runDNSQuery,
     throwDnsError,
     handleDnsError,
@@ -110,6 +112,12 @@ data QueryError
 
 type ContextT m = ReaderT Env (ReaderT QueryContext m)
 type DNSQuery = ExceptT QueryError (ContextT IO)
+
+contextT :: Monad m => (Env -> QueryContext -> m a) -> ContextT m a
+contextT k = ReaderT $ ReaderT . k
+
+liftDNS :: ContextT IO a -> DNSQuery a
+liftDNS = lift
 
 runDNSQuery :: DNSQuery a -> Env -> QueryContext -> IO (Either QueryError a)
 runDNSQuery q = runReaderT . runReaderT (runExceptT q)
