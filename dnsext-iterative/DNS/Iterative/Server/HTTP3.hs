@@ -28,7 +28,7 @@ import DNS.Iterative.Server.HTTP2
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.QUIC
 import DNS.Iterative.Server.Types
-import DNS.Iterative.Stats (incStatsDoH3)
+import DNS.Iterative.Stats (incStatsDoH3, sessionStatsDoH3)
 
 ----------------------------------------------------------------
 http3Servers :: VcServerConfig -> ServerActions
@@ -51,7 +51,7 @@ doHTTP
     :: Env
     -> ToCacher
     -> H2.Server
-doHTTP env toCacher req aux sendResponse = do
+doHTTP env toCacher req aux sendResponse = sessionStatsDoH3 (stats_ env) $ do
     let mysa = H2.auxMySockAddr aux
         peersa = H2.auxPeerSockAddr aux
         peerInfo = PeerInfoVC peersa
