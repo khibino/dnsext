@@ -25,7 +25,7 @@ import qualified System.TimeManager as T
 import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
-import DNS.Iterative.Stats (incStatsDoQ)
+import DNS.Iterative.Stats (incStatsDoQ, sessionStatsDoQ)
 
 ----------------------------------------------------------------
 
@@ -38,7 +38,7 @@ quicServer VcServerConfig{..} env toCacher port host = do
     withLoc = withLocationIOE (show host ++ ":" ++ show port ++ "/quic")
     sconf = getServerConfig vc_credentials vc_session_manager host port "doq"
     maxSize = fromIntegral vc_query_max_size
-    go mgr conn = do
+    go mgr conn = sessionStatsDoQ (stats_ env) $ do
         info <- QUIC.getConnectionInfo conn
         let mysa = QUIC.localSockAddr info
             peersa = QUIC.remoteSockAddr info
