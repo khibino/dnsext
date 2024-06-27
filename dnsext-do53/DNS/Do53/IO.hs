@@ -15,6 +15,7 @@ module DNS.Do53.IO (
 
     -- * Making recv
     recvManyN,
+    recvManyN_,
     recvManyNN,
     makeAddrInfo,
 )
@@ -98,16 +99,19 @@ decodeVCLength bs = case BS.unpack bs of
 -- Recv is getResponseBodyChunk.
 -- "lim" is a really limitation
 recvManyN :: Recv -> RecvManyN
-recvManyN rcv lim = loop id 0
+recvManyN = recvManyN_ BS.length
+
+recvManyN_ :: (a -> Int) -> Recv_ a -> RecvManyN_ a
+recvManyN_ length_ rcv lim = loop id 0
   where
     loop build total = do
-        bs <- rcv
-        let len = BS.length bs
+        c <- rcv
+        let len = length_ c
         if len == 0
             then return (total, build [])
             else do
                 let total' = total + len
-                    build' = build . (bs :)
+                    build' = build . (c :)
                 if total' >= lim
                     then do
                         return (total', build' [])
