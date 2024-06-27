@@ -10,7 +10,9 @@ module DNS.Iterative.Server.HTTP2 (
 ) where
 
 -- GHC packages
-import Control.Monad (forever)
+import Control.Concurrent.STM (atomically)
+import qualified Control.Exception as E
+import Control.Monad (when)
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as C8
 
@@ -68,23 +70,42 @@ http2cServer VcServerConfig{..} env toCacher port host = do
 doHTTP
     :: String -> (IO () -> IO ()) -> (SockAddr -> IO ()) -> Env -> ToCacher -> ServerIO -> IO (IO ())
 doHTTP name sbracket incQuery env toCacher ServerIO{..} = do
-    (toSender, fromX, _) <- mkConnector
-    let receiver = forever $ do
-            (_, strm, req) <- sioReadRequest
-            let peerInfo = PeerInfoH2 sioPeerSockAddr strm
-            einp <- getInput req
-            case einp of
-                Left emsg -> logLn env Log.WARN $ "decode-error: " ++ emsg
-                Right bs -> do
-                    let inp = Input bs 0 sioMySockAddr peerInfo DOH toSender
-                    incQuery sioPeerSockAddr
-                    toCacher inp
-        sender = forever $ do
-            Output bs' _ (PeerInfoH2 _ strm) <- fromX
-            let header = mkHeader bs'
-                response = H2.responseBuilder HT.ok200 header $ byteString bs'
-            sioWriteResponse strm response
-    return $ sbracket $ TStat.concurrently_ (name ++ "-send") sender (name ++ "-recv") receiver
+    (toSender, fromX, availX) <- mkConnector
+    (vcEOF, vcPendings) <- mkVcState
+    let receiver = loop 1 *> atomically (enableVcEof vcEOF)
+          where
+            loop i = do
+                (_, strm, req) <- sioReadRequest
+                let peerInfo = PeerInfoH2 sioPeerSockAddr strm
+                einp <- getInput' req
+                case einp of
+                    Left emsg -> logLn env Log.WARN $ name ++ "-srv: decode-error: " ++ emsg
+                    Right ("", True)  -> pure ()
+                    Right (bs, _)     -> step i peerInfo bs *> loop (succ i)
+            step i peerInfo bs = do
+                atomically (addVcPending vcPendings i)
+                let inp = Input bs i sioMySockAddr peerInfo DOH toSender
+                incQuery sioPeerSockAddr
+                toCacher inp
+
+        sender = loop `E.catch` onError
+          where
+            onError (E.SomeException e) = logLn env Log.WARN (name ++ "-srv: exception: " ++ show e) *> E.throwIO e
+            loop = do
+                avail <- atomically (waitVcAvail vcEOF vcPendings availX)
+                when avail $ step *> loop
+            step = do
+                let body (Output bs' _ (PeerInfoH2 _ strm)) = do
+                        let header = mkHeader bs'
+                            response = H2.responseBuilder HT.ok200 header $ byteString bs'
+                        sioWriteResponse strm response
+                    body (Output {})                        = pure ()
+                    finalize (Output _ i _) = atomically (delVcPending vcPendings i)
+                E.bracket fromX finalize body
+    return $ sbracket $ do
+        logLn env Log.DEBUG $ name ++ "-srv: accept: " ++ show sioPeerSockAddr
+        TStat.concurrently_ (name ++ "-send") sender (name ++ "-recv") receiver
+        logLn env Log.DEBUG $ name ++ "-srv: close: " ++ show sioPeerSockAddr
   where
     mkHeader bs =
         [ (HT.hContentType, "application/dns-message")
