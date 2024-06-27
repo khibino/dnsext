@@ -6,6 +6,7 @@ module DNS.Iterative.Server.HTTP2 (
     http2cServer,
     VcServerConfig (..),
     getInput,
+    getInput',
 ) where
 
 -- GHC packages
@@ -91,13 +92,19 @@ doHTTP name sbracket incQuery env toCacher ServerIO{..} = do
         ]
 
 getInput :: H2.Request -> IO (Either String C8.ByteString)
-getInput req
+getInput = (fmap fst <$>) . getInput'
+
+getInput' :: H2.Request -> IO (Either String (C8.ByteString, Bool))
+getInput' req
     | method == Just "GET" = case H2.requestPath req of
-        Just path | "/dns-query?dns=" `C8.isPrefixOf` path -> return $ Right $ decodeBase64Lenient $ C8.drop 15 path
+        Just path | "/dns-query?dns=" `C8.isPrefixOf` path -> return $ Right (decodeBase64Lenient $ C8.drop 15 path, True)
         _ -> return $ Left "illegal URL"
     | method == Just "POST" = do
-        (_rx, rqs) <- recvManyN (H2.getRequestBodyChunk req) 2048
-        return $ Right $ C8.concat rqs
+        (_rx, ps) <- recvManyN_ (C8.length . fst) (H2.getRequestBodyChunk' req) 2048
+        let (rqs, fs) = unzip ps
+        return $ Right $ case fs of
+            [] ->  ("", True)
+            _:_  -> (C8.concat rqs, last fs)
     | otherwise = return $ Left "illegal method"
   where
     method = H2.requestMethod req
