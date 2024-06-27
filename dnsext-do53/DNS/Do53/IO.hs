@@ -15,6 +15,7 @@ module DNS.Do53.IO (
 
     -- * Making recv
     recvManyN,
+    recvIOManyN,
     recvManyNN,
     makeAddrInfo,
 )
@@ -108,6 +109,22 @@ recvManyN rcv lim = loop id 0
             else do
                 let total' = total + len
                     build' = build . (bs :)
+                if total' >= lim
+                    then do
+                        return (total', build' [])
+                    else loop build' total'
+
+recvIOManyN :: (a -> Int) -> RecvIO a -> RecvIOManyN a
+recvIOManyN length_ rcv lim = loop id 0
+  where
+    loop build total = do
+        c <- rcv
+        let len = length_ c
+        if len == 0
+            then return (total, build [])
+            else do
+                let total' = total + len
+                    build' = build . (c :)
                 if total' >= lim
                     then do
                         return (total', build' [])

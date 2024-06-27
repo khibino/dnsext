@@ -20,6 +20,7 @@ module DNS.Do53.Internal (
 
     -- * Making recvMany
     recvManyN,
+    recvIOManyN,
     recvManyNN,
 
     -- * Resolver
