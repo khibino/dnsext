@@ -10,6 +10,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Char8 ()
 
 -- dnsext-* packages
+import qualified DNS.Log as Log
 import qualified DNS.Do53.Internal as DNS
 import DNS.TAP.Schema (SocketProtocol (..))
 import qualified DNS.ThreadStats as TStat
@@ -42,7 +43,9 @@ quicServer VcServerConfig{..} env toCacher port host = do
         info <- QUIC.getConnectionInfo conn
         let mysa = QUIC.localSockAddr info
             peersa = QUIC.remoteSockAddr info
-        (toSender, fromX, _) <- mkConnector
+        logLn env Log.DEBUG $ "quic-srv: accept: " ++ show peersa
+        (toSender, fromX, availX) <- mkConnector
+        (eof, pendings) <- mkVcState
         th <- T.registerKillThread mgr $ return ()
         let recv = do
                 strm <- QUIC.acceptStream conn
@@ -62,9 +65,10 @@ quicServer VcServerConfig{..} env toCacher port host = do
                         QUIC.closeStream strm
                         T.tickle th
                     _ -> return ()
-            receiver = receiverLogicVC env mysa recv toCacher toSender DOQ
-            sender = senderLogicVC env send fromX
+            receiver = receiverLoopVC env eof pendings mysa recv toCacher toSender DOQ
+            sender = senderLoopVC "quic-send" env eof pendings availX send fromX
         TStat.concurrently_ "quic-send" sender "quic-recv" receiver
+        logLn env Log.DEBUG $ "quic-srv: close: " ++ show peersa
 
 getServerConfig :: Credentials -> SessionManager -> String -> PortNumber -> ByteString -> ServerConfig
 getServerConfig creds sm host port alpn =
