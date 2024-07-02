@@ -197,11 +197,11 @@ receiverLoopVC
     :: Env
     -> VcEof -> VcPendings
     -> SockAddr -> Recv -> ToCacher -> ToSender -> SocketProtocol -> IO ()
-receiverLoopVC _env eof_ pendings_ mysa recv toCacher toSender proto = loop 1 *> atomically (enableVcEof eof_)
+receiverLoopVC _env eof_ pendings_ mysa recv toCacher toSender proto = loop 1 >> atomically (enableVcEof eof_)
   where
     loop i = do
         (bs, peerInfo) <- recv
-        when (bs /= "") $ step i bs peerInfo *> loop (succ i)
+        when (bs /= "") $ step i bs peerInfo >> loop (succ i)
     step i bs peerInfo = do
         atomically (addVcPending pendings_ i)
         toCacher $ Input bs i mysa peerInfo proto toSender
@@ -228,10 +228,10 @@ senderLoopVC
 senderLoopVC name env eof_ pendings_ avail_ send fromX = loop `E.catch` onError
   where
     -- logging async exception intentionally, for not expected `cancel`
-    onError se@(SomeException e) = warnOnError env name se *> throwIO e
+    onError se@(SomeException e) = warnOnError env name se >> throwIO e
     loop = do
         avail <- atomically (waitVcAvail eof_ pendings_ avail_)
-        when avail $ step *> loop
+        when avail $ step >> loop
     step = do
         let body (Output bs _ peerInfo) = send bs peerInfo
             finalize (Output _ i _) = atomically (delVcPending pendings_ i)
@@ -251,7 +251,7 @@ handledLoop env tag body = forever $ handle (warnOnError env tag) body
 breakableLoop :: Env -> String -> IO () -> IO ()
 breakableLoop env tag body = forever body `catch` onError
   where
-    onError se@(SomeException e) = warnOnError env tag se *> throwIO e
+    onError se@(SomeException e) = warnOnError env tag se >> throwIO e
 
 warnOnError :: Env -> String -> SomeException -> IO ()
 warnOnError env tag (SomeException e) = logLn env Log.WARN (tag ++ ": exception: " ++ show e)
