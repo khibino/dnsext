@@ -5,6 +5,7 @@
 module DNS.Iterative.Server.QUIC where
 
 -- GHC packages
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM (isEmptyTQueue)
 import qualified Data.ByteString as BS
 
@@ -40,13 +41,16 @@ quicServers VcServerConfig{..} env toCacher ss = do
     maxSize = fromIntegral vc_query_max_size
     go conn = sessionStatsDoQ (stats_ env) $ do
         info <- QUIC.getConnectionInfo conn
+        putStr $ unlines $ "" : "quic: sess:" : map ("  " ++) (lines $ show info)
         let mysa = QUIC.localSockAddr info
             peersa = QUIC.remoteSockAddr info
             waitInput = pure $ (guard . not =<<) . isEmptyTQueue $ QUIC.inputQ conn
         (vcSess@VcSession{..}, toSender, fromX) <- initVcSession waitInput tmicro
+        _ <- forkIO $ dumperVcSession vcSess
         let recv = do
                 strm <- QUIC.acceptStream conn
                 let peerInfo = PeerInfoQUIC peersa strm
+                putStrLn $ "quic: recv: " ++ show peerInfo
                 -- Without a designated thread, recvStream would block.
                 (siz, bss) <- DNS.recvVC maxSize $ QUIC.recvStream strm
                 if siz == 0
@@ -62,9 +66,15 @@ quicServers VcServerConfig{..} env toCacher ss = do
                         QUIC.closeStream strm
                         updateVcTimeout tmicro vcTimeout_
                     _ -> return ()
-            receiver = receiverVC "quic-recv" env vcSess recv toCacher $ mkInput mysa toSender DOQ
+            receiver = receiverVC "quic-recv" env vcSess recv toCacher (mkInput mysa toSender DOQ)
             sender = senderVC "quic-send" env vcSess send fromX
         TStat.concurrently_ "quic-send" sender "quic-recv" receiver
+        putStrLn $
+          unlines
+          [ "************************************"
+          , "*  quic-send, quic-recv, finished  *"
+          , "************************************"
+          ]
 
 getServerConfig :: Credentials -> SessionManager -> ByteString -> ServerConfig
 getServerConfig creds sm alpn =
