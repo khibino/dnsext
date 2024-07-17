@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -5,7 +6,7 @@ module DNS.Iterative.Server.Pipeline where
 
 -- GHC packages
 import GHC.Event (TimerManager, TimeoutKey, getSystemTimerManager, registerTimeout, updateTimeout)
-import Control.Concurrent (threadWaitReadSTM)
+import Control.Concurrent (threadDelay, threadWaitReadSTM)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import qualified Data.IntSet as Set
@@ -293,6 +294,27 @@ initVcSession getWaitIn micro = do
         fromX = atomically $ readTQueue senderQ
     pure (VcSession vcEof vcPendinfs (not <$> isEmptyTQueue senderQ) getWaitIn vcTimeout, toSender, fromX)
 {- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+showVcSession :: VcSession -> IO [String]
+showVcSession VcSession{vcTimeout_=VcTimeout{..},..} = vcWaitRead_ >>= \waitRead ->
+    atomically $ sequence
+    [ ("eof          : " ++) . show <$> readTVar vcEof_
+    , ("pendings     : " ++) . show <$> readTVar vcPendings_
+    , ("has-response : " ++) . show <$> vcRespAvail_
+    , ("has-input    : " ++) . show <$> (waitRead *> pure True <|> pure False)
+    , ("timeout      : " ++) . show <$> readTVar vtState_
+    ]
+{- FOURMOLU_ENABLE -}
+
+dumperVcSession :: VcSession -> IO ()
+dumperVcSession vcSess@VcSession{vcTimeout_=VcTimeout{..},..} = loop (1 :: Int)
+  where
+    loop n = do
+        threadDelay 1_000_000
+        putStr . unlines . map ((show n ++ ": ") ++) =<< showVcSession vcSess
+        next <- atomically $ (not <$>) $ (||) <$> readTVar vcEof_ <*> readTVar vtState_
+        when next $ loop (succ n)
 
 enableVcEof :: VcEof -> STM ()
 enableVcEof eof = writeTVar eof True
