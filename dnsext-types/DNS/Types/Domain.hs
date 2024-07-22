@@ -72,21 +72,21 @@ class IsRepresentation a b where
 -- format or decoding the wire format.
 --
 -- >>> "" :: Domain
--- "."
+-- .
 -- >>> "." :: Domain
--- "."
+-- .
 -- >>> wireLabels "."
 -- []
 -- >>> "www.example.org" :: Domain
--- "www.example.org."
+-- www.example.org.
 -- >>> "www.example.org." :: Domain
--- "www.example.org."
+-- www.example.org.
 -- >>> "_25._tcp.mx1.example.net." :: Domain
--- "_25._tcp.mx1.example.net."
+-- _25._tcp.mx1.example.net.
 -- >>> wireLabels "_25._tcp.mx1.example.net."
 -- ["_25","_tcp","mx1","example","net"]
 -- >>> "\\001.exotic.example." :: Domain -- fixme
--- "\001.exotic.example."
+-- \001.exotic.example.
 -- >>> wireLabels "\\001.exotic.example."
 -- ["\SOH","exotic","example"]
 -- >>> wireLabels "just\\.one\\.label.example."
@@ -162,7 +162,7 @@ cmpR v0 v1 = go (l0 - 1) (l1 - 1)
                 GT -> GT
 
 instance Show Domain where
-    show d = "\"" ++ shortToString (toDomainRep d) ++ "\""
+    show d = shortToString (toDomainRep d)
 
 toDomainRep :: Domain -> Label
 toDomainRep (Domain d)
@@ -175,9 +175,9 @@ instance IsString Domain where
 -- | Appending two domains.
 --
 -- >>> ("www" :: Domain) <> "example.com"
--- "www.example.com."
+-- www.example.com.
 -- >>> ("www." :: Domain) <> "example.com."
--- "www.example.com."
+-- www.example.com.
 instance Semigroup Domain where
     d0 <> d1 = domainFromWireLabels (wireLabels d0 <> wireLabels d1)
 
@@ -215,9 +215,9 @@ domainSize (Domain d) = V.foldr (\l a -> Short.length l + 1 + a) 0 d + 1
 -- >>> unconsDomain "."
 -- Nothing
 -- >>> unconsDomain "jp"
--- Just ("jp",".")
+-- Just ("jp",.)
 -- >>> unconsDomain "example.jp."
--- Just ("example","jp.")
+-- Just ("example",jp.)
 unconsDomain :: Domain -> Maybe (Label, Domain)
 unconsDomain (Domain d) = case V.uncons d of
     Nothing -> Nothing
@@ -656,7 +656,7 @@ shortToString = C8.unpack . Short.fromShort
 -- | `superDomains' u d` super domains of `d` with upper bound `u`
 --
 -- >>> superDomains' "c." "a.b.c."
--- ["b.c.","a.b.c."]
+-- [b.c.,a.b.c.]
 -- >>> superDomains' "." "."
 -- []
 superDomains' :: Domain -> Domain -> [Domain]
@@ -672,11 +672,11 @@ superDomains' ul d0@(Domain wl0) = go wl0 [d0]
 -- | Creating super domains.
 --
 -- >>> superDomains "www.example.com"
--- ["com.","example.com.","www.example.com."]
+-- [com.,example.com.,www.example.com.]
 -- >>> superDomains "www.example.com."
--- ["com.","example.com.","www.example.com."]
+-- [com.,example.com.,www.example.com.]
 -- >>> superDomains "com."
--- ["com."]
+-- [com.]
 -- >>> superDomains "."
 -- []
 superDomains :: Domain -> [Domain]
