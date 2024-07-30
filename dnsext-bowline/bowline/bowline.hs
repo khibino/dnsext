@@ -317,8 +317,12 @@ setGroupUser user group = do
     root <- amIrootUser
     if root
         then do
-            getGroupEntryForName group >>= setGroupID . groupID
-            getUserEntryForName user >>= setUserID . userID
+            ge <- getGroupEntryForName group
+            putStrLn $ group <> " = " <> show ge
+            setGroupID $ groupID ge
+            ue <- getUserEntryForName user
+            putStrLn $ user <> " = " <> show ue
+            setUserID  $ userID ue
             return True
         else
             return False
