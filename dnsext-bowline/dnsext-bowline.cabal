@@ -111,3 +111,15 @@ executable dump
 
     if impl(ghc >=8)
         default-extensions: Strict StrictData
+
+executable seteuid
+    main-is:          seteuid.hs
+    hs-source-dirs:   seteuid
+    default-language: Haskell2010
+    ghc-options:      -Wall -threaded
+    build-depends:
+        base,
+        unix
+
+    if impl(ghc >=8)
+        default-extensions: Strict StrictData
