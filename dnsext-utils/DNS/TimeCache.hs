@@ -2,10 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module DNS.TimeCache (
+    Timestamp,
     TimeCache (..),
     newTimeCache,
     getTime,
     noneTimeCache,
+    module Data.UnixTime,
 ) where
 
 -- GHC packages
@@ -13,7 +15,7 @@ import qualified Data.ByteString.Char8 as C8
 import Foreign.C.Types (CTime (..))
 
 -- other packages
-import Data.UnixTime (UnixTime (..), formatUnixTime, getUnixTime)
+import Data.UnixTime (UnixTime (..), formatUnixTime, getUnixTime, diffUnixTime)
 
 -- dnsext-* packages
 import DNS.Types.Time (EpochTime)
@@ -21,9 +23,12 @@ import DNS.Types.Time (EpochTime)
 -- this package
 import DNS.Utils.AutoUpdate (mkClosableAutoUpdate)
 
+
+type Timestamp = UnixTime
+
 {- FOURMOLU_DISABLE -}
 data TimeCache = TimeCache
-    { getTimestamp    :: IO UnixTime
+    { getTimestamp    :: IO Timestamp
     , getTimeStr      :: IO ShowS
     , closeTimeCache  :: IO ()
     }
