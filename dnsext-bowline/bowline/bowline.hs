@@ -86,7 +86,7 @@ run readConfig = do
 runConfig :: Maybe GlobalCache -> Control -> Config -> IO GlobalCache
 runConfig mcache mng0 conf@Config{..} = do
     -- Setup
-    tcache <- newTimeCache 1000000
+    tcache <- maybe (pure noneTimeCache) newTimeCache cnf_timecache_interval
     gcache@GlobalCache{..} <- case mcache of
         Nothing -> getCache tcache conf
         Just c -> return c
