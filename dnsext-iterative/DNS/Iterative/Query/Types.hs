@@ -52,6 +52,7 @@ import DNS.RRCache (Cache, Ranking)
 import qualified DNS.RRCache as Cache
 import DNS.SEC
 import qualified DNS.TAP.Schema as DNSTAP
+import DNS.TimeCache (Timestamp)
 import DNS.Types hiding (InvalidEDNS)
 import qualified DNS.Types as DNS
 import Data.IP (IP, IPv4, IPv6)
@@ -98,6 +99,7 @@ data Env = Env
     , filterCache_ :: (Question -> EpochTime -> Cache.Hit -> Ranking -> Bool) -> IO ()
     , clearCache_ :: IO ()
     , currentRoot_ :: IORef (Maybe Delegation)
+    , currentTimestamp_ :: IO Timestamp
     , currentSeconds_ :: IO EpochTime
     , timeString_ :: IO ShowS
     , idGen_ :: IO DNS.Identifier

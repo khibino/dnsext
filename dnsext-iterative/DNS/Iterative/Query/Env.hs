@@ -79,6 +79,7 @@ newEmptyEnv = do
         , filterCache_ = \_ -> pure()
         , clearCache_ = pure ()
         , currentRoot_ = rootRef
+        , currentTimestamp_ = getTimestamp
         , currentSeconds_ = getTime tc
         , timeString_ = getTimeStr
         , idGen_ = genId
@@ -103,7 +104,8 @@ setRRCacheOps RRCacheOps{..} env0 =
 setTimeCache :: TimeCache -> Env -> Env
 setTimeCache tc@TimeCache{..} env0 =
     env0
-        { currentSeconds_ = getTime tc
+        { currentTimestamp_ = getTimestamp
+        , currentSeconds_ = getTime tc
         , timeString_ = getTimeStr
         }
 
