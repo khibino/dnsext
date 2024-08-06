@@ -43,6 +43,7 @@ data Config = Config
     , cnf_resolve_timeout :: Int
     , cnf_cachers :: Int
     , cnf_workers :: Int
+    , cnf_timecache_interval :: Maybe Int
     , cnf_udp :: Bool
     , cnf_udp_port :: Int
     , cnf_vc_query_max_size :: Int
@@ -98,6 +99,7 @@ defaultConfig =
         , cnf_resolve_timeout = 10000000
         , cnf_cachers = 4
         , cnf_workers = 128
+        , cnf_timecache_interval = Nothing
         , cnf_udp = True
         , cnf_udp_port = 53
         , cnf_vc_query_max_size = 2048
@@ -201,6 +203,7 @@ makeConfig def conf =
         , cnf_resolve_timeout = get "resolve-timeout" cnf_resolve_timeout
         , cnf_cachers = get "cachers" cnf_cachers
         , cnf_workers = get "workers" cnf_workers
+        , cnf_timecache_interval = get "timecache-interval" cnf_timecache_interval
         , cnf_udp = get "udp" cnf_udp
         , cnf_udp_port = get "udp-port" cnf_udp_port
         , cnf_vc_query_max_size = get "vc-query-max-size" cnf_vc_query_max_size
@@ -335,6 +338,10 @@ class FromConf a where
 
 instance FromConf Int where
     fromConf (CV_Int n) = n
+    fromConf _ = error "fromConf int"
+
+instance FromConf (Maybe Int) where
+    fromConf (CV_Int n) = Just n
     fromConf _ = error "fromConf int"
 
 instance FromConf Bool where
