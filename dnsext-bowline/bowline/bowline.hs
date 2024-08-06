@@ -68,27 +68,25 @@ help = putStrLn "bowline [<confFile>] [<conf-key>=<conf-value> ...]"
 
 run :: IO Config -> IO ()
 run readConfig = do
-    -- TimeCache uses Control.AutoUpdate which
-    -- does not provide a way to kill the internal thread.
-    tcache <- newTimeCache 1000000
-    newControl >>= go tcache Nothing
+    newControl >>= go Nothing
   where
-    go tcache mcache mng = do
-        cache <- readConfig >>= runConfig tcache mcache mng
+    go mcache mng = do
+        cache <- readConfig >>= runConfig mcache mng
         ctl <- getCommandAndClear mng
         case ctl of
             Quit -> putStrLn "\nQuiting..." -- fixme
             Reload -> do
                 putStrLn "\nReloading..." -- fixme
                 stopCache $ gcacheRRCacheOps cache
-                go tcache Nothing mng
+                go Nothing mng
             KeepCache -> do
                 putStrLn "\nReloading with the current cache..." -- fixme
-                go tcache (Just cache) mng
+                go (Just cache) mng
 
-runConfig :: TimeCache -> Maybe GlobalCache -> Control -> Config -> IO GlobalCache
-runConfig tcache mcache mng0 conf@Config{..} = do
+runConfig :: Maybe GlobalCache -> Control -> Config -> IO GlobalCache
+runConfig mcache mng0 conf@Config{..} = do
     -- Setup
+    tcache <- newTimeCache 1000000
     gcache@GlobalCache{..} <- case mcache of
         Nothing -> getCache tcache conf
         Just c -> return c
