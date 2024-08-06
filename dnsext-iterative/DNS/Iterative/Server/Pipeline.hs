@@ -93,7 +93,7 @@ cacherLogic env fromReceiver toWorker = handledLoop env "cacher" $ do
                     mapM_ (incStats $ stats_ env) [CacheHit, QueriesAll]
                     let bs = DNS.encode replyMsg
                     record env inp replyMsg bs
-                    inputToSender $ Output bs inputRequestNum inputPeerInfo
+                    inputToSender $ Output bs inputRequestNum inputPeerInfo inputRecvTime
                 CResultDenied _replyErr -> logicDenied env inp
 
 ----------------------------------------------------------------
@@ -112,7 +112,7 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
             mapM_ (incStats $ stats_ env) [CacheMiss, QueriesAll]
             let bs = DNS.encode replyMsg
             record env inp replyMsg bs
-            inputToSender $ Output bs inputRequestNum inputPeerInfo
+            inputToSender $ Output bs inputRequestNum inputPeerInfo inputRecvTime
         Left _e -> logicDenied env inp
 
 ----------------------------------------------------------------
@@ -172,7 +172,7 @@ record env Input{..} reply rspWire = do
 type Recv = IO (ByteString, PeerInfo)
 type Send = ByteString -> PeerInfo -> IO ()
 
-type MkInput = ByteString -> PeerInfo -> Int -> Input ByteString
+type MkInput = ByteString -> PeerInfo -> Int -> Timestamp -> Input ByteString
 
 mkInput :: SockAddr -> ToSender -> SocketProtocol -> MkInput
 mkInput mysa toSender proto bs peerInfo i = Input bs i mysa peerInfo proto toSender
@@ -195,37 +195,39 @@ receiverVC name env vcs@VcSession{..} recv toCacher mkInput_ =
             | timeout = pure VfTimeout
             | otherwise = do
                 (bs, peerInfo) <- recv
-                casesSize (BS.length bs) bs peerInfo
-        casesSize sz bs peerInfo
+                ts <- currentTimestamp_ env
+                casesSize (BS.length bs) bs peerInfo ts
+        casesSize sz bs peerInfo ts
             | sz == 0 = do
                 resetVcTimeout vcTimeout_
                 caseEof
             | sz > vcSlowlorisSize_ = do
                 resetVcTimeout vcTimeout_
-                step bs peerInfo
+                step bs peerInfo ts
                 loop (i + 1)
             | otherwise = do
-                step bs peerInfo
+                step bs peerInfo ts
                 loop (i + 1)
 
         caseEof = atomically (enableVcEof vcEof_) >> return VfEof
-        step bs peerInfo = do
+        step bs peerInfo ts = do
             atomically $ addVcPending vcPendings_ i
-            toCacher $ mkInput_ bs peerInfo i
+            toCacher $ mkInput_ bs peerInfo i ts
 
 receiverLogic
     :: Env -> SockAddr -> Recv -> ToCacher -> ToSender -> SocketProtocol -> IO ()
 receiverLogic env mysa recv toCacher toSender proto =
-    handledLoop env "receiverUDP" $ void $ receiverLogic' mysa recv toCacher toSender proto
+    handledLoop env "receiverUDP" $ void $ receiverLogic' env mysa recv toCacher toSender proto
 
 receiverLogic'
-    :: SockAddr -> Recv -> ToCacher -> ToSender -> SocketProtocol -> IO Bool
-receiverLogic' mysa recv toCacher toSender proto = do
+    :: Env -> SockAddr -> Recv -> ToCacher -> ToSender -> SocketProtocol -> IO Bool
+receiverLogic' env mysa recv toCacher toSender proto = do
     (bs, peerInfo) <- recv
+    ts <- currentTimestamp_ env
     if bs == ""
         then return False
         else do
-            toCacher $ Input bs 0 mysa peerInfo proto toSender
+            toCacher $ Input bs 0 mysa peerInfo proto toSender ts
             return True
 
 senderVC
@@ -244,10 +246,10 @@ senderVC name env vcs@VcSession{..} send fromX = loop `E.catch` onError
         case mx of
             Just x -> return x
             Nothing -> step >> loop
-    step = E.bracket fromX finalize $ \(Output bs _ peerInfo) -> do
+    step = E.bracket fromX finalize $ \(Output bs _ peerInfo _ts) -> do
         resetVcTimeout vcTimeout_
         send bs peerInfo
-    finalize (Output _ i _) = atomically (delVcPending vcPendings_ i)
+    finalize (Output _ i _ _) = atomically (delVcPending vcPendings_ i)
 
 senderLogic :: Env -> Send -> FromX -> IO ()
 senderLogic env send fromX =
@@ -255,7 +257,7 @@ senderLogic env send fromX =
 
 senderLogic' :: Send -> FromX -> IO ()
 senderLogic' send fromX = do
-    Output bs _ peerInfo <- fromX
+    Output bs _ peerInfo _ts <- fromX
     send bs peerInfo
 
 ----------------------------------------------------------------

@@ -12,6 +12,7 @@ module DNS.Iterative.Server.Types (
     Input (..),
     Output (..),
     PeerInfo (..),
+    Timestamp,
     peerSockAddr,
     withLocationIOE,
     Socket,
@@ -33,6 +34,7 @@ import Network.TLS (Credentials (..), SessionManager)
 
 -- dnsext
 import DNS.TAP.Schema (SocketProtocol)
+import DNS.TimeCache (Timestamp)
 import DNS.Types (DNSMessage)
 
 -- this package
@@ -61,12 +63,14 @@ data Input a = Input
     , inputPeerInfo :: PeerInfo
     , inputProto :: SocketProtocol
     , inputToSender :: ToSender
+    , inputRecvTime :: Timestamp
     }
 
 data Output = Output
     { outputReplyBS :: ByteString
     , outputRequestNum :: ReqNum
     , outputPeerInfo :: PeerInfo
+    , outputRecvTime :: Timestamp
     }
 
 type ToCacher = Input ByteString -> IO ()

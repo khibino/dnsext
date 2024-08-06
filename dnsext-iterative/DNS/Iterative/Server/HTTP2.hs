@@ -78,16 +78,17 @@ doHTTP name sbracket incQuery env toCacher ServerIO{..} = do
     (toSender, fromX, _) <- mkConnector
     let receiver = forever $ do
             (_, strm, req) <- sioReadRequest
+            ts <- currentTimestamp_ env
             let peerInfo = PeerInfoH2 sioPeerSockAddr strm
             einp <- getInput req
             case einp of
                 Left emsg -> logLn env Log.WARN $ "decode-error: " ++ emsg
                 Right bs -> do
-                    let inp = Input bs 0 sioMySockAddr peerInfo DOH toSender
+                    let inp = Input bs 0 sioMySockAddr peerInfo DOH toSender ts
                     incQuery sioPeerSockAddr
                     toCacher inp
         sender = forever $ do
-            Output bs' _ (PeerInfoH2 _ strm) <- fromX
+            Output bs' _ (PeerInfoH2 _ strm) _ts <- fromX
             let header = mkHeader bs'
                 response = H2.responseBuilder HT.ok200 header $ byteString bs'
             sioWriteResponse strm response
