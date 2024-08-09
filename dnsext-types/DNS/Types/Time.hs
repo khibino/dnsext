@@ -1,7 +1,12 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module DNS.Types.Time (
     EpochTime,
+    EpochTimeUsec,
     getCurrentTime,
+    getCurrentTimeUsec,
     getCurrentTimeNsec,
+    diffMicroSec,
 ) where
 
 import Data.Int (Int64)
@@ -14,6 +19,16 @@ getCurrentTime :: IO EpochTime
 getCurrentTime = do
     UnixTime (CTime tim) _ <- getUnixTime
     return tim
+
+type EpochTimeUsec = UnixTime
+
+getCurrentTimeUsec :: IO EpochTimeUsec
+getCurrentTimeUsec = getUnixTime
+
+diffMicroSec :: EpochTimeUsec -> EpochTimeUsec -> Int64
+diffMicroSec x y = toMicro $ diffUnixTime x y
+  where
+    toMicro (UnixDiffTime (CTime sec) u) = sec * 1_000_000 + fromIntegral u
 
 getCurrentTimeNsec :: IO (EpochTime, Int64)
 getCurrentTimeNsec = do
