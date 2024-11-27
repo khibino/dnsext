@@ -172,6 +172,19 @@ newQueryState = do
     let set x = atomicModifyIORef' cref (\_ -> (x, ()))
     pure $ QueryState set $ readIORef cref
 
+data ExtraQError
+    = ErrorNotResp
+    | ErrorEDNS DNS.EDNSheader
+    | ErrorRCODE DNS.RCODE
+    deriving (Show)
+
+extraQError :: a -> (EDNSheader -> a) -> (RCODE -> a) -> ExtraQError -> a
+extraQError notResp errEDNS errRCODE fe =
+    case fe of
+        ErrorNotResp  -> notResp
+        ErrorEDNS e   -> errEDNS e
+        ErrorRCODE e  -> errRCODE e
+
 data QueryError
     = DnsError DNSError [String]
     | NotResponse [Address] Bool DNSMessage
