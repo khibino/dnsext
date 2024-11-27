@@ -159,6 +159,19 @@ toRequestAD qctl = case adBit $ qctlHeader qctl of
     FlagSet -> AuthenticatedData
     _ -> NoAuthenticatedData
 
+data ExtraQError
+    = ErrorNotResp
+    | ErrorEDNS DNS.EDNSheader
+    | ErrorRCODE DNS.RCODE
+    deriving (Show)
+
+extraQError :: a -> (EDNSheader -> a) -> (RCODE -> a) -> ExtraQError -> a
+extraQError notResp errEDNS errRCODE fe =
+    case fe of
+        ErrorNotResp  -> notResp
+        ErrorEDNS e   -> errEDNS e
+        ErrorRCODE e  -> errRCODE e
+
 data QueryError
     = DnsError DNSError [String]
     | NotResponse [Address] Bool DNSMessage
