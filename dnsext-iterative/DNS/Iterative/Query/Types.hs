@@ -25,6 +25,8 @@ module DNS.Iterative.Query.Types (
     MayFilledDS (..),
     Delegation (..),
     chainedStateDS,
+    ExtraError (..),
+    extraError,
     QueryError (..),
     DNSQuery,
     MonadReaderQP (..),
@@ -189,9 +191,7 @@ extraError notResp errEDNS errRCODE fe = case fe of
 
 data QueryError
     = DnsError DNSError [String]
-    | NotResponse [Address] Bool DNSMessage
-    | InvalidEDNS [Address] DNS.EDNSheader DNSMessage
-    | HasError [Address] DNS.RCODE DNSMessage
+    | ExtraError ExtraError [Address] DNSMessage
     deriving (Show)
 
 type ContextT m = ReaderT Env (ReaderT QueryParam (ReaderT QueryState m))
@@ -242,12 +242,12 @@ handleQueryError left right q = either left right =<< lift (runExceptT q)
 -- - responseErrDNSQuery = handleResponseError throwError pure  :: DNSMessage -> DNSQuery DNSMessage
 handleResponseError :: [Address] -> (QueryError -> p) -> (DNSMessage -> p) -> DNSMessage -> p
 handleResponseError addrs e f msg
-    | not (DNS.isResponse flags_) = e $ NotResponse addrs (DNS.isResponse flags_) msg
+    | not (DNS.isResponse flags_) = e $ ExtraError ErrorNotResp addrs msg
     | DNS.ednsHeader msg == DNS.InvalidEDNS =
-        e $ InvalidEDNS addrs (DNS.ednsHeader msg) msg
+        e $ ExtraError (ErrorEDNS $ DNS.ednsHeader msg) addrs msg
     | DNS.rcode msg
         `notElem` [DNS.NoErr, DNS.NameErr] =
-        e $ HasError addrs (DNS.rcode msg) msg
+        e $ ExtraError (ErrorRCODE $ DNS.rcode msg) addrs msg
     | otherwise = f msg
   where
     flags_ = DNS.flags msg
