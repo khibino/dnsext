@@ -189,10 +189,18 @@ cachedDNSKEY getSEPs sas zone = do
             ncDNSKEY _ncLog = pure $ Left "cachedDNSKEY: not canonical"
         Verify.cases NoCheckDisabled zone (s : ss) rankedAnswer msg zone DNSKEY dnskeyRD nullDNSKEY ncDNSKEY cachedResult
 
+maxQueryCount :: Int
+maxQueryCount = 50
+
 norec :: Bool -> [Address] -> Domain -> TYPE -> DNSQuery DNSMessage
-norec dnssecOK aservers name typ = ExceptT $ do
-    e <- Norec.norec' dnssecOK aservers name typ
-    either left (pure . handleResponseError aservers Left Right) e
+norec dnssecOK aservers name typ = do
+    qcount <- (length aservers +) <$> (liftIO =<< asksQS getQueryCount_)
+    m <- ExceptT $ dispatch qcount
+    asksQS setQueryCount_ >>= \setCount -> liftIO $ setCount qcount
+    pure m
   where
+    dispatch qcount
+        | qcount > maxQueryCount = logLn Log.WARN ("query count limit exceeded: " ++ show (name, typ)) >> left ServerFailure
+        | otherwise = Norec.norec' dnssecOK aservers name typ >>= either left (pure . handleResponseError aservers Left Right)
     left e = cacheDNSError name typ Cache.RankAnswer e $> dnsError e
     dnsError e = Left $ uncurry DnsError $ unwrapDNSErrorInfo e
