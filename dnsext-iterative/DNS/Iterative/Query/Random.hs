@@ -3,9 +3,12 @@ module DNS.Iterative.Query.Random (
     randomizedSelectN,
     randomizedChoice,
     randomizedSelects,
+    randomizedPerm,
 ) where
 
 -- GHC packages
+import Data.Array.IO hiding (range)
+import System.IO.Unsafe (unsafeInterleaveIO)
 
 -- other packages
 import System.Random (getStdRandom, randomR)
@@ -61,3 +64,21 @@ randomizedSelects num xs
         return $ take num $ drop ix $ xs ++ xs
   where
     len = length xs
+
+randomizedPerm :: MonadIO m => [a] -> m [a]
+randomizedPerm xs = do
+    let tsz = length xs
+    interleavedPerm tsz =<< liftIO (newListArray (0, tsz - 1) xs)
+
+{- FOURMOLU_DISABLE -}
+interleavedPerm :: MonadIO m => Int -> IOArray Int a -> m [a]
+interleavedPerm tsz ss = liftIO $ go tsz
+  where
+    go 0  = pure []
+    go sz = unsafeInterleaveIO $ do
+        let nsz = sz - 1
+        ix <- randomizedIndex (0, nsz)
+        v  <- readArray ss ix
+        when (ix /= nsz) $ writeArray ss ix =<< readArray ss nsz
+        (v :) <$> go nsz
+{- FOURMOLU_ENABLE -}
