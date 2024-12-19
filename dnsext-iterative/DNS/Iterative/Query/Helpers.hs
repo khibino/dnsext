@@ -208,6 +208,28 @@ foldIPnonEmpty v4 v6 both (x :| xs) = case x of
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+dentryToPermAx :: MonadIO m =>  Bool -> [DEntry] -> m [Address]
+dentryToPermAx disableV6NS des = do
+    as <- unique . concatMap NE.toList <$> sequence actions
+    randomizedPerm as
+  where
+    actions = dentryIPsetChoices disableV6NS des
+    unique = Set.toList . Set.fromList
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+dentryToPermNS :: MonadIO m => Domain -> [DEntry] -> m [Domain]
+dentryToPermNS zone des = do
+    randomizedPerm $ unique $ foldr takeNS [] des
+  where
+    takeNS (DEonlyNS ns) xs
+        | not (ns `DNS.isSubDomainOf` zone) = ns : xs
+    --    {- skip sub-domain without glue to avoid loop -}
+    takeNS  _            xs =      xs
+    unique = Set.toList . Set.fromList
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 dentryToRandomIP :: MonadIO m => Int -> Int -> Bool -> [DEntry] -> m [Address]
 dentryToRandomIP entries addrs disableV6NS des = do
     acts  <- randomizedSelects entries actions             {- randomly select DEntry list -}
