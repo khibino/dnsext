@@ -18,6 +18,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as Set
 
 -- other packages
+import Data.List.Split (chunksOf)
 
 -- dnsext packages
 import qualified DNS.Log as Log
@@ -144,6 +145,21 @@ fillDelegationDNSKEY' getSEP d@Delegation{delegationDNSKEY = [] , ..} =
     nullIPs = logLn Log.WARN "require-dnskey: address list is null" $> d
     verifyFailed ~es = logLn Log.WARN ("require-dnskey: " ++ es) $> d
     query sas = either verifyFailed fill =<< cachedDNSKEY getSEP sas zone
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+delegationFallbacks
+    :: (MonadReader Env m, MonadIO m)
+    => Int -> (DNSQuery DNSMessage -> m a -> m a) -> m a
+    -> Bool -> Delegation -> Domain -> TYPE -> m a
+delegationFallbacks addrs cons nil dnssecOK Delegation{..} name typ = do
+    disableV6NS <- asks disableV6NS_
+    axss <- chunksOf addrs <$> dentryToPermAx disableV6NS dentry
+    let axFallbacks = [ norec dnssecOK axs name typ | axs <- axss ]
+    foldr cons nil axFallbacks
+  where
+    dentry = NE.toList delegationNS
+    -- fallbackAx = foldr cons nil
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
