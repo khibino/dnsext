@@ -198,6 +198,26 @@ foldIPList n v4 v6 both ips = foldIPList' n v4 v6 both v4list v6list
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+dentryToPermAx :: MonadIO m =>  Bool -> [DEntry] -> m [Address]
+dentryToPermAx disableV6NS des = do
+    as <- unique . concatMap NE.toList <$> sequence actions
+    randomizedPerm as
+  where
+    actions = dentryIPsetChoices disableV6NS des
+    unique = Set.toList . Set.fromList
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+dentryToPermNS :: MonadIO m => [DEntry] -> m [Domain]
+dentryToPermNS des = do
+    randomizedPerm $ unique $ foldr takeNS [] des
+  where
+    takeNS (DEonlyNS ns) xs = ns : xs
+    takeNS  _            xs =      xs
+    unique = Set.toList . Set.fromList
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 dentryToRandomIP :: MonadIO m => Int -> Int -> Bool -> [DEntry] -> m [Address]
 dentryToRandomIP entries addrs disableV6NS des = do
     acts  <- randomizedSelects entries actions             {- randomly select DEntry list -}
