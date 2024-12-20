@@ -23,6 +23,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as Set
 
 -- other packages
+import Data.List.Split (chunksOf)
 
 -- dnsext packages
 import DNS.Do53.Client (QueryControls (..))
@@ -546,6 +547,46 @@ cachedDNSKEY getSEPs sas zone = do
         Verify.cases NoCheckDisabled zone (s : ss) rankedAnswer msg zone DNSKEY dnskeyRD nullDNSKEY ncDNSKEY cachedResult
 
 ---
+
+{- FOURMOLU_DISABLE -}
+delegationFallbacks
+    :: Int -> Bool -> ([Address] -> DNSQuery b)
+    -> Delegation -> Domain -> TYPE -> DNSQuery (DNSMessage, Delegation)
+delegationFallbacks dc dnssecOK ah d0 name typ = do
+    disableV6NS <- asks disableV6NS_
+    delegationFallbacks_ cons nil qparallel disableV6NS dc dnssecOK ah d0 name typ
+  where
+    cons d ma nexts = (ma <&> \x -> (x, d)) `catchError` (\e -> fallbackLog e >> nexts)
+    fallbackLog e = logLn Log.DEBUG $ unwords ["delegationFallbacks: fallback with", show e ++ ":", show name, show typ]
+    nil ass = failed ass >> throwDnsError ServerFailure
+    failed ass = logLines Log.DEMO ("delegationFallbacks: all fallbacks failed:" : ["  " ++ unwords (ns : map pprAddr as) | (ns, as) <- ass])
+    qparallel = 2
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+delegationFallbacks_
+    :: (Delegation -> DNSQuery DNSMessage -> DNSQuery (a, Delegation) -> DNSQuery (a, Delegation))
+    -> ([(String ,[Address])] -> DNSQuery (a, Delegation))
+    -> Int -> Bool -> Int -> Bool -> ([Address] -> DNSQuery b)
+    -> Delegation -> Domain -> TYPE -> DNSQuery (a, Delegation)
+delegationFallbacks_ cons nil qparallel disableV6NS dc dnssecOK ah d0@Delegation{..} name typ = do
+    paxs1  <- dentryToPermAx disableV6NS dentry
+    pnss   <- dentryToPermNS zone dentry
+    fallbacks paxs1 d0 (("<glue>", paxs1) :) pnss
+  where
+    dentry = NE.toList delegationNS
+    fallbacks paxs d aa nss0  = axsOrFallback paxs d (fallbackNS d aa nss0)
+    fallbackNS _ aa  []      = nil (aa [])
+    fallbackNS d aa (ns:nss) = do
+        axs  <- resolveNS zone disableV6NS dc ns
+        d'   <- fillCachedDelegation d  {- fill cached info on fallbacks -}
+        paxs <- randomizedPerm [(ip, 53) | (ip, _) <- NE.toList axs]
+        fallbacks paxs d' (aa . ((show ns, paxs) :)) nss
+    axsOrFallback paxs d nexts =
+        foldr (cons d) nexts
+        [ah axc >> norec dnssecOK axc name typ | axc <- chunksOf qparallel paxs]
+    zone = delegationZone
+{- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
 resolveNS :: Domain -> Bool -> Int -> Domain -> DNSQuery (NonEmpty (IP, ResourceRecord))
