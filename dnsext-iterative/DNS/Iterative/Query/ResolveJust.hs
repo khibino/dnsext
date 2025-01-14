@@ -458,6 +458,7 @@ fillDelegationDNSKEY' getSEP  dc d@Delegation{delegationDNSKEY = [] , ..} =
     zone = delegationZone
     toDNSKEYs (rrs, _rank) = [rd | rr <- rrs, Just rd <- [DNS.fromRData $ rdata rr]]
     fill d' dnskeys = pure d'{delegationDNSKEY = dnskeys}
+    {- TODO: no DNSKEY with non-empty DS case, is bogus. should raise failure in cachedDNSKEY to simply -}
     verifyFailed ~es = logLn Log.WARN ("require-dnskey: " ++ es) $> d
     query = either verifyFailed (\(ks, d') -> fill d' ks) =<< cachedDNSKEY getSEP dc d
 {- FOURMOLU_ENABLE -}
