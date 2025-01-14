@@ -334,6 +334,7 @@ fillDelegationDS dc src dest
                 let domTraceMsg = show (delegationZone src) ++ " -> " ++ show zone
                 clogLn Log.DEMO (Just verifyColor) $ "fill delegation - " ++ verifyMsg ++ ": " ++ domTraceMsg
                 either verifyFailed (fillCachedDelegation {- fill-cached on queryDS fallbacks -} <=< fill) e
+        {- TODO: raise failure in queryDS to simpily -}
         result =<< queryDS dc src zone
 
 {- FOURMOLU_DISABLE -}
