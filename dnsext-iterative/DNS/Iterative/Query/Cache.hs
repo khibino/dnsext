@@ -392,6 +392,7 @@ cacheNoDelegation d zone dnskeys dom msg
   where
     nameErrors = asksQP requestCD_ >>=
         \reqCD -> Verify.cases reqCD zone dnskeys rankedAnswer msg dom CNAME cnRD nullCNAME ncCNAME $
+        {- TODO: should raise failure for bogus cnRRset case -}
         \_rds _cnRRset cacheCNAME -> cacheCNAME *> cacheNoDataNS
     {- If you want to cache the NXDOMAIN of the CNAME destination, return it here.
        However, without querying the NS of the CNAME destination,
