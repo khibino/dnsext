@@ -273,6 +273,7 @@ cacheSectionNegative zone dnskeys dom typ getRanked msg nws = do
         let doCache (soaDom, ncttl) = do
                 cacheSOA
                 withSection getRanked msg $ \_rrs rank -> cacheNegative soaDom nws dom typ ncttl rank
+        {- TODO: should raise failure for bogus soaRRset case -}
         either (ncWarn >>> ($> [])) (doCache >>> ($> soaRRset : nws)) $ single ps
   where
     single xs = case xs of
