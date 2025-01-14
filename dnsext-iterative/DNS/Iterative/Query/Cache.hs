@@ -349,6 +349,7 @@ cacheAnswer d@Delegation{..} dom typ msg = do
   where
     qinfo = show dom ++ " " ++ show typ
     verify reqCD = Verify.cases reqCD zone dnskeys rankedAnswer msg dom typ Just nullX ncX $ \_ xRRset cacheX -> do
+        {- TODO: should not check witness for no verification cases -}
         nws <- witnessWildcardExpansion
         let (~verifyMsg, ~verifyColor, raiseOnVerifyFailure)
                 | CheckDisabled <- reqCD = ("no verification - check disabled, " ++ qinfo, Just Yellow, pure ())
