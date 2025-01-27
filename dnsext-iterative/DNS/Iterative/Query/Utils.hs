@@ -49,6 +49,14 @@ printResult :: Either QueryError DNSMessage -> IO ()
 printResult = either print (putStr . pprMessage "result")
 
 {- FOURMOLU_DISABLE -}
+pprRRsets :: String -> [RRset] -> String
+pprRRsets title rrss = unlines $ pindents title (concatMap ppr1 rrss)
+  where
+    ppr1 rrset = pindents (ppfields rrset) [show rd | rd <- rrsRDatas rrset]
+    ppfields RRset{..} = (unwords [show rrsName, show rrsType, show rrsClass, show rrsTTL, show rrsMayVerified])
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 pprMessage :: String -> DNSMessage -> String
 pprMessage title DNSMessage{..} =
     unlines $ (title ++ ":") : map ("  " ++)
