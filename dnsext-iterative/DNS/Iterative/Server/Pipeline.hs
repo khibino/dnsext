@@ -116,27 +116,27 @@ data CacheResult
 
 cacherLogic :: Env -> IO FromReceiver -> (ToWorker -> IO ()) -> IO ()
 cacherLogic env fromReceiver toWorker = handledLoop env "cacher" $ do
-    inpBS@Input{..} <- fromReceiver
-    case DNS.decode inputQuery of
-        Left e -> logLn env Log.WARN $ "decode-error: " ++ show e
-        Right queryMsg -> do
-            -- Input ByteString -> Input DNSMessage
-            let inp = inpBS{inputQuery = queryMsg}
-            cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
-            case cres of
-                CResultMissHit -> toWorker inp
-                CResultHit vr replyMsg -> do
-                    duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
-                    updateHistogram_ env duration (stats_ env)
-                    mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
-                    let bs = DNS.encode replyMsg
-                    record env inp replyMsg bs
-                    inputToSender $ Output bs inputPendingOp inputPeerInfo
-                CResultDenied _replyErr -> do
-                    duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
-                    updateHistogram_ env duration (stats_ env)
-                    logicDenied env inp
-                    vpDelete inputPendingOp
+    inpBS <- fromReceiver
+    either (logLn env Log.WARN . ("decode-error: " ++) . show) (right inpBS) $ DNS.decode $ inputQuery inpBS
+  where
+    right inpBS@Input{..} queryMsg = do
+        -- Input ByteString -> Input DNSMessage
+        let inp = inpBS{inputQuery = queryMsg}
+        cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
+        case cres of
+            CResultMissHit -> toWorker inp
+            CResultHit vr replyMsg -> do
+                duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
+                updateHistogram_ env duration (stats_ env)
+                mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
+                let bs = DNS.encode replyMsg
+                record env inp replyMsg bs
+                inputToSender $ Output bs inputPendingOp inputPeerInfo
+            CResultDenied _replyErr -> do
+                duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
+                updateHistogram_ env duration (stats_ env)
+                logicDenied env inp
+                vpDelete inputPendingOp
 
 ----------------------------------------------------------------
 
