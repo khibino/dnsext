@@ -49,6 +49,8 @@ jobs:
       id: doctest-dep
       if: ${{ runner.os == 'Linux' }}
       run: |
+        set -x
+        ls -1 ~/.cabal/store/ghc-${{ steps.params.outputs.ghc_version }}*/ | egrep '^doctest-' || true  ## DEBUG
         if cabal install --offline --overwrite-policy=always doctest
         then
           echo "installed=false" >> "$GITHUB_OUTPUT"
@@ -56,10 +58,14 @@ jobs:
           cabal install doctest --overwrite-policy=always
           echo "installed=true" >> "$GITHUB_OUTPUT"
         fi
+        ls -1 ~/.cabal/store/ghc-${{ steps.params.outputs.ghc_version }}*/ | egrep '^doctest-' || true  ## DEBUG
+        ls -1d ~/.cabal/store/ghc-${{ steps.params.outputs.ghc_version }}* || true  ## DEBUG
 
     - name: Install dependencies
       id: inst-dep
       run: |
+        set -x
+        ls -1 ~/.cabal/store/ghc-${{ steps.params.outputs.ghc_version }}*/ | egrep '^network-' || true  ## DEBUG
         if cabal build --offline --only-dependencies ${{ env.target-config }} all
         then
           echo "installed=false" >> "$GITHUB_OUTPUT"
@@ -67,6 +73,8 @@ jobs:
           cabal build --only-dependencies ${{ env.target-config }} all
           echo "installed=true" >> "$GITHUB_OUTPUT"
         fi
+        ls -1 ~/.cabal/store/ghc-${{ steps.params.outputs.ghc_version }}*/ | egrep '^network-' || true  ## DEBUG
+        ls -1d ~/.cabal/store/ghc-${{ steps.params.outputs.ghc_version }}* || true  ## DEBUG
 
     - name: Save Cache
       uses: actions/cache/save@v4
