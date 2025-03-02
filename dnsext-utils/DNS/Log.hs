@@ -34,6 +34,7 @@ import System.IO (
     stderr,
     stdout,
  )
+import System.IO.Error (tryIOError)
 
 -- other packages
 import System.Console.ANSI (hSetSGR, hSupportsANSIColor)
@@ -142,9 +143,14 @@ withHandleLogger qsize getM open close loggerLevel k = do
       where
         loop outFh = do
             me <- atomically (readTBQueue inQ)
-            let close'   = close outFh >> putMVar mvar ()
-                reopen'  = close outFh >> open' >>= loop
-            me close' reopen' $ \c xs -> logit outFh c xs >> loop outFh
+            let closeK   = close'  outFh >> putMVar mvar ()
+                reopenK  = reopen' outFh >>= loop
+            me closeK reopenK $ \c xs -> logit outFh c xs >> loop outFh
+
+    reopen' outFh  = handleIOE "failed to reopen log" (pure outFh) (close outFh >> open')
+    close'  outFh  = handleIOE "failed to close log" (pure ()) (close outFh)
+    handleIOE s alt act = either (failed s alt) pure =<< tryIOError act
+    failed s alt e = putStrLn (s ++ ": " ++ show e) >> alt
 
     open' = open >>= \outFh -> hSetBuffering outFh LineBuffering $> outFh
 
