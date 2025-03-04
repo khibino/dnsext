@@ -147,7 +147,8 @@ withHandleLogger qsize getM open close loggerLevel k = do
                 reopenK  = reopen' outFh >>= loop
             me closeK reopenK $ \c xs -> logit outFh c xs >> loop outFh
 
-    reopen' outFh  = handleIOE "failed to reopen log" (pure outFh) (close outFh >> open')
+    -- close old fh after success of open
+    reopen' outFh  = handleIOE "failed to reopen log" (pure outFh) (open' >>= \fh -> close outFh $> fh)
     close'  outFh  = handleIOE "failed to close log" (pure ()) (close outFh)
     handleIOE s alt act = either (failed s alt) pure =<< tryIOError act
     failed s alt e = putStrLn (s ++ ": " ++ show e) >> alt
