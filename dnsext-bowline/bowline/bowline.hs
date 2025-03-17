@@ -17,7 +17,11 @@ import Data.String (fromString)
 import GHC.Stats
 import System.Environment (getArgs)
 import System.IO (IOMode (AppendMode), hClose, openFile)
-import System.Posix (Handler (Catch), UserID, getRealUserID, installHandler, setEffectiveGroupID, setEffectiveUserID, sigHUP)
+{- FOURMOLU_DISABLE -}
+import System.Posix (UserID, getRealUserID, setEffectiveGroupID, setEffectiveUserID) {- System.Posix.User -}
+import System.Posix (Handler (Catch), installHandler, sigHUP) {- System.Posix.Signal -}
+import System.Posix (SystemID (nodeName), getSystemID) {- System.Posix.Unistd -}
+{- FOURMOLU_ENABLE -}
 import System.Timeout (timeout)
 import Text.Printf (printf)
 
@@ -96,6 +100,8 @@ runConfig tcache gcache@GlobalCache{..} mng0 ruid conf@Config{..} = do
             putStrLn $ "loading root-hints: " ++ path
             readRootHint path
     disable_v6_ns <- check_for_v6_ns
+    idstr <- maybe (nodeName <$> getSystemID) pure cnf_identity
+    let verstr = maybe ("bowline " ++ version) id cnf_version
     (runLogger, putLines, killLogger, reopenLog0) <- getLogger ruid conf tcache
     --
     let rootpriv = do
