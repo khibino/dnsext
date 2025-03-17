@@ -51,6 +51,11 @@ help = putStrLn "bowline [<confFile>] [<conf-key>=<conf-value> ...]"
 
 ----------------------------------------------------------------
 
+version :: String
+version = "0.0.0.20250317"
+
+----------------------------------------------------------------
+
 run :: UserID -> IO Config -> IO ()
 run ruid readConfig = do
     -- TimeCache uses Control.AutoUpdate which
@@ -100,6 +105,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 ruid conf@Config{..} = do
             let setOps = setRootHint rootHint . setRootAnchor trustAnchors . setRRCacheOps gcacheRRCacheOps . setTimeCache tcache
                 localZones = getLocalZones cnf_local_zones
             stubZones <- getStubZones cnf_stub_zones trustAnchors
+            statsInfo <- getStatsInfo version
             updateHistogram <- getUpdateHistogram $ putStrLn "response_time_seconds_sum is not supported for Int shorter than 64bit."
             env <-
                 newEnv <&> \env0 ->
@@ -112,6 +118,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 ruid conf@Config{..} = do
                         , stubZones_ = stubZones
                         , maxNegativeTTL_ = cropMaxNegativeTTL cnf_cache_max_negative_ttl
                         , failureRcodeTTL_ = cropFailureRcodeTTL cnf_cache_failure_rcode_ttl
+                        , statsInfo_ = statsInfo
                         , updateHistogram_ = updateHistogram
                         , timeout_ = tmout
                         }
