@@ -2,6 +2,8 @@
 
 module DNS.Iterative.Query.DefaultLocal (
     defaultLocal,
+    nsIdentity,
+    nsVersion,
 ) where
 
 -- GHC packages
@@ -28,6 +30,14 @@ defaultLocal =
     ipv4RevZones ++
     ipv6RevZones
 {- FOURMOLU_ENABLE -}
+
+---
+
+nsIdentity :: String -> [(Domain, LocalZoneType, [RR])]
+nsIdentity istr = [defineZone n LZ_Static [mkRR n 0 CH TXT (rd_txt $ fromString istr)] | n <- ["id.server.", "hostname.bind."]]
+
+nsVersion :: String -> [(Domain, LocalZoneType, [RR])]
+nsVersion vstr = [defineZone n LZ_Static [mkRR n 0 CH TXT (rd_txt $ fromString vstr)] | n <- ["version.server.", "version.bind."]]
 
 ---
 
