@@ -22,10 +22,13 @@ module DNS.Iterative.Query.Env (
     --
     getStubZones,
     --
+    getStatsInfo,
+    --
     getUpdateHistogram,
 ) where
 
 -- GHC packages
+import Control.Concurrent (getNumCapabilities)
 import Data.IORef (newIORef)
 import qualified Data.List.NonEmpty as NE
 import Data.Map.Strict (Map)
@@ -208,3 +211,8 @@ getStubZones zones anchors = either fail pure $ Stub.getStubMap zones'
   where
     zones' = [ (apex, ns, as, dstate) | (apex, ns, as) <- zones, let dstate = fromMaybe (FilledDS []) $ Map.lookup apex anchors ]
 {- FOURMOLU_ENABLE -}
+
+---
+
+getStatsInfo :: String -> IO [(String, String)]
+getStatsInfo version = getNumCapabilities <&> \cap -> [("thread", show cap), ("version", version)]
