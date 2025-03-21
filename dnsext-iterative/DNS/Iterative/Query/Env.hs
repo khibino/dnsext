@@ -96,6 +96,7 @@ newEmptyEnv = do
         , idGen_ = genId
         , statsInfo_ = []
         , stats_ = stats
+        , nsid_ = Nothing
         , updateHistogram_ = \_ _ -> pure ()
         , timeout_ = timeout 5000000
         }
