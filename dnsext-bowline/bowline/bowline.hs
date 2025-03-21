@@ -125,6 +125,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 ruid conf@Config{..} = do
                         , maxNegativeTTL_ = cropMaxNegativeTTL cnf_cache_max_negative_ttl
                         , failureRcodeTTL_ = cropFailureRcodeTTL cnf_cache_failure_rcode_ttl
                         , statsInfo_ = statsInfo
+                        , nsid_ = cnf_nsid
                         , updateHistogram_ = updateHistogram
                         , timeout_ = tmout
                         }
