@@ -42,6 +42,7 @@ import System.Console.ANSI.Types
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Cache
+import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Delegation
 import DNS.Iterative.Query.Helpers
 import qualified DNS.Iterative.Query.Norec as Norec
@@ -278,7 +279,7 @@ fillsDNSSEC' NoCheckDisabled  dc  nss d = do
     return filled
 {- FOURMOLU_ENABLE -}
 
-getCheckEnabled :: MonadReaderQP m => m Bool
+getCheckEnabled :: MonadQP m => m Bool
 getCheckEnabled = noCD <$> asksQP requestCD_
   where
     noCD NoCheckDisabled = True
