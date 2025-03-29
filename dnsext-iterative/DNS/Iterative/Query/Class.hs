@@ -2,9 +2,10 @@
 module DNS.Iterative.Query.Class (
     MonadEnv (..),
     MonadQP (..),
-    MonadReaderQS (..),
+    MonadQuery (..),
     setQS,
     getQS,
+    throwDnsError,
     --
     Env (..),
     LocalZoneType (..),
@@ -33,6 +34,10 @@ module DNS.Iterative.Query.Class (
     --
     QueryState (..),
     newQueryState,
+    --
+    ExtraError (..),
+    extraError,
+    QueryError (..),
 ) where
 
 -- GHC packages
@@ -69,18 +74,22 @@ class MonadEnv m => MonadQP m where
 
 ----------
 
-class Monad m => MonadReaderQS m where
+class MonadQP m  => MonadQuery m where
     asksQS :: (QueryState -> a) -> m a
+    throwQuery :: QueryError -> m a
 
-setQS :: (MonadReaderQS m, MonadIO m) => (QueryState -> StateVal a n) -> a -> m ()
+setQS :: MonadQuery m => (QueryState -> StateVal a n) -> a -> m ()
 setQS f x = do
     StateVal ref <- asksQS f
     liftIO $ atomicModifyIORef' ref (\_ -> (x, ()))
 
-getQS :: (MonadReaderQS m, MonadIO m) => (QueryState -> StateVal a n) -> m a
+getQS :: MonadQuery m => (QueryState -> StateVal a n) -> m a
 getQS f = do
     StateVal ref <- asksQS f
     liftIO $ readIORef ref
+
+throwDnsError :: MonadQuery m => DNSError -> m a
+throwDnsError = throwQuery . (`DnsError` [])
 
 ----------
 -- Env context type for Monad
@@ -308,3 +317,27 @@ newQueryState = do
     rlsq <- newStateVal (Question (fromString "") A IN, [])
     rasm <- newStateVal Nothing
     pure $ QueryState refq rlsq rasm
+
+----------
+-- QueryError
+
+data ExtraError
+    = ErrorNotResp
+    | ErrorEDNS DNS.EDNSheader
+    | ErrorRCODE DNS.RCODE
+    | ErrorBogus String
+    deriving (Show)
+
+{- FOURMOLU_DISABLE -}
+extraError :: a -> (EDNSheader -> a) -> (RCODE -> a) -> (String -> a) -> ExtraError -> a
+extraError notResp errEDNS errRCODE bogus fe = case fe of
+    ErrorNotResp  -> notResp
+    ErrorEDNS e   -> errEDNS e
+    ErrorRCODE e  -> errRCODE e
+    ErrorBogus s  -> bogus s
+{- FOURMOLU_ENABLE -}
+
+data QueryError
+    = DnsError DNSError [String]
+    | ExtraError ExtraError [Address] (Maybe DNSMessage)
+    deriving (Show)
