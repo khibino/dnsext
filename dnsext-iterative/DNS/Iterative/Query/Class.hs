@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 
 module DNS.Iterative.Query.Class (
     MonadEnv (..),
@@ -59,7 +60,7 @@ import DNS.Iterative.Stats (Stats)
 ----------
 -- tagless final monad effect - Env
 
-class MonadIO m => MonadEnv m where
+class (MonadReader Env m, MonadIO m) => MonadEnv m where
     asksEnv :: (Env -> a) -> m a
 
 ----------
