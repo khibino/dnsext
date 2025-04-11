@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoStrict #-}
 
-module DNS.ZoneFile.Parser where
+module DNS.ZoneFile.Parser {-# WARNING "rdataTXT does not support multiple character-strings" #-} where
 
 import Control.Applicative
 import Control.Monad
@@ -210,7 +210,7 @@ rdataPTR = rd_ptr <$> domain
 rdataTXT :: Parser RData
 rdataTXT = rd_txt . txt <$> ((:) <$> nbstring <*> many (blank *> nbstring))
   where
-    txt = Opaque.concat . map txtCString
+    txt = head {- TO BE FIXED -} . map Opaque.fromShortByteString
     nbstring = mconcat <$> some (cstring <|> dot $> ".")
 
 rdataMX :: Parser RData
