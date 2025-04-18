@@ -1,18 +1,38 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Iterative (iterativeQuery) where
+module Iterative (iterativeQuery, getRemoteV6) where
 
+--
+import Data.Functor
+import Data.List.NonEmpty (NonEmpty (..))
+import System.Timeout (timeout)
+
+--
+import Data.IP (IP (IPv6))
 import DNS.Do53.Client (QueryControls)
 import DNS.Iterative.Query (Env (..), newEmptyEnv, resolveResponseIterative, setRRCacheOps, setTimeCache)
+import DNS.Iterative.Internal (Delegation (..), delegationEntry)
 import qualified DNS.Log as Log
 import qualified DNS.RRCache as Cache
 import DNS.TimeCache (getTime, newTimeCache)
-import Data.Functor
-import System.Timeout (timeout)
+import Network.Socket (PortNumber)
 
 import DNS.Types
 
 import Types (Options (..), shortLog)
+
+{- FOURMOLU_DISABLE -}
+getRemoteV6 :: IO [(IP, PortNumber)]
+getRemoteV6 = do
+    Env{rootHint_=Delegation{delegationNS=d:|ds}} <- newEmptyEnv
+    pure $ foldr takeV6 [] $ d:ds
+  where
+    nlist (x:|xs) = x:xs
+    ax _   _ n6 xs = [(IPv6 a, 53) | a      <- nlist n6]  ++ xs
+    a6 _     n6 xs = [(IPv6 a, 53) | a      <- nlist n6]  ++ xs
+    s6 na6      xs = [(IPv6 a,  p) | (a, p) <- nlist na6] ++ xs
+    takeV6 = delegationEntry ax (\_ _ xs -> xs) a6 (\_ xs -> xs) (\_ xs -> xs) s6
+{- FOURMOLU_ENABLE -}
 
 iterativeQuery
     :: (DNSMessage -> IO ())
