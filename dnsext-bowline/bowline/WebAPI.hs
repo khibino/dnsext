@@ -17,6 +17,7 @@ import Network.HTTP.Types.Header (hContentType, hContentDisposition)
 import Network.Socket
 import Network.Wai
 import Network.Wai.Handler.Warp hiding (run)
+import System.Posix (getSystemID, nodeName)
 
 import DNS.Iterative.Server (withLocationIOE)
 
@@ -32,17 +33,18 @@ doWStats :: Control -> IO Response
 doWStats Control{..} = responseBuilder HTTP.ok200 [] <$> getWStats
 
 doMacosProf :: IO Response
-doMacosProf = return $ responseBuilder HTTP.ok200 [
+doMacosProf = do
+    hostname <- nodeName <$> getSystemID
+    let txt = fromString $ xmls hostname
+    return $ responseBuilder HTTP.ok200 [
          (hContentType, "application/xml; charset=UTF-8"),
          (hContentDisposition, "attachment; filename=bowline.mobileconfig")
          ] txt
   where
-    txt = fromString $ xmls
-    hostname = fromString $ "bowline.iijlab.net"
     uuidDoH = fromString $ "0F54C4EF-5D3D-47B7-AC34-21E2F307D69E"
     uuidDoT = fromString $ "03B5987F-3EFD-4479-97CF-591D469B3F00"
     uuidMain = fromString $ "0E6EDCAE-81BF-4A8B-85D7-7BC3D031EC76"
-    xmls = [heredoc|
+    xmls hostname = [heredoc|
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.
 dtd">
