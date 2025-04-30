@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module WebAPI (
     bindAPI,
@@ -12,6 +13,7 @@ import Data.Functor
 import qualified Data.List.NonEmpty as NE
 import Data.String
 import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types.Header (hContentType, hContentDisposition)
 import Network.Socket
 import Network.Wai
 import Network.Wai.Handler.Warp hiding (run)
@@ -21,11 +23,95 @@ import DNS.Iterative.Server (withLocationIOE)
 import Config
 import Types
 
+import Text.Heredoc (heredoc)
+
 doStats :: Control -> IO Response
 doStats Control{..} = responseBuilder HTTP.ok200 [] <$> getStats
 
 doWStats :: Control -> IO Response
 doWStats Control{..} = responseBuilder HTTP.ok200 [] <$> getWStats
+
+doMacosProf :: IO Response
+doMacosProf = return $ responseBuilder HTTP.ok200 [
+         (hContentType, "application/xml; charset=UTF-8"),
+         (hContentDisposition, "attachment; filename=bowline.mobileconfig")
+         ] txt
+  where
+    txt = fromString $ xmls
+    hostname = fromString $ "bowline.iijlab.net"
+    uuidDoH = fromString $ "0F54C4EF-5D3D-47B7-AC34-21E2F307D69E"
+    uuidDoT = fromString $ "03B5987F-3EFD-4479-97CF-591D469B3F00"
+    uuidMain = fromString $ "0E6EDCAE-81BF-4A8B-85D7-7BC3D031EC76"
+    xmls = [heredoc|
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.
+dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadDescription</key>
+      <string>DNS Settings</string>
+      <key>PayloadDisplayName</key>
+      <string>${hostname} (DoH)</string>
+      <key>PayloadIdentifier</key>
+      <string>com.apple.dnsSettings.managed.${uuidDoH}</string>
+      <key>PayloadType</key>
+      <string>com.apple.dnsSettings.managed</string>
+      <key>PayloadUUID</key>
+      <string>${uuidDoH}</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <key>DNSSettings</key>
+      <dict>
+        <key>DNSProtocol</key>
+        <string>HTTPS</string>
+        <key>ServerURL</key>
+    <string>https://${hostname}/dns-query</string>
+      </dict>
+      <key>ProhibitDisablement</key>
+      <false/>
+    </dict>
+    <dict>
+      <key>PayloadDescription</key>
+      <string>DNS Settings</string>
+      <key>PayloadDisplayName</key>
+      <string>${hostname} (DoT)</string>
+      <key>PayloadIdentifier</key>
+      <string>com.apple.dnsSettings.managed.${uuidDoT}</string>
+      <key>PayloadType</key>
+      <string>com.apple.dnsSettings.managed</string>
+      <key>PayloadUUID</key>
+      <string>${uuidDoT}</string>
+      <key>PayloadVersion</key>
+p      <integer>1</integer>
+      <key>DNSSettings</key>
+      <dict>
+    <key>DNSProtocol</key>
+    <string>TLS</string>
+    <key>ServerName</key>
+    <string>${hostname}</string>
+      </dict>
+      <key>ProhibitDisablement</key>
+      <false/>
+    </dict>
+  </array>
+  <key>PayloadDisplayName</key>
+  <string>bowline</string>
+  <key>PayloadIdentifier</key>
+  <string>com.apple.dnsSettings.managed</string>
+  <key>PayloadRemovalDisallowed</key>
+  <false/>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadUUID</key>
+  <string>${uuidMain}</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+</dict>
+</plist>
+|]
 
 {- FOURMOLU_DISABLE -}
 doHelp :: IO Response
@@ -38,6 +124,7 @@ doHelp = return $ responseBuilder HTTP.ok200 [] txt
         , ("/reopen-log"  , "reopen logfile when file logging")
         , ("/reload"      , "reload bowline without keeping cache")
         , ("/keep-cache"  , "reload bowline with keeping cache")
+        , ("/macos-prof"  , "download macos DNSsettings profile for this resolver")
         , ("/quit"        , "quit bowline")
         , ("/help"        , "show this help texts")
         ]
@@ -58,6 +145,7 @@ app mng req sendResp = getResp >>= sendResp
             "/reopen-log"  -> reopenLog mng $> ok
             "/reload"      -> reloadCmd mng Reload    failed ok
             "/keep-cache"  -> reloadCmd mng KeepCache failed ok
+            "/macos-prof"  -> doMacosProf
             "/quit"        -> quitCmd mng Quit $> ok
             "/help"        -> doHelp
             "/"            -> doHelp
