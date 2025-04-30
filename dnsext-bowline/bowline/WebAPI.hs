@@ -85,7 +85,7 @@ dtd">
       <key>PayloadUUID</key>
       <string>${uuidDoT}</string>
       <key>PayloadVersion</key>
-p      <integer>1</integer>
+      <integer>1</integer>
       <key>DNSSettings</key>
       <dict>
     <key>DNSProtocol</key>
