@@ -21,6 +21,15 @@ import DNS.SEC (RD_RRSIG (..))
 
 import DNS.RRCache.Types
 
+{- NOTE:
+RData includes type-class dictionary and existential type RD_*,
+cannot generate Generic instance simply.
+
+idea1:
+* not compressed: cache result encoded ShortBytestring
+* compressed: cache encoding function
+ -}
+
 deriving instance Generic Question
 -- deriving instance Generic RData
 deriving instance Generic RD_RRSIG
