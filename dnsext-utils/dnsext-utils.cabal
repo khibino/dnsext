@@ -43,6 +43,7 @@ library
         containers,
         deepseq,
         dnsext-dnssec,
+        dnsext-svcb,
         dnsext-types,
         iproute,
         network >= 3.2.2 && < 3.3,
