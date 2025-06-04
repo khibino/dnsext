@@ -277,6 +277,26 @@ rdataDNSKEY = do
 
 ---
 
+{- TODO: HTTPS SVCB -}
+
+{-
+SvcPriority TargetName SvcParams
+
+The SVCB record is defined specifically within the Internet ("IN") Class ([RFC1035], Section 3.2.4).
+
+SvcPriority is a number in the range 0-65535, TargetName is a <domain-name> ([RFC1035], Section 5.1),
+and the SvcParams are a whitespace-separated list with each SvcParam consisting of a SvcParamKey=SvcParamValue pair or a standalone SvcParamKey. SvcParamKeys are registered by IANA
+
+alpha-lc      = %x61-7A   ; a-z
+SvcParamKey   = 1*63(alpha-lc / DIGIT / "-")
+SvcParam      = SvcParamKey ["=" SvcParamValue]
+SvcParamValue = char-string ; See Appendix A.
+value         = *OCTET ; Value before key-specific parsing
+ -}
+
+
+---
+
 {- FOURMOLU_DISABLE -}
 {-- $ORIGIN <domain-name> [<comment>]
       --(normalized)-->
