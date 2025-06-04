@@ -277,6 +277,12 @@ rdataDNSKEY = do
 
 ---
 
+svcPriority :: MonadParser Token s m => m Word16
+svcPriority = readCString
+
+rdataSVCB :: MonadParser Token s m => m RData
+rdataSVCB = undefined
+
 {- TODO: HTTPS SVCB -}
 
 {-
