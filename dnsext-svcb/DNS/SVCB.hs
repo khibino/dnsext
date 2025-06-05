@@ -40,7 +40,9 @@ module DNS.SVCB (
         SPK_IPv4Hint,
         SPK_ECH,
         SPK_IPv6Hint,
-        SPK_DoHPath
+        SPK_DoHPath,
+        SPK_OHTTP,
+        SPK_TLSSupporedGroups
     ),
     fromSvcParamKey,
     toSvcParamKey,
