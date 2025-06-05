@@ -123,7 +123,7 @@ these :: (Eq t, Show t, MonadParser t s m) => [t] -> m [t]
 these = mapM this
 
 choice :: MonadParser t s m => [m a] -> m a
-choice  []         = parseError "choice, from empty-list"
+choice  []         = parseError "choice: no fallbacks"
 choice [x]         = x
 choice (x:xs@(_:_))  = x <|> choice xs
 {- FOURMOLU_ENABLE -}
