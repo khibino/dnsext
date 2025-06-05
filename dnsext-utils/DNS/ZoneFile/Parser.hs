@@ -102,12 +102,6 @@ cstring = do
     cs <- lstring
     guard (Short.length cs < 256) <|> raise ("Parser.cstring: too long: " ++ show cs)
     pure cs
-
-readable :: (Read a, MonadParser t s m) => String -> m a
-readable str =
-    case [ x | (x, "") <- reads str ] of
-        []   -> raise $ "Parser.readable: unable to read: " ++ str
-        x:_  -> pure x
 {- FOURMOLU_ENABLE -}
 
 readCString :: (Read a, MonadParser Token s m) => m a
