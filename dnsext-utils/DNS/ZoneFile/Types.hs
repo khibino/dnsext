@@ -39,6 +39,7 @@ data Token
     | RParen
     | Blank
     | Dot
+    | Comma
     | CS CString
     | Comment
     | RSep
