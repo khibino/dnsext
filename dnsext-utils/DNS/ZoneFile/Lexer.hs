@@ -97,8 +97,9 @@ newline =
 -- >>> all isLeft $ map (runParser (cstringbSimple <* eof) . fromString . (:"")) ".;()\\\" \n"
 -- True
 cstringbSimple :: MonadParser W8 s m => m Word8
-cstringbSimple = satisfy "not (`.` || `;` || `\\` || `\"`) && not `space` && not `newline` && isPrint && isAscii" check
+cstringbSimple = satisfy (notchars ++ " && not `space` && not `newline` && isPrint && isAscii") check
   where
+    notchars = "not (" ++ foldr1 (\x y -> x ++ " || " ++ y) [['`', c, '`'] | c <- ".@;()\\\"" ] ++ ")"
     check c =
         c `notElem` [_period, _at, _semicolon, _parenleft, _parenright, _backslash, _quotedbl] &&
         not (isSpc c) &&
