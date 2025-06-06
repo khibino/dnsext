@@ -12,6 +12,8 @@ module DNS.Iterative.Query.DefaultLocal (
 import Data.String
 
 -- dnsext-* packages
+import DNS.SVCB
+import DNS.SVCB.Internal
 import DNS.Types
 import Data.IP (AddrRange, IPv6, fromIPv4)
 import qualified Data.IP as IP
@@ -28,6 +30,7 @@ defaultLocal =
     , test
     , onion
     , invalid
+    , iijlabSVCB
     ] ++
     ipv4RevZones ++
     ipv6RevZones
@@ -46,6 +49,32 @@ hideIdentity = [defineZone n LZ_Refuse [] | n <- ["id.server.", "hostname.bind."
 
 hideVersion :: [(Domain, LocalZoneType, [RR])]
 hideVersion = [defineZone n LZ_Static [] | n <- ["version.server.", "version.bind."]]
+
+---
+
+{- FOURMOLU_DISABLE -}
+iijlabSVCB :: (Domain, LocalZoneType, [RR])
+iijlabSVCB =
+    defineZone "_dns.resolver.arpa." LZ_Static
+    [ mkRR "_dns.resolver.arpa." 300 IN SVCB doh
+    , mkRR "_dns.resolver.arpa." 300 IN SVCB dot
+    , mkRR "_dns.resolver.arpa." 300 IN SVCB doq
+    ]
+  where
+    doh = rd_svcb' 1
+        (params ["h2", "h3"] 443 ++
+         [ (SPK_DoHPath  , toSvcParamValue $ SPV_DoHPath (fromString "/dns-query{?dns}")) ])
+    dot = rd_svcb' 2 (params ["dot"] 853)
+    doq = rd_svcb' 3 (params ["doq"] 853)
+    params alpns port =
+        [ (SPK_ALPN     , toSvcParamValue $ SPV_ALPN (fromSS alpns))
+        , (SPK_Port     , toSvcParamValue $ SPV_Port port)
+        , (SPK_IPv4Hint , toSvcParamValue $ SPV_IPv4Hint (fromSS ["202.214.97.26"]))
+        , (SPK_IPv6Hint , toSvcParamValue $ SPV_IPv6Hint (fromSS ["2001:240:1e00:3a00::26"]))
+        ]
+    rd_svcb' pri ps = rd_svcb pri (fromString "bowline.iijlab.net.") (toSvcParams ps)
+    fromSS ss = [fromString s | s <- ss]
+{- FOURMOLU_ENABLE -}
 
 ---
 
