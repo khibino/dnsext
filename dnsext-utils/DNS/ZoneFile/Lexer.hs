@@ -102,6 +102,7 @@ cstringbSimple = satisfy (notchars ++ " && not `space` && not `newline` && isPri
     notchars = "not (" ++ foldr1 (\x y -> x ++ " || " ++ y) [['`', c, '`'] | c <- ".@;()\\\"" ] ++ ")"
     check c =
         c `notElem` [_period, _at, _semicolon, _parenleft, _parenright, _backslash, _quotedbl] &&
+        c /= _comma &&  {- comma-separated list needed by SBCV param RFC 9460  -}
         not (isSpc c) &&
         not (isNewline c) && isPrint c && isAscii c
 {- FOURMOLU_ENABLE -}
@@ -197,6 +198,7 @@ lexerToken =
     RParen <$ byte _parenright  <|>
     Blank <$ some spc           <|>
     Dot <$ byte _period         <|>
+    Comma <$ byte _comma        <|>
     CS <$> lex_cstring          <|>
     Comment <$ comment
 {- FOURMOLU_ENABLE -}
