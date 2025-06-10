@@ -125,7 +125,6 @@ resolvePipeline
     -> TQueue (NameTag, String)
     -> IO (Maybe [PipelineResolver])
 resolvePipeline Options{..} conf tq = do
-    print optDisableV6NS
     er <- withLookupConf conf lookupSVCBInfo
     case er of
         Left err -> do
