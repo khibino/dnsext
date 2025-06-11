@@ -125,6 +125,7 @@ test-suite spec
     build-tool-depends: hspec-discover:hspec-discover
     hs-source-dirs:     test
     other-modules:
+                        ConnectSpec
                         NonBlockingSpec
                         QuerySpec
                         SessionPropSpec
@@ -147,6 +148,8 @@ test-suite spec
         -- others
         QuickCheck,
         async,
+        iproute,
+        network,
         hspec,
         hspec-expectations
 
