@@ -22,6 +22,17 @@ data Directive
     | D_TTL
     deriving (Eq, Show)
 
+{- FOURMOLU_DISABLE -}
+data Word8E
+    = C Word8  -- ^ not escaped byte
+    | E Word8  -- ^     escaped byte
+    deriving (Eq, Show)
+{- FOURMOLU_ENABLE -}
+
+unEscW8 :: Word8E -> Word8
+unEscW8 (C w8) = w8
+unEscW8 (E w8) = w8
+
 -- character-string or longer opaque-string
 type CString = Short.ShortByteString
 
