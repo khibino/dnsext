@@ -155,12 +155,12 @@ cstringByte =
 quote :: MonadParser W8 s m => m ()
 quote = void $ byte _quotedbl
 
-quotedByte :: MonadParser W8 s m => m Word8
+quotedByte :: MonadParser W8 s m => m Word8E
 quotedByte =
-    cstringbSimple    <|>
-    cstringbOct       <|>
-    cstringbEscaped   <|>
-    satisfy "not (`\\` || `\"`) && not newline && isPrint || tab" check
+    C <$> cstringbSimple    <|>
+    E <$> cstringbOct       <|>
+    E <$> cstringbEscaped   <|>
+    C <$> satisfy "not (`\\` || `\"`) && not newline && isPrint || tab" check
   where
     check c =
         c `notElem` [_backslash, _quotedbl] &&
@@ -181,8 +181,8 @@ directive = D_Origin <$ string "$ORIGIN" <|> D_TTL <$ string "$TTL"
 lex_cstring :: MonadParser W8 s m => m CString
 lex_cstring =
     cstringW8 <$>
-    ( some cstringByte                  <|>
-      quote *> many quotedByte <* quote )
+    ( some cstringByte                                <|>
+      quote *> many (unEscW8 <$> quotedByte) <* quote )
 {- FOURMOLU_ENABLE -}
 
 comment :: MonadParser W8 s m => m ()
