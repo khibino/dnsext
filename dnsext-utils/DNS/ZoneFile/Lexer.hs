@@ -141,24 +141,24 @@ cstringbOct = backslash *> (replicateM 3 oct >>= getOct)
         v : _  -> pure v
 -- |
 -- >>> runParser cstringByte "zyx"
--- Right (122,"yx")
+-- Right (C 122,"yx")
 -- >>> runParser cstringByte "\\\t"
--- Right (9,"")
+-- Right (E 9,"")
 -- >>> runParser cstringByte "\\200"
--- Right (128,"")
-cstringByte :: MonadParser W8 s m => m Word8
+-- Right (E 128,"")
+cstringByte :: MonadParser W8 s m => m Word8E
 cstringByte =
-    cstringbSimple    <|>
-    cstringbOct       <|>
-    cstringbEscaped
+    C <$> cstringbSimple    <|>
+    E <$> cstringbOct       <|>
+    E <$> cstringbEscaped
 
 quote :: MonadParser W8 s m => m ()
 quote = void $ byte _quotedbl
 
-quotedByte :: MonadParser W8 s m => m Word8
+quotedByte :: MonadParser W8 s m => m Word8E
 quotedByte =
     cstringByte  <|>
-    satisfy "not (`\\` || `\"`) && not newline && isPrint || tab" check
+    C <$> satisfy "not (`\\` || `\"`) && not newline && isPrint || tab" check
   where
     check c =
         c `notElem` [_backslash, _quotedbl] &&
@@ -178,7 +178,7 @@ directive = D_Origin <$ string "$ORIGIN" <|> D_TTL <$ string "$TTL"
 -- Right ("y.z","")
 lex_cstring :: MonadParser W8 s m => m CString
 lex_cstring =
-    cstringW8 <$>
+    cstringW8 . map unEscW8 <$>
     ( some cstringByte                  <|>
       quote *> many quotedByte <* quote )
 {- FOURMOLU_ENABLE -}
