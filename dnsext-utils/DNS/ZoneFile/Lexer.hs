@@ -157,9 +157,7 @@ quote = void $ byte _quotedbl
 
 quotedByte :: MonadParser W8 s m => m Word8
 quotedByte =
-    cstringbSimple    <|>
-    cstringbOct       <|>
-    cstringbEscaped   <|>
+    cstringByte  <|>
     satisfy "not (`\\` || `\"`) && not newline && isPrint || tab" check
   where
     check c =
