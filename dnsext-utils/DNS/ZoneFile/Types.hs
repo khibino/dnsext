@@ -33,6 +33,10 @@ unEscW8 :: Word8E -> Word8
 unEscW8 (C w8) = w8
 unEscW8 (E w8) = w8
 
+isEscaped :: Word8E -> Bool
+isEscaped C{} = False
+isEscaped E{} = True
+
 -- character-string or longer opaque-string
 type CString = Short.ShortByteString
 
@@ -41,6 +45,9 @@ cstringW8 = Short.pack
 
 fromCString :: CString -> String
 fromCString = map (chr . fromIntegral) . Short.unpack
+
+-- character-string, character-string with escaped info, or longer opaque-string
+type EString = [Word8E]
 
 data Token
     = Directive Directive
