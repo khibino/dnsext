@@ -6,7 +6,7 @@ rank: 4
 
 # `ddrd`
 
-`ddrd` is a daemon for DDR (Discovery of Designated Resolvers). `ddrd` behaves as follows:
+`ddrd` is a daemon for DDR (Discovery of Designated Resolvers, RFC 9462) client. `ddrd` behaves as follows:
 
 - Read 127.0.0.1:53 to get a DNS query on from the local stub resolver.
 - If an encrypted connection is not created yet, SVCB RR is obtained from the specified unencrypted DNS servers. Select one of encrypted DNS servers and create an encrypted connection.
@@ -16,7 +16,7 @@ rank: 4
 
 ## Installation
 
-* Execute `ddrd` with IP addresses of unencrypted DNS servers which provides SVCB RR.
+* Execute `ddrd` with IP addresses of unencrypted DNS servers which provide SVCB RR.
 
 ```
 % sudo ddrd 8.8.8.8 -d

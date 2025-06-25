@@ -8,15 +8,16 @@ rank: 2
 
 `bowline` is a DNS full resolver (cache server) which supports:
 
-* Basic feature of DNS full resolvers
+* Basic feature of DNS full resolvers (RFC 1123)
 * DNS over UDP 53 and TCP 53
-* DNS over TLS, QUIC, H2 and H3 for communication with stub resolvers
-* DNSSEC for communication with authoritative servers
-* Nagative Trust Anchor
+* DNS over TLS (RFC7858), QUIC (RFC 9250), H2 and H3 (RFC 8484) for communication with stub resolvers
+* DNSSEC for communication with authoritative servers (RFC 9364)
+* Negative Trust Anchor
 * stub-zone, local-zone, local-data
 * DNSTAP for logging
 * Web API (for reloading etc)
 * Monitor console
+* Prometheus
 
 ## Configuration
 

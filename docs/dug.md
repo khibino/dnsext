@@ -6,9 +6,9 @@ rank: 3
 
 # `dug`
 
-`dug` is a stub resolver command like `dig`. There is two modes:
+`dug` is a stub resolver command like `dig`. There are two modes:
 
-- Recursive query lik `dig`
+- Recursive query like `dig`
 - Iterative query to visualize the algorithm used in `bowline`
 
 Futher reading:
@@ -19,7 +19,7 @@ Futher reading:
 
 ### Basic
 
-Specify a target domain optically plus record type. This pair can also be specified two times or more:
+Specify a target domain optionally plus record type. This pair can also be specified two times or more:
 
 ```
 % dug www.iij.ad.jp a www.iijlab.net aaaa
