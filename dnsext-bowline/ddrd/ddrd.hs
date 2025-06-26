@@ -81,6 +81,9 @@ import DNS.Types (
 import DNS.Types.Decode (decode)
 import DNS.Types.Encode (encode)
 
+version :: String
+version = "20250626"
+
 ----------------------------------------------------------------
 
 data Options = Options
@@ -119,11 +122,18 @@ options =
 ----------------------------------------------------------------
 
 usage :: String
-usage = "Usage: ddrd [OPTION] ipaddr [ipaddr...]"
+usage =
+    intercalate
+        "\n"
+        [ "Version: " ++ version
+        , "Usage: ddrd [OPTION] ipaddr [ipaddr...]"
+        , ""
+        , "options:"
+        ]
 
 showUsageAndExit :: IO a
 showUsageAndExit = do
-    putStrLn $ usageInfo usage options
+    putStr $ usageInfo usage options
     exitFailure
 
 parseOpts :: [String] -> IO (Options, [String])
