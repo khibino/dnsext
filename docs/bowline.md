@@ -19,6 +19,10 @@ rank: 2
 * Monitor console
 * Prometheus
 
+## Releases
+
+* [Binaries are available](https://github.com/iijlab/dnsext/releases)
+
 ## Configuration
 
 * [`bowline.conf`](https://github.com/iijlab/dnsext/blob/main/dnsext-bowline/bowline/bowline.conf)

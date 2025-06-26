@@ -16,6 +16,8 @@ rank: 4
 
 ## Installation
 
+* [Binaries are available](https://github.com/iijlab/dnsext/releases)
+
 * Execute `ddrd` with IP addresses of unencrypted DNS servers which provide SVCB RR.
 
 ```
