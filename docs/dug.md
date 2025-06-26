@@ -11,7 +11,7 @@ rank: 3
 - Recursive query like `dig`
 - Iterative query to visualize the algorithm used in `bowline`
 
-Futher reading:
+Futher readings:
 
 - [DNS検索コマンドdugの紹介](https://eng-blog.iij.ad.jp/archives/27527)
 
