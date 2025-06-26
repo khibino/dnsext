@@ -39,7 +39,7 @@ Send `GET` to the following path:
 
 * `/metrics`: get stats
 * `/stats`: get stats
-* `/wstats`: TBD
+* `/wstats`: get workers' stats
 * `/reopen-log`: reopen a log file
 * `/reload`: reload
 * `/keep-cache`: Reloading with the cache kept
