@@ -26,7 +26,7 @@ rank: 4
 
 This binds 127.0.0.1:53. If executed with the `-d` option, `ddrd` displays debug logs. ALPN (`dot`, `doq`, `h2`, `h3`) can be specified with the `-a` option to select your favorite encrypted connection.
 
-* Rewrite `/etc/resolv.conf` the followings:
+* Rewrite `/etc/resolv.conf` as follows:
 
 ```
 nameserver 127.0.0.1
