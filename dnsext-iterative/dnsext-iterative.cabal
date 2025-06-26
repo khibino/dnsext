@@ -77,7 +77,7 @@ library
         base64-bytestring,
         crypton,
         http-types,
-        http2 >= 5.3.2 && < 5.4,
+        http2 >= 5.3.10 && < 5.4,
         http2-tls >= 0.4.6 && < 0.5,
         http3 >= 0.1 && < 0.2,
         iproute,
