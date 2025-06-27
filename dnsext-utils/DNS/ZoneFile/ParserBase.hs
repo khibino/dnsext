@@ -27,8 +27,8 @@ lstring :: MonadParser Token s m => m CString
 lstring = do
     t <- token
     case t of
-        CS cs  -> pure cs
-        _      -> raise $ "Parser.lstring: not CString: " ++ show t
+        CS (CS'{cs_cs = cs})  -> pure cs
+        _                     -> raise $ "Parser.lstring: not CString: " ++ show t
 
 cstring :: MonadParser Token s m => m CString
 cstring = do
