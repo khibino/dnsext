@@ -24,13 +24,13 @@ type Parser a = Poly.Parser LBS a
 byte_token :: Parser Word8
 byte_token = token
 
-byte :: MonadParser W8 LBS m => Word8 -> m Word8
+byte :: MonadParser W8 s m => Word8 -> m Word8
 byte = this
 
-charByte :: MonadParser W8 LBS m => Char -> m Word8
+charByte :: MonadParser W8 s m => Char -> m Word8
 charByte c = satisfy "charByte" ((== c) . w8toChar)
 
-string :: MonadParser W8 LBS m => String -> m [Word8]
+string :: MonadParser W8 s m => String -> m [Word8]
 string = mapM charByte
 
 ---
@@ -39,9 +39,12 @@ string = mapM charByte
 
 -- $setup
 -- >>> :seti -XOverloadedStrings
+-- >>> :seti -XTypeApplications
+-- >>> :seti -Wno-name-shadowing
 -- >>> import Data.String (fromString)
 -- >>> import Data.Either (isLeft, isRight)
 -- >>> import Text.Printf (printf)
+-- >>> runParser = Poly.runParser @LBS
 
 isSpc :: Word8 -> Bool
 isSpc = (||) <$> (== _tab) <*> (== _space)
@@ -56,7 +59,7 @@ isNewline = (||) <$> (== _cr) <*> (== _lf)
 -- Right ((),"pqr")
 -- >>> isLeft $ runParser spc "abc"
 -- True
-spc :: MonadParser W8 LBS m => m ()
+spc :: MonadParser W8 s m => m ()
 spc = void $ satisfy "tab or space" isSpc
 
 {- FOURMOLU_DISABLE -}
@@ -65,7 +68,7 @@ spc = void $ satisfy "tab or space" isSpc
 -- Right ((),"")
 -- >>> isLeft $ runParser lineComment "abc; example"
 -- True
-lineComment :: MonadParser W8 LBS m => m ()
+lineComment :: MonadParser W8 s m => m ()
 lineComment = void( byte _semicolon *> many not_nl )
   where not_nl = satisfy "not newline" $ not . isNewline
 
@@ -76,7 +79,7 @@ lineComment = void( byte _semicolon *> many not_nl )
 -- Right ((),"")
 -- >>> runParser newline "\r"
 -- Right ((),"")
-newline :: MonadParser W8 LBS m => m ()
+newline :: MonadParser W8 s m => m ()
 newline =
     void
     ( byte _cr *> byte _lf  <|>
@@ -93,7 +96,7 @@ newline =
 -- True
 -- >>> all isLeft $ map (runParser (cstringbSimple <* eof) . fromString . (:"")) ".;()\\\" \n"
 -- True
-cstringbSimple :: MonadParser W8 LBS m => m Word8
+cstringbSimple :: MonadParser W8 s m => m Word8
 cstringbSimple = satisfy "not (`.` || `;` || `\\` || `\"`) && not `space` && not `newline` && isPrint && isAscii" check
   where
     check c =
@@ -102,7 +105,7 @@ cstringbSimple = satisfy "not (`.` || `;` || `\\` || `\"`) && not `space` && not
         not (isNewline c) && isPrint c && isAscii c
 {- FOURMOLU_ENABLE -}
 
-backslash :: MonadParser W8 LBS m => m ()
+backslash :: MonadParser W8 s m => m ()
 backslash = void $ byte _backslash
 
 {- FOURMOLU_DISABLE -}
@@ -115,7 +118,7 @@ backslash = void $ byte _backslash
 -- True
 -- >>> isLeft $ runParser cstringbEscaped "\\\n"
 -- True
-cstringbEscaped :: MonadParser W8 LBS m => m Word8
+cstringbEscaped :: MonadParser W8 s m => m Word8
 cstringbEscaped = backslash *> satisfy "not isDigit && not `newline` && isPrint && isAscii || tab" check
   where check c = not (isDigit c) && not (isNewline c) && isPrint c && isAscii c || c == _tab
 
@@ -128,7 +131,7 @@ cstringbEscaped = backslash *> satisfy "not isDigit && not `newline` && isPrint 
 -- >>> octProp i = runParser cstringbOct (escapedOct i) == Right (i, "")
 -- >>> all octProp [0..255]
 -- True
-cstringbOct :: MonadParser W8 LBS m => m Word8
+cstringbOct :: MonadParser W8 s m => m Word8
 cstringbOct = backslash *> (replicateM 3 oct >>= getOct)
   where
     oct = satisfy "isOctDigit" isOctDigit
@@ -142,16 +145,16 @@ cstringbOct = backslash *> (replicateM 3 oct >>= getOct)
 -- Right (9,"")
 -- >>> runParser cstringByte "\\200"
 -- Right (128,"")
-cstringByte :: MonadParser W8 LBS m => m Word8
+cstringByte :: MonadParser W8 s m => m Word8
 cstringByte =
     cstringbSimple    <|>
     cstringbOct       <|>
     cstringbEscaped
 
-quote :: MonadParser W8 LBS m => m ()
+quote :: MonadParser W8 s m => m ()
 quote = void $ byte _quotedbl
 
-quotedByte :: MonadParser W8 LBS m => m Word8
+quotedByte :: MonadParser W8 s m => m Word8
 quotedByte =
     cstringbSimple    <|>
     cstringbOct       <|>
@@ -164,7 +167,7 @@ quotedByte =
         || c == _tab
 {- FOURMOLU_ENABLE -}
 
-directive :: MonadParser W8 LBS m => m Directive
+directive :: MonadParser W8 s m => m Directive
 directive = D_Origin <$ string "$ORIGIN" <|> D_TTL <$ string "$TTL"
 
 {- FOURMOLU_DISABLE -}
@@ -174,18 +177,18 @@ directive = D_Origin <$ string "$ORIGIN" <|> D_TTL <$ string "$TTL"
 -- Right ("abc","")
 -- >>> runParser lex_cstring "\"y.z\""
 -- Right ("y.z","")
-lex_cstring :: MonadParser W8 LBS m => m CString
+lex_cstring :: MonadParser W8 s m => m CString
 lex_cstring =
     cstringW8 <$>
     ( some cstringByte                  <|>
       quote *> many quotedByte <* quote )
 {- FOURMOLU_ENABLE -}
 
-comment :: MonadParser W8 LBS m => m ()
+comment :: MonadParser W8 s m => m ()
 comment = void (many spc *> lineComment *> optional newline)
 
 {- FOURMOLU_DISABLE -}
-lexerToken :: MonadParser W8 LBS m => m Token
+lexerToken :: MonadParser W8 s m => m Token
 lexerToken =
     Directive <$> directive     <|>
     At <$ byte _at              <|>
