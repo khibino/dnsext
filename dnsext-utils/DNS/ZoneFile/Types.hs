@@ -69,7 +69,7 @@ data Token
     | RParen
     | Blank
     | Dot
-    | CS CString
+    | CS CS'
     | Comment
     | RSep
     deriving (Eq, Show)
