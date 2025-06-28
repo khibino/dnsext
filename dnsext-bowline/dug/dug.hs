@@ -179,7 +179,7 @@ main = do
             opts <- checkFallbackV4 opts1 [(ip, 53) | (ip, _) <- ips]
             recursiveQuery ips port putLnSTM putLinesSTM qs opts tq
     ------------------------
-    putTime t0 putLines
+    when (optFormat /= JSONstyle) $ putTime t0 putLines
     killLogger
     sentinel tq
     deprecated

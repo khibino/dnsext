@@ -50,20 +50,23 @@ import System.Console.ANSI.Types
 import System.Directory (doesFileExist, removeFile)
 import System.Exit (exitFailure)
 
+import Output
 import SocketUtil (checkDisableV6)
 import Types
 
 ----------------------------------------------------------------
 
 printReplySTM
-    :: (DNS.DNSMessage -> STM ())
+    :: Bool
+    -> (DNS.DNSMessage -> STM ())
     -> Log.PutLines STM
     -> Either DNS.DNSError Reply
     -> STM ()
-printReplySTM _ putLinesSTM (Left err) = putLinesSTM Log.WARN (Just Red) [show err]
-printReplySTM putLnSTM putLinesSTM (Right r@Reply{..}) = do
-    let h = mkHeader r
-    putLinesSTM Log.WARN (Just Green) [h]
+printReplySTM _ _ putLinesSTM (Left err) = putLinesSTM Log.WARN (Just Red) [show err]
+printReplySTM printHeader putLnSTM putLinesSTM (Right r@Reply{..}) = do
+    when printHeader $ do
+        let h = mkHeader r
+        putLinesSTM Log.WARN (Just Green) [h]
     putLnSTM replyDNSMessage
 
 mkHeader :: Reply -> String
@@ -176,34 +179,37 @@ recursiveQuery ips port putLnSTM putLinesSTM qcs opt@Options{..} tq = do
         if optDoX == "auto"
             then resolveDDR opt conf
             else resolveDoX opt ris
+    let printHeader = optFormat /= JSONstyle
     if null pipes
-        then runUDP conf putLnSTM putLinesSTM qcs
-        else runVC pipes putLnSTM putLinesSTM qcs
+        then runUDP printHeader conf putLnSTM putLinesSTM qcs
+        else runVC printHeader pipes putLnSTM putLinesSTM qcs
 
 ----------------------------------------------------------------
 
 runUDP
-    :: LookupConf
+    :: Bool
+    -> LookupConf
     -> (DNS.DNSMessage -> STM ())
     -> Log.PutLines STM
     -> [(Question, QueryControls)]
     -> IO ()
-runUDP conf putLnSTM putLinesSTM qcs = withLookupConf conf $ \LookupEnv{..} -> do
-    let printIt (q, ctl) = resolve lenvResolveEnv q ctl >>= atomically . printReplySTM putLnSTM putLinesSTM
+runUDP printHeader conf putLnSTM putLinesSTM qcs = withLookupConf conf $ \LookupEnv{..} -> do
+    let printIt (q, ctl) = resolve lenvResolveEnv q ctl >>= atomically . printReplySTM printHeader putLnSTM putLinesSTM
     mapM_ printIt qcs
 
 runVC
-    :: [PipelineResolver]
+    :: Bool
+    -> [PipelineResolver]
     -> (DNS.DNSMessage -> STM ())
     -> Log.PutLines STM
     -> [(Question, QueryControls)]
     -> IO ()
-runVC pipes putLnSTM putLinesSTM qcs = do
+runVC printHeader pipes putLnSTM putLinesSTM qcs = do
     refs <- replicateM len $ newTVarIO False
     let targets = zip qcs refs
     -- raceAny cannot be used to ensure that TLS sessino tickets
     -- are certainly saved.
-    rs <- mapConcurrently (E.try . resolver putLnSTM putLinesSTM targets) pipes
+    rs <- mapConcurrently (E.try . resolver printHeader putLnSTM putLinesSTM targets) pipes
     case foldr1 op rs of
         Right _ -> return ()
         Left e -> do
@@ -217,12 +223,13 @@ runVC pipes putLnSTM putLinesSTM qcs = do
 ----------------------------------------------------------------
 
 resolver
-    :: (DNS.DNSMessage -> STM ())
+    :: Bool
+    -> (DNS.DNSMessage -> STM ())
     -> Log.PutLines STM
     -> [((Question, QueryControls), TVar Bool)]
     -> PipelineResolver
     -> IO ()
-resolver putLnSTM putLinesSTM targets pipeline = pipeline $ \resolv -> do
+resolver printHeader putLnSTM putLinesSTM targets pipeline = pipeline $ \resolv -> do
     -- running concurrently for multiple target domains
     rs <- mapConcurrently (printIt resolv) targets
     case foldr op (Right ()) rs of
@@ -236,7 +243,7 @@ resolver putLnSTM putLinesSTM targets pipeline = pipeline $ \resolv -> do
         atomically $ do
             done <- readTVar tvar
             unless done $ do
-                printReplySTM putLnSTM putLinesSTM er
+                printReplySTM printHeader putLnSTM putLinesSTM er
                 writeTVar tvar True
 
 ----------------------------------------------------------------
