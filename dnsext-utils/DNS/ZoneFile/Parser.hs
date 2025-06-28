@@ -12,7 +12,6 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import qualified Data.ByteString as BS
 import Data.ByteString.Short (fromShort)
-import qualified Data.ByteString.Short as Short
 import Data.Functor
 import Data.Word
 
@@ -26,6 +25,7 @@ import Data.IP (IPv4, IPv6)
 import DNS.Parser hiding (Parser, runParser)
 import qualified DNS.Parser as Poly
 import DNS.ZoneFile.Types
+import DNS.ZoneFile.ParserBase
 
 {- FOURMOLU_DISABLE -}
 data Context =
@@ -78,38 +78,6 @@ setClass = setCx (\x s -> s{cx_class = x})
 -- >>> import DNS.SEC (addResourceDataForDNSSEC)
 -- >>> runInitIO addResourceDataForDNSSEC
 -- >>> cx = Context "" "" 3600 IN
-
--- |
--- >>> runParser dot cx [Dot]
--- Right ((Dot,Context "." "." 3600 IN),[])
-dot :: MonadParser Token s m => m Token
-dot = this Dot
-
--- |
--- >>> runParser blank cx [Blank]
--- Right ((Blank,Context "." "." 3600 IN),[])
-blank :: MonadParser Token s m => m Token
-blank = this Blank
-
-{- FOURMOLU_DISABLE -}
-lstring :: MonadParser Token s m => m CString
-lstring = do
-    t <- token
-    case t of
-        CS cs -> pure cs
-        _     -> raise $ "Parser.lstring: not CString: " ++ show t
-
-cstring :: MonadParser Token s m => m CString
-cstring = do
-    cs <- lstring
-    guard (Short.length cs < 256) <|> raise ("Parser.cstring: too long: " ++ show cs)
-    pure cs
-{- FOURMOLU_ENABLE -}
-
-readCString :: (Read a, MonadParser Token s m) => String -> m a
-readCString name = readable ("Zonefile." ++ name) . fromCString =<< cstring
-
----
 
 type Labels = [CString]
 
