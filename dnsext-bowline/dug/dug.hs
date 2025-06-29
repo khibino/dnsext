@@ -62,7 +62,7 @@ import SocketUtil (checkDisableV6)
 import Types
 
 version :: String
-version = "20250626"
+version = "20250629"
 
 ----------------------------------------------------------------
 
