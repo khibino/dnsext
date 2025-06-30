@@ -1,5 +1,5 @@
-{-# LANGUAGE NoStrict #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NoStrict #-}
 
 module DNS.ZoneFile.Lexer where
 

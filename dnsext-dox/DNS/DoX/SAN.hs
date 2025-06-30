@@ -52,16 +52,18 @@ toIP bs
 -- and Link-Local addresses [RFC3927] [RFC4291] cannot be safely confirmed
 -- using TLS certificates under most conditions.
 defaultTrusted :: [IP.IPRange]
-defaultTrusted = map read
-    [ "127.0.0.0/8"
-    , "10.0.0.0/8"
-    , "169.254.0.0/16"
-    , "172.16.0.0/12"
-    , "192.168.0.0/16"
-    , "::1/128"
-    , "fc00::/7"
-    , "fe80::/10"
-    ]
+defaultTrusted =
+    map
+        read
+        [ "127.0.0.0/8"
+        , "10.0.0.0/8"
+        , "169.254.0.0/16"
+        , "172.16.0.0/12"
+        , "192.168.0.0/16"
+        , "::1/128"
+        , "fc00::/7"
+        , "fe80::/10"
+        ]
 
 isTrusted :: IP -> IP.IPRange -> Bool
 isTrusted (IPv4 ip) (IP.IPv4Range r) = ip `IP.isMatchedTo` r

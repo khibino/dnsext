@@ -12,7 +12,7 @@ import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
 
 -- dnsext-* packages
-import DNS.TAP.Schema (SocketProtocol (..), HttpProtocol (..))
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 
 -- other packages
 import Network.Socket

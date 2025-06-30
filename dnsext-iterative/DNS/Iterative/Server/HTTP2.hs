@@ -16,7 +16,7 @@ import Data.Functor
 
 -- dnsext-* packages
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (SocketProtocol (..), HttpProtocol (..))
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 import qualified DNS.ThreadStats as TStat
 
 -- other packages

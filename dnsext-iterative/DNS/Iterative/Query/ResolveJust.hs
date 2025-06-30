@@ -49,10 +49,10 @@ import DNS.Iterative.Query.Helpers
 import qualified DNS.Iterative.Query.Norec as Norec
 import DNS.Iterative.Query.Random
 import qualified DNS.Iterative.Query.StubZone as Stub
-import qualified DNS.Iterative.Query.ZoneMap as ZMap
 import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils
 import qualified DNS.Iterative.Query.Verify as Verify
+import qualified DNS.Iterative.Query.ZoneMap as ZMap
 
 ---- import for doctest
 import DNS.Iterative.Query.TestEnv
@@ -574,7 +574,7 @@ maxQueryCount :: Int
 maxQueryCount = 64
 
 findNegativeTrustAnchor :: MonadQuery m => Domain -> m (Maybe Domain)
-findNegativeTrustAnchor qn =  asksEnv negativeTrustAnchors_ <&> \na -> ZMap.lookupApexOn id na qn
+findNegativeTrustAnchor qn = asksEnv negativeTrustAnchors_ <&> \na -> ZMap.lookupApexOn id na qn
 
 norec :: MonadQuery m => Bool -> NonEmpty Address -> Domain -> TYPE -> m DNSMessage
 norec dnssecOK aservers name typ = do

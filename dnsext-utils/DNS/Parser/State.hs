@@ -1,12 +1,12 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module DNS.Parser.State where
 
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.State
 import Control.Monad.Trans.Except (Except, runExcept, throwE)
+import Control.Monad.Trans.State
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Last (..))
 

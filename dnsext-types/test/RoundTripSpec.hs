@@ -146,7 +146,7 @@ mkRData dom typ =
         _ -> pure . rd_txt $ fromString ("Unhandled type " <> show typ)
   where
     genTextStrings = do
-        chunks <- elements [1..5] -- chunk=0 is not llegal one or more <character-sstring>s, RFC 1035, RFC 6763
+        chunks <- elements [1 .. 5] -- chunk=0 is not llegal one or more <character-sstring>s, RFC 1035, RFC 6763
         replicateM chunks genTextString
     genTextString = do
         len <- elements [0, 1, 63, 127, 255]

@@ -1,4 +1,3 @@
-
 module DNS.ZoneFile.Types where
 
 -- ghc packages

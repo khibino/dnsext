@@ -8,13 +8,14 @@ import Data.List.NonEmpty (NonEmpty (..))
 import System.Timeout (timeout)
 
 --
-import Data.IP (IP (IPv6))
+
 import DNS.Do53.Client (QueryControls)
-import DNS.Iterative.Query (Env (..), newEmptyEnv, resolveResponseIterative, setRRCacheOps, setTimeCache)
 import DNS.Iterative.Internal (Delegation (..), delegationEntry)
+import DNS.Iterative.Query (Env (..), newEmptyEnv, resolveResponseIterative, setRRCacheOps, setTimeCache)
 import qualified DNS.Log as Log
 import qualified DNS.RRCache as Cache
 import DNS.TimeCache (getTime, newTimeCache)
+import Data.IP (IP (IPv6))
 import Network.Socket (PortNumber)
 
 import DNS.Types

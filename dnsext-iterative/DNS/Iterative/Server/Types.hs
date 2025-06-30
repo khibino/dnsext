@@ -35,7 +35,7 @@ import Network.Socket
 import Network.TLS (Credentials (..), SessionManager)
 
 -- dnsext
-import DNS.TAP.Schema (SocketProtocol, HttpProtocol)
+import DNS.TAP.Schema (HttpProtocol, SocketProtocol)
 import DNS.Types (DNSMessage)
 import DNS.Types.Time (EpochTimeUsec)
 

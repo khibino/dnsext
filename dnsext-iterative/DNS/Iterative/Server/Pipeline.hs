@@ -44,7 +44,7 @@ import Control.Concurrent.Async (AsyncCancelled)
 
 -- dnsext packages
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (SocketProtocol (..), HttpProtocol (..))
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 import qualified DNS.TAP.Schema as DNSTAP
 import DNS.Types (DNSFlags (..), DNSMessage (..), EDNS (..), EDNSheader (..), Question (..), RCODE (..))
 import qualified DNS.Types.Decode as DNS

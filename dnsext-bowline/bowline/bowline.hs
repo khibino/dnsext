@@ -17,7 +17,7 @@ import Data.Int (Int64)
 import Data.String (fromString)
 import GHC.Stats
 import System.Environment (getArgs, lookupEnv)
-import System.IO (IOMode (AppendMode), BufferMode (..), hClose, hSetBuffering, openFile)
+import System.IO (BufferMode (..), IOMode (AppendMode), hClose, hSetBuffering, openFile)
 import System.IO.Error (tryIOError)
 import System.Posix (Handler (Catch), UserID, getRealUserID, installHandler, setEffectiveGroupID, setEffectiveUserID, sigHUP)
 import System.Timeout (timeout)

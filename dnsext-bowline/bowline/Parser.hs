@@ -1,5 +1,5 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Parsers for Mighty
 module Parser (
@@ -127,7 +127,7 @@ newline :: MonadParser W8 s m => m Char
 newline = satisfyChar "newline" (== '\n')
 
 digit :: MonadParser W8 s m => m Char
-digit = satisfyChar "digit" (`elem` ['0'..'9'])
+digit = satisfyChar "digit" (`elem` ['0' .. '9'])
 
 string :: MonadParser W8 s m => String -> m String
 string = mapM char
