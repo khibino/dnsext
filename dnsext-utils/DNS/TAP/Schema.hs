@@ -150,7 +150,7 @@ composeMessage proto mysa peersa s ns bs httpproto =
         , messageResponseTimeSec  = Just $ fromIntegral s
         , messageResponseTimeNsec = Just $ fromIntegral ns
         , messageResponseMessage  = Just $ WireFt bs
-        , messageHttpProtocol     = Just $ httpproto
+        , messageHttpProtocol     = Just httpproto
         }
  where
    toFamily sa = case sa of
@@ -181,7 +181,7 @@ decodeMessage bs =
         , messageResponseTimeNsec = getOptI obj 13 id
         , messageResponseMessage  = getOptS obj 14 decodeDNS
         , messagePolicy           = getOptI obj 15 id
-        , messageHttpProtocol     = Just $ (toEnum (getI obj 16 id) :: HttpProtocol)
+        , messageHttpProtocol     = Just (toEnum (getI obj 16 id) :: HttpProtocol)
         }
   where
     obj = decode bs

@@ -78,7 +78,7 @@ runTest host certCheck transport = do
             | host == "unfiltered.adguard-dns.com" = ["-4"]
             | otherwise = []
         options
-            | certCheck = ["-e"] ++ workaround
+            | certCheck = "-e" : workaround
             | otherwise = []
     let args = ['@' : host] ++ options ++ ["-d", transport] ++ domains
     (ec, out, err) <- readProcessWithExitCode dug args input
@@ -86,7 +86,7 @@ runTest host certCheck transport = do
         ExitSuccess -> return ()
         ExitFailure _ -> do
             putStrLn "FAILED FAILED FAILED FAILED FAILED FAILED"
-            putStrLn $ "    " ++ dug ++ " " ++ intercalate " " args
+            putStrLn $ "    " ++ dug ++ " " ++ unwords args
             putStrLn "stdout:"
             putStrLn out
             putStrLn "stderr:"

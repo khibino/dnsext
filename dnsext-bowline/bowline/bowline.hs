@@ -291,7 +291,7 @@ getSSLKeyLogger ruid conf =
         hSetBuffering fh LineBuffering
         putStrLn $ "sslkey-logfile: opened: " ++ fn
         pure fh
-    nolog = (nop, (\_ -> return ()), nop)
+    nolog = (nop, \_ -> return (), nop)
     nop = return ()
 {- FOURMOLU_ENABLE -}
 

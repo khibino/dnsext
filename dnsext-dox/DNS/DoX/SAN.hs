@@ -3,7 +3,7 @@ module DNS.DoX.SAN (makeOnServerCertificate) where
 import qualified Data.ByteString as BS
 import Data.IP (IP (..))
 import qualified Data.IP as IP
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import Data.X509 (
     AltName (..),
     Certificate (..),
@@ -33,7 +33,7 @@ getSAN (CertificateChain (cert : _)) = getNames $ getCertificate cert
 getNames :: Certificate -> [IP]
 getNames cert = maybe [] toAltName $ extensionGet $ certExtensions cert
   where
-    toAltName (ExtSubjectAltName names) = catMaybes $ map unAltName names
+    toAltName (ExtSubjectAltName names) = mapMaybe unAltName names
     unAltName (AltNameIP s) = toIP s
     unAltName _ = Nothing
 

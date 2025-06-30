@@ -22,10 +22,10 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Short ()
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.IP ()
-import Data.List (intercalate, sort)
+import Data.List (find, intercalate, sort)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import GHC.Conc.Sync (
     ThreadStatus,
@@ -217,7 +217,7 @@ main = do
         q <- newTBQueueIO 128
         let op =
                 Op
-                    { enqueue = \bssa -> atomically $ writeTBQueue q bssa
+                    { enqueue = atomically . writeTBQueue q
                     , dequeue = readTBQueue q
                     , send = \(bs, sa) -> void $ NSB.sendTo s bs sa
                     , recv = NSB.recvFrom s 2048
@@ -303,7 +303,7 @@ mainLoop opts op@Op{..} env = loop
 ----------------------------------------------------------------
 
 selectSVCB :: Maybe ALPN -> [[SVCBInfo]] -> Maybe SVCBInfo
-selectSVCB (Just alpn) siss = modifyForDDR <$> listToMaybe (filter (\s -> svcbInfoALPN s == alpn) (concat siss))
+selectSVCB (Just alpn) siss = modifyForDDR <$> find (\s -> svcbInfoALPN s == alpn) (concat siss)
 selectSVCB Nothing ((si : _) : _) = Just $ modifyForDDR si
 selectSVCB _ _ = Nothing
 
@@ -337,7 +337,7 @@ makeConf ref addrs =
 ----------------------------------------------------------------
 
 threadSummary :: IO [(String, String, ThreadStatus)]
-threadSummary = (sort <$> listThreads) >>= mapM summary
+threadSummary = listThreads >>= mapM summary . sort
   where
     summary t = do
         let idstr = drop 9 $ show t

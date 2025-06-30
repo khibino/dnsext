@@ -223,7 +223,7 @@ makeConfig def conf = do
     cnf_group <- get "group" cnf_group
     cnf_log <- get "log" cnf_log
     cnf_log_file <- get "log-file" cnf_log_file
-    cnf_log_output <- pure Log.Stdout -- fixme
+    let cnf_log_output = Log.Stdout
     cnf_log_level <- get "log-level" cnf_log_level
     cnf_log_timestamp <- get "log-timestamp" cnf_log_timestamp
     cnf_short_log <- get "short-log" cnf_short_log

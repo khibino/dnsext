@@ -129,10 +129,10 @@ specVCReadable = do
                 ]
         it "q1-s" $ do
             testNBRecvVCReadable
-                [ ( Bytes ("\x00\x03")
+                [ ( Bytes "\x00\x03"
                   , True, [ (NotEnough, False)
                           ])
-                , ( Bytes ("abc")
+                , ( Bytes "abc"
                   , True, [ (NBytes "abc", False)
                           ])
                 , ( Close

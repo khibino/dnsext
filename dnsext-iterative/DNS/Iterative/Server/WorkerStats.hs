@@ -4,7 +4,7 @@ module DNS.Iterative.Server.WorkerStats where
 
 -- GHC packages
 import Data.IORef
-import Data.List (intercalate, sortBy)
+import Data.List (sortBy)
 import Data.Ord (comparing)
 
 -- dnsext-* packages
@@ -24,7 +24,7 @@ pprWorkerStats pn ops = do
 
         pprq (wn, st) = showDec3 wn ++ ": " ++ pprWorkerStat st
         workers []      = "no workers"
-        workers triples = intercalate " " (map (\(wn, (_st, ds)) -> show wn ++ ":" ++ showDiffSec1 ds) triples)
+        workers triples = unwords (map (\(wn, (_st, ds)) -> show wn ++ ":" ++ showDiffSec1 ds) triples)
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
         pprenq = " waiting enqueues: " ++ workers enqs
 
