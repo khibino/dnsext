@@ -23,6 +23,18 @@ rank: 2
 
 * [Binaries are available](https://github.com/iijlab/dnsext/releases)
 
+## Installation
+
+We have a debian package hosted on public repository; follow the instruction below to install.
+
+```
+curl -1sLf \
+  'https://dl.cloudsmith.io/public/iijlab/bowline/setup.deb.sh' \
+  | sudo -E bash
+sudo apt-get update
+sudo apt-get install bowline
+```
+
 ## Configuration
 
 * [`bowline.conf`](https://github.com/iijlab/dnsext/blob/main/dnsext-bowline/bowline/bowline.conf)
