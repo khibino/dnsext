@@ -14,19 +14,12 @@ rank: 3
 Releases:
 
 - [Binaries are available](https://github.com/iijlab/dnsext/releases)
+- Installation via homebrew
+    - command-line: `brew install iijlab/tap/dug`
 
 Futher readings:
 
 - [DNS検索コマンドdugの紹介](https://eng-blog.iij.ad.jp/archives/27527)
-
-## Installation
-
-`dug` command can be installed via homebrew.
-
-```
-brew install iijlab/tap/dug
-```
-
 
 
 ## Recursive query
