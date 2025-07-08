@@ -105,7 +105,7 @@ cstring = do
 {- FOURMOLU_ENABLE -}
 
 readCString :: (Read a, MonadParser Token s m) => m a
-readCString = readable . fromCString =<< cstring
+readCString = readable "Zonefile.readCString" . fromCString =<< cstring
 
 ---
 
@@ -191,7 +191,7 @@ ipv4 :: MonadParser Token s m => m IPv4
 ipv4 = join $ readv4 <$> cstrstr <*> (dot *> cstrstr) <*> (dot *> cstrstr) <*> (dot *> cstrstr)
   where
     cstrstr = fromCString <$> cstring
-    readv4 a b c d = readable $ a ++ "." ++ b ++ "." ++ c ++ "." ++ d
+    readv4 a b c d = readable "Zonefile.ipv4" $ a ++ "." ++ b ++ "." ++ c ++ "." ++ d
 
 -- |
 -- >>> runParser ipv6 cx [CS "2001:db8::3"]
