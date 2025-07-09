@@ -264,7 +264,7 @@ worker Op{..} contvar resolver = do
                 let idnt = identifier msg
                 erep <- resolver qry mempty
                 case erep of
-                    Left _ -> putLog "No reply\n"
+                    Left e -> putLog $ toLogStr $ tid ++ " E: " ++ show e ++ "\n"
                     Right rep -> do
                         let msg' = (replyDNSMessage rep){identifier = idnt}
                         putLog $ toLogStr $ tid ++ " R: " ++ intercalate "\n   " (map pprRR (answer msg')) ++ "\n"
