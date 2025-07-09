@@ -10,10 +10,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
-import qualified Data.ByteString as BS
-import Data.ByteString.Short (fromShort)
 import Data.Functor
-import Data.Word
 
 -- dnsext-* packages
 import DNS.SEC
@@ -26,6 +23,7 @@ import DNS.Parser hiding (Parser, runParser)
 import qualified DNS.Parser as Poly
 import DNS.ZoneFile.Types
 import DNS.ZoneFile.ParserBase
+import DNS.ZoneFile.ParserDNSSEC
 
 {- FOURMOLU_DISABLE -}
 data Context =
@@ -202,48 +200,6 @@ rdataSOA =
 
 ---
 
-keytag :: MonadParser Token s m => m Word16
-keytag = readCString "keytag"
-
-pubalg :: MonadParser Token s m => m PubAlg
-pubalg = toPubAlg <$> readCString "pubalg"
-
-digestalg :: MonadParser Token s m => m DigestAlg
-digestalg = toDigestAlg <$> readCString "digestalg"
-
-digest :: MonadParser Token s m => m Opaque
-digest = handleB16 . Opaque.fromBase16 . fromShort =<< cstring
-  where
-    handleB16 = either (raise . ("Parser.digest: fromBase16: " ++)) pure
-
----
-
-{- FOURMOLU_DISABLE -}
-rdataDS :: MonadParser Token s m => m RData
-rdataDS =
-    rd_ds
-    <$> keytag <*> (blank *> pubalg) <*> (blank *> digestalg)
-    <*> (blank *> digest)
-{- FOURMOLU_ENABLE -}
-
-{- FOURMOLU_DISABLE -}
-rdataDNSKEY :: MonadParser Token s m => m RData
-rdataDNSKEY = do
-    mkRD  <- rd_dnskey <$> keyflags <*> (blank *> proto)
-    alg   <- blank *> pubalg
-    pkey  <- blank *> (toPubKey alg <$> keyB64)
-    pure $ mkRD alg pkey
-  where
-    keyflags = toDNSKEYflags <$> readCString "dnskey.flags"
-    proto = readCString "dnskey.proto"
-    handleB64 = either (raise . ("Parser.rdataDNSKEY: fromBase64: " ++)) pure
-    part = fromShort <$> lstring
-    parts = (BS.concat <$>) $ (:) <$> part <*> many (blank *> part)
-    keyB64 = handleB64 . Opaque.fromBase64 =<< parts
-{- FOURMOLU_ENABLE -}
-
----
-
 {- FOURMOLU_DISABLE -}
 {-- $ORIGIN <domain-name> [<comment>]
       --(normalized)-->
@@ -291,17 +247,16 @@ rrTyRData mk =
     blank *>
     ( type_ >>=
       pair
-      [ (A      , rdataA      )
-      , (AAAA   , rdataAAAA   )
-      , (PTR    , rdataPTR    )
-      , (TXT    , rdataTXT    )
-      , (NS     , rdataNS     )
-      , (MX     , rdataMX     )
-      , (CNAME  , rdataCNAME  )
-      , (SOA    , rdataSOA    )
-      , (DS     , rdataDS     )
-      , (DNSKEY , rdataDNSKEY )
-      ]
+      ([ (A      , rdataA      )
+       , (AAAA   , rdataAAAA   )
+       , (PTR    , rdataPTR    )
+       , (TXT    , rdataTXT    )
+       , (NS     , rdataNS     )
+       , (MX     , rdataMX     )
+       , (CNAME  , rdataCNAME  )
+       , (SOA    , rdataSOA    )
+       ] ++
+       rdatasDNSSEC)
     )
   where
     pair tbl ty = do
