@@ -124,7 +124,9 @@ doHTTP
     -> (Resolver -> IO a)
     -> Client a
 doHTTP tag ident ri body sendRequest _aux =
-    body $ \q ctl -> withTimeout' ri $ resolv tag ident ri sendRequest q ctl
+    body $ \q ctl -> withTimeout' to $ resolv tag ident ri sendRequest q ctl
+  where
+    to = ractionTimeoutTime $ rinfoActions ri
 
 doHTTPOneshot
     :: NameTag
