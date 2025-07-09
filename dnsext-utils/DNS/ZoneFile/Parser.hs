@@ -104,8 +104,8 @@ cstring = do
     pure cs
 {- FOURMOLU_ENABLE -}
 
-readCString :: (Read a, MonadParser Token s m) => m a
-readCString = readable . fromCString =<< cstring
+readCString :: (Read a, MonadParser Token s m) => String -> m a
+readCString name = readable ("Zonefile." ++ name) . fromCString =<< cstring
 
 ---
 
@@ -162,7 +162,7 @@ mailbox = fromLabels <$> ( alabels  <|> rlabels )
 -- >>> runParser seconds cx [CS "7200"]
 -- Right ((7200(2 hours),Context "." "." 3600 IN),[])
 seconds :: Parser Seconds
-seconds = Seconds <$> readCString
+seconds = Seconds <$> readCString "seconds"
 
 ttl :: Parser TTL
 ttl = seconds
@@ -178,7 +178,7 @@ class_ = this (CS "IN") $> IN
 -- Right ((AAAA,Context "." "." 3600 IN),[])
 type_ :: MonadParser Token s m => TYPE -> m TYPE
 type_ ty = do
-    t <- readCString
+    t <- readCString "type"
     guard (t == ty) <|> raise ("ztype: expected: " ++ show ty ++ ", actual: " ++ show t)
     pure t
 
@@ -191,13 +191,13 @@ ipv4 :: MonadParser Token s m => m IPv4
 ipv4 = join $ readv4 <$> cstrstr <*> (dot *> cstrstr) <*> (dot *> cstrstr) <*> (dot *> cstrstr)
   where
     cstrstr = fromCString <$> cstring
-    readv4 a b c d = readable $ a ++ "." ++ b ++ "." ++ c ++ "." ++ d
+    readv4 a b c d = readable "Zonefile.ipv4" $ a ++ "." ++ b ++ "." ++ c ++ "." ++ d
 
 -- |
 -- >>> runParser ipv6 cx [CS "2001:db8::3"]
 -- Right ((2001:db8::3,Context "." "." 3600 IN),[])
 ipv6 :: MonadParser Token s m => m IPv6
-ipv6 = readCString
+ipv6 = readCString "ipv6"
 
 ---
 
@@ -217,7 +217,7 @@ rdataTXT = rd_txt_n . txts <$> ((:) <$> nbstring <*> many (blank *> nbstring))
     nbstring = mconcat <$> some (cstring <|> dot $> ".")
 
 rdataMX :: Parser RData
-rdataMX = rd_mx <$> readCString <*> (blank *> domain)
+rdataMX = rd_mx <$> readCString "mx_preference" <*> (blank *> domain)
 
 rdataNS :: Parser RData
 rdataNS = rd_ns <$> domain
@@ -229,20 +229,20 @@ rdataCNAME = rd_cname <$> domain
 rdataSOA :: Parser RData
 rdataSOA =
     rd_soa
-    <$> domain <*> (blank *> mailbox) <*> (blank *> readCString)
+    <$> domain <*> (blank *> mailbox) <*> (blank *> readCString "soa_serial")
     <*> (blank *> seconds) <*> (blank *> seconds) <*> (blank *> seconds) <*> (blank *> seconds)
 {- FOURMOLU_ENABLE -}
 
 ---
 
 keytag :: MonadParser Token s m => m Word16
-keytag = readCString
+keytag = readCString "keytag"
 
 pubalg :: MonadParser Token s m => m PubAlg
-pubalg = toPubAlg <$> readCString
+pubalg = toPubAlg <$> readCString "pubalg"
 
 digestalg :: MonadParser Token s m => m DigestAlg
-digestalg = toDigestAlg <$> readCString
+digestalg = toDigestAlg <$> readCString "digestalg"
 
 digest :: MonadParser Token s m => m Opaque
 digest = handleB16 . Opaque.fromBase16 . fromShort =<< cstring
@@ -267,8 +267,8 @@ rdataDNSKEY = do
     pkey  <- blank *> (toPubKey alg <$> keyB64)
     pure $ mkRD alg pkey
   where
-    keyflags = toDNSKEYflags <$> readCString
-    proto = readCString
+    keyflags = toDNSKEYflags <$> readCString "dnskey.flags"
+    proto = readCString "dnskey.proto"
     handleB64 = either (raise . ("Parser.rdataDNSKEY: fromBase64: " ++)) pure
     part = fromShort <$> lstring
     parts = (BS.concat <$>) $ (:) <$> part <*> many (blank *> part)

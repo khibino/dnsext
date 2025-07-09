@@ -127,9 +127,9 @@ choice  []         = parseError "choice: no fallbacks"
 choice [x]         = x
 choice (x:xs@(_:_))  = x <|> choice xs
 
-readable :: (Read a, MonadParser t s m) => String -> m a
-readable str =
+readable :: (Read a, MonadParser t s m) => String -> String -> m a
+readable name str =
     case [ x | (x, "") <- reads str ] of
-        []   -> parseError $ "readable: unable to read: " ++ str
+        []   -> parseError $ "readable" ++ name ++ ": unable to read: " ++ str
         x:_  -> pure x
 {- FOURMOLU_ENABLE -}
