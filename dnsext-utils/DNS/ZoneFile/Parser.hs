@@ -176,13 +176,10 @@ class_ :: MonadParser Token s m => m CLASS
 class_ = this (CS "IN") $> IN
 
 -- |
--- >>> runParser (type_ AAAA) cx [CS "AAAA"]
+-- >>> runParser type_ cx [CS "AAAA"]
 -- Right ((AAAA,Context "." "." 3600 IN),[])
-type_ :: MonadParser Token s m => TYPE -> m TYPE
-type_ ty = do
-    t <- readCString "type"
-    guard (t == ty) <|> raise ("ztype: expected: " ++ show ty ++ ", actual: " ++ show t)
-    pure t
+type_ :: MonadParser Token s m => m TYPE
+type_ = readCString "type"
 
 ---
 
@@ -335,7 +332,11 @@ rrTyRData mk =
       pair DS     rdataDS     <|>
       pair DNSKEY rdataDNSKEY )
   where
-    pair ty rd = mk <$> type_ ty <*> (blank *> rd)
+    pair ty rd = mk <$> satTYPE ty <*> (blank *> rd)
+    satTYPE ty = do
+        t <- type_
+        guard (t == ty) <|> raise ("ztype: expected: " ++ show ty ++ ", actual: " ++ show t)
+        pure t
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
