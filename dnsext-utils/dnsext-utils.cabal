@@ -28,6 +28,8 @@ library
         DNS.Parser.State
         DNS.ZoneFile.Types
         DNS.ZoneFile.Lexer
+        DNS.ZoneFile.ParserBase
+        DNS.ZoneFile.ParserDNSSEC
         DNS.ZoneFile.Parser
         DNS.ZoneFile.IO
 
