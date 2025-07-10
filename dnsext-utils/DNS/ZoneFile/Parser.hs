@@ -75,6 +75,8 @@ setClass = setCx (\x s -> s{cx_class = x})
 
 -- $setup
 -- >>> :seti -XOverloadedStrings
+-- >>> import DNS.SEC (addResourceDataForDNSSEC)
+-- >>> runInitIO addResourceDataForDNSSEC
 -- >>> cx = Context "" "" 3600 IN
 
 -- |
@@ -371,6 +373,8 @@ file = many (record <* this RSep)
 -- |
 -- >>> parseLineRR [CS "example",Dot,CS "net",Dot,Blank,CS "7200",Blank,CS "IN",Blank,CS "AAAA",Blank,CS "2001:db8::3"] defaultContext
 -- Right (ResourceRecord {rrname = "example.net.", rrtype = AAAA, rrclass = IN, rrttl = 7200(2 hours), rdata = 2001:db8::3},Context "." "example.net." 7200 IN)
+-- >>> parseLineRR [Dot,Blank,CS "IN",Blank,CS "DS",Blank,CS "20326",Blank,CS "8",Blank,CS "2",Blank,CS "E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D"] defaultContext
+-- Right (ResourceRecord {rrname = ".", rrtype = DS, rrclass = IN, rrttl = 1800(30 mins), rdata = RD_DS {ds_key_tag = 20326, ds_pubalg = RSASHA256, ds_digestalg = SHA256, ds_digest = \# 32 e06d44b80b8f1d39a95c0b0d7c65d08458e880409bbc683457104237c7f8ec8d}},Context "." "." 1800 IN)
 parseLineRR :: [Token] -> Context -> Either String (ResourceRecord, Context)
 parseLineRR ts icontext = fst <$> runParser (zoneRR <* eof) icontext ts
 
