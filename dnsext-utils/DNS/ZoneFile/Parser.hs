@@ -321,22 +321,25 @@ rrclass = optional (blank *> class_) >>= maybe (gets cx_class) setClass
 rrTyRData :: (TYPE -> RData -> a) -> Parser a
 rrTyRData mk =
     blank *>
-    ( pair A      rdataA      <|>
-      pair AAAA   rdataAAAA   <|>
-      pair PTR    rdataPTR    <|>
-      pair TXT    rdataTXT    <|>
-      pair NS     rdataNS     <|>
-      pair MX     rdataMX     <|>
-      pair CNAME  rdataCNAME  <|>
-      pair SOA    rdataSOA    <|>
-      pair DS     rdataDS     <|>
-      pair DNSKEY rdataDNSKEY )
+    ( type_ >>=
+      pair
+      [ (A      , rdataA      )
+      , (AAAA   , rdataAAAA   )
+      , (PTR    , rdataPTR    )
+      , (TXT    , rdataTXT    )
+      , (NS     , rdataNS     )
+      , (MX     , rdataMX     )
+      , (CNAME  , rdataCNAME  )
+      , (SOA    , rdataSOA    )
+      , (DS     , rdataDS     )
+      , (DNSKEY , rdataDNSKEY )
+      ]
+    )
   where
-    pair ty rd = mk <$> satTYPE ty <*> (blank *> rd)
-    satTYPE ty = do
-        t <- type_
-        guard (t == ty) <|> raise ("ztype: expected: " ++ show ty ++ ", actual: " ++ show t)
-        pure t
+    pair tbl ty = do
+         let left = raise $ "Zonefile.rdata: unsupported TYPE: " ++ show ty
+             right rd = mk ty <$> (blank *> rd :: Parser RData)
+         maybe left right (lookup ty tbl)
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
