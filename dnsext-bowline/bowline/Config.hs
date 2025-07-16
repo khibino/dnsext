@@ -272,7 +272,7 @@ makeConfig def conf = do
     cnf_monitor_keep_interval <- get "monitor-keep-interval" cnf_monitor_keep_interval
     cnf_threads_dumper <- get "threads-dumper" cnf_threads_dumper
     cnf_dnstap <- get "dnstap" cnf_dnstap
-    cnf_dnstap_socket_path <- get "dnstap-socket-patch" cnf_dnstap_socket_path
+    cnf_dnstap_socket_path <- get "dnstap-socket-path" cnf_dnstap_socket_path
     cnf_dnstap_reconnect_interval <- get "dnstap-reconnect-interval" cnf_dnstap_reconnect_interval
     cnf_webapi <- get "webapi" cnf_webapi
     cnf_webapi_addr <- get "webapi-addr" cnf_webapi_addr

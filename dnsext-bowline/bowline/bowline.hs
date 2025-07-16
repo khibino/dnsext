@@ -99,7 +99,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     (runSSLKeyLogger, putSSLKeyLog, killSSLKeyLogger) <- getSSLKeyLogger ruid conf
     --
     let rootpriv = do
-            (runWriter, putDNSTAP) <- TAP.new conf
+            (runWriter, putDNSTAP) <- TAP.new conf putLines
             trustAnchors <- readTrustAnchors' cnf_trust_anchor_file
             rootHint <- mapM readRootHint' cnf_root_hints
             let setOps = setRootHint rootHint . setRootAnchor trustAnchors . setRRCacheOps gcacheRRCacheOps . setTimeCache tcache
