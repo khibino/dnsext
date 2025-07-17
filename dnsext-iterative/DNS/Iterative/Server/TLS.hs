@@ -9,7 +9,7 @@ where
 
 -- GHC packages
 
-import Control.Concurrent (forkIO, killThread)
+import Control.Concurrent (killThread)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad
@@ -61,7 +61,7 @@ tlsServer VcServerConfig{..} env toCacher s = do
         var <- newTVarIO ""
         inpq <- newTQueueIO
         (vcSess, toSender, fromX) <- initVcSession (return $ checkInp var inpq)
-        E.bracket (forkIO $ reader backend inpq) killThread $ \_ -> do
+        E.bracket (TStat.forkIO "TLS reader" $ reader backend inpq) killThread $ \_ -> do
             withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) $ \vcTimer -> do
                 recv <- makeNBRecvVC maxSize $ getInp var inpq
                 let onRecv bs = do
