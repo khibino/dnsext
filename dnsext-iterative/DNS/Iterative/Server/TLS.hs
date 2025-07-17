@@ -58,12 +58,11 @@ tlsServer VcServerConfig{..} env toCacher s = do
             peersa = H2.peerSockAddr backend
             peerInfo = PeerInfoVC peersa
         logLn env Log.DEBUG $ "tls-srv: accept: " ++ show peersa
-        var <- newTVarIO ""
         inpq <- newTQueueIO
-        (vcSess, toSender, fromX) <- initVcSession (return $ checkInp var inpq)
+        (vcSess, toSender, fromX) <- initVcSession (return $ checkInp inpq)
         E.bracket (TStat.forkIO "TLS reader" $ reader backend inpq) killThread $ \_ -> do
             withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) $ \vcTimer -> do
-                recv <- makeNBRecvVC maxSize $ getInp var inpq
+                recv <- makeNBRecvVC maxSize $ getInp inpq
                 let onRecv bs = do
                         checkReceived vc_slowloris_size vcTimer bs
                         incStatsDoT peersa (stats_ env)
@@ -81,24 +80,11 @@ reader backend inpq = loop
         atomically $ writeTQueue inpq pkt
         when (pkt /= mempty) loop -- breaks loop on EOF
 
-checkInp :: TVar ByteString -> TQueue ByteString -> STM ()
-checkInp var inpq = do
-    bs0 <- readTVar var
-    if bs0 /= ""
-        then return ()
-        else do
-            isEmpty <- isEmptyTQueue inpq
-            if isEmpty then retry else return ()
+checkInp :: TQueue ByteString -> STM ()
+checkInp inpq = peekTQueue inpq $> ()
 
-getInp :: TVar ByteString -> TQueue ByteString -> Int -> IO ByteString
-getInp var inpq len = do
-    bs0 <- atomically $ readTVar var
-    bs <-
-        if bs0 == ""
-            then do
-                atomically $ readTQueue inpq
-            else
-                return bs0
-    let (bs1, bs2) = BS.splitAt len bs
-    atomically $ writeTVar var bs2
+getInp :: TQueue ByteString -> Int -> IO ByteString
+getInp inpq len = atomically $ do
+    (bs1, bs2) <- BS.splitAt len <$> readTQueue inpq
+    when (bs2 /= mempty) $ unGetTQueue inpq bs2
     return bs1
