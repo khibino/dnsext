@@ -74,9 +74,12 @@ tlsServer VcServerConfig{..} env toCacher s = do
             logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 
 reader :: H2.IOBackend -> TQueue ByteString -> IO ()
-reader backend inpq = forever $ do
-    pkt <- H2.recv backend
-    atomically $ writeTQueue inpq pkt
+reader backend inpq = loop
+  where
+    loop = do
+        pkt <- H2.recv backend
+        atomically $ writeTQueue inpq pkt
+        when (pkt /= mempty) loop -- breaks loop on EOF
 
 checkInp :: TVar ByteString -> TQueue ByteString -> STM ()
 checkInp var inpq = do
