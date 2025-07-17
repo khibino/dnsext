@@ -517,6 +517,9 @@ waitVcOutput VcSession{..} = atomically $ do
 retryUntil :: Bool -> STM ()
 retryUntil = guard
 
+-- retryUntil True  = pure () -- go to the next action
+-- retryUntil False = retry   -- go to the beginning again
+
 mkConnector :: IO (ToSender -> IO (), IO FromX, STM VcRespAvail, STM VcAllowInput)
 mkConnector = do
     let queueBound = 8 {- limit waiting area per session to constant size -}
