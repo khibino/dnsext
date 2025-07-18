@@ -50,6 +50,10 @@ tcpServer VcServerConfig{..} env toCacher s = do
         peersa <- getPeerName sock
         logLn env Log.DEBUG $ "tcp-srv: accept: " ++ show peersa
         let peerInfo = PeerInfoVC peersa
+        -- "cancel" action is not used.
+        -- However, "closeFd" is eventually called.
+        -- It deletes the entry relating to the socket from the table
+        -- of IOManager.
         (vcSess, toSender, fromX) <- initVcSession (waitReadSocketSTM sock)
         withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) $ \vcTimer -> do
             recv <- makeNBRecvVC maxSize $ Network.recv sock
