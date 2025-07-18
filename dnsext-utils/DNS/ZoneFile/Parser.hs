@@ -10,11 +10,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
-import qualified Data.ByteString as BS
-import Data.ByteString.Short (fromShort)
-import qualified Data.ByteString.Short as Short
 import Data.Functor
-import Data.Word
 
 -- dnsext-* packages
 import DNS.SEC
@@ -26,6 +22,8 @@ import Data.IP (IPv4, IPv6)
 import DNS.Parser hiding (Parser, runParser)
 import qualified DNS.Parser as Poly
 import DNS.ZoneFile.Types
+import DNS.ZoneFile.ParserBase
+import DNS.ZoneFile.ParserDNSSEC
 
 {- FOURMOLU_DISABLE -}
 data Context =
@@ -75,39 +73,9 @@ setClass = setCx (\x s -> s{cx_class = x})
 
 -- $setup
 -- >>> :seti -XOverloadedStrings
+-- >>> import DNS.SEC (addResourceDataForDNSSEC)
+-- >>> runInitIO addResourceDataForDNSSEC
 -- >>> cx = Context "" "" 3600 IN
-
--- |
--- >>> runParser dot cx [Dot]
--- Right ((Dot,Context "." "." 3600 IN),[])
-dot :: MonadParser Token s m => m Token
-dot = this Dot
-
--- |
--- >>> runParser blank cx [Blank]
--- Right ((Blank,Context "." "." 3600 IN),[])
-blank :: MonadParser Token s m => m Token
-blank = this Blank
-
-{- FOURMOLU_DISABLE -}
-lstring :: MonadParser Token s m => m CString
-lstring = do
-    t <- token
-    case t of
-        CS cs -> pure cs
-        _     -> raise $ "Parser.lstring: not CString: " ++ show t
-
-cstring :: MonadParser Token s m => m CString
-cstring = do
-    cs <- lstring
-    guard (Short.length cs < 256) <|> raise ("Parser.cstring: too long: " ++ show cs)
-    pure cs
-{- FOURMOLU_ENABLE -}
-
-readCString :: (Read a, MonadParser Token s m) => String -> m a
-readCString name = readable ("Zonefile." ++ name) . fromCString =<< cstring
-
----
 
 type Labels = [CString]
 
@@ -174,13 +142,10 @@ class_ :: MonadParser Token s m => m CLASS
 class_ = this (CS "IN") $> IN
 
 -- |
--- >>> runParser (type_ AAAA) cx [CS "AAAA"]
+-- >>> runParser type_ cx [CS "AAAA"]
 -- Right ((AAAA,Context "." "." 3600 IN),[])
-type_ :: MonadParser Token s m => TYPE -> m TYPE
-type_ ty = do
-    t <- readCString "type"
-    guard (t == ty) <|> raise ("ztype: expected: " ++ show ty ++ ", actual: " ++ show t)
-    pure t
+type_ :: MonadParser Token s m => m TYPE
+type_ = readCString "type"
 
 ---
 
@@ -235,48 +200,6 @@ rdataSOA =
 
 ---
 
-keytag :: MonadParser Token s m => m Word16
-keytag = readCString "keytag"
-
-pubalg :: MonadParser Token s m => m PubAlg
-pubalg = toPubAlg <$> readCString "pubalg"
-
-digestalg :: MonadParser Token s m => m DigestAlg
-digestalg = toDigestAlg <$> readCString "digestalg"
-
-digest :: MonadParser Token s m => m Opaque
-digest = handleB16 . Opaque.fromBase16 . fromShort =<< cstring
-  where
-    handleB16 = either (raise . ("Parser.digest: fromBase16: " ++)) pure
-
----
-
-{- FOURMOLU_DISABLE -}
-rdataDS :: MonadParser Token s m => m RData
-rdataDS =
-    rd_ds
-    <$> keytag <*> (blank *> pubalg) <*> (blank *> digestalg)
-    <*> (blank *> digest)
-{- FOURMOLU_ENABLE -}
-
-{- FOURMOLU_DISABLE -}
-rdataDNSKEY :: MonadParser Token s m => m RData
-rdataDNSKEY = do
-    mkRD  <- rd_dnskey <$> keyflags <*> (blank *> proto)
-    alg   <- blank *> pubalg
-    pkey  <- blank *> (toPubKey alg <$> keyB64)
-    pure $ mkRD alg pkey
-  where
-    keyflags = toDNSKEYflags <$> readCString "dnskey.flags"
-    proto = readCString "dnskey.proto"
-    handleB64 = either (raise . ("Parser.rdataDNSKEY: fromBase64: " ++)) pure
-    part = fromShort <$> lstring
-    parts = (BS.concat <$>) $ (:) <$> part <*> many (blank *> part)
-    keyB64 = handleB64 . Opaque.fromBase64 =<< parts
-{- FOURMOLU_ENABLE -}
-
----
-
 {- FOURMOLU_DISABLE -}
 {-- $ORIGIN <domain-name> [<comment>]
       --(normalized)-->
@@ -322,18 +245,24 @@ rrclass = optional (blank *> class_) >>= maybe (gets cx_class) setClass
 rrTyRData :: (TYPE -> RData -> a) -> Parser a
 rrTyRData mk =
     blank *>
-    ( pair A      rdataA      <|>
-      pair AAAA   rdataAAAA   <|>
-      pair PTR    rdataPTR    <|>
-      pair TXT    rdataTXT    <|>
-      pair NS     rdataNS     <|>
-      pair MX     rdataMX     <|>
-      pair CNAME  rdataCNAME  <|>
-      pair SOA    rdataSOA    <|>
-      pair DS     rdataDS     <|>
-      pair DNSKEY rdataDNSKEY )
+    ( type_ >>=
+      pair
+      ([ (A      , rdataA      )
+       , (AAAA   , rdataAAAA   )
+       , (PTR    , rdataPTR    )
+       , (TXT    , rdataTXT    )
+       , (NS     , rdataNS     )
+       , (MX     , rdataMX     )
+       , (CNAME  , rdataCNAME  )
+       , (SOA    , rdataSOA    )
+       ] ++
+       rdatasDNSSEC)
+    )
   where
-    pair ty rd = mk <$> type_ ty <*> (blank *> rd)
+    pair tbl ty = do
+         let left = raise $ "Zonefile.rdata: unsupported TYPE: " ++ show ty
+             right rd = mk ty <$> (blank *> rd :: Parser RData)
+         maybe left right (lookup ty tbl)
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -371,6 +300,8 @@ file = many (record <* this RSep)
 -- |
 -- >>> parseLineRR [CS "example",Dot,CS "net",Dot,Blank,CS "7200",Blank,CS "IN",Blank,CS "AAAA",Blank,CS "2001:db8::3"] defaultContext
 -- Right (ResourceRecord {rrname = "example.net.", rrtype = AAAA, rrclass = IN, rrttl = 7200(2 hours), rdata = 2001:db8::3},Context "." "example.net." 7200 IN)
+-- >>> parseLineRR [Dot,Blank,CS "IN",Blank,CS "DS",Blank,CS "20326",Blank,CS "8",Blank,CS "2",Blank,CS "E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D"] defaultContext
+-- Right (ResourceRecord {rrname = ".", rrtype = DS, rrclass = IN, rrttl = 1800(30 mins), rdata = RD_DS {ds_key_tag = 20326, ds_pubalg = RSASHA256, ds_digestalg = SHA256, ds_digest = \# 32 e06d44b80b8f1d39a95c0b0d7c65d08458e880409bbc683457104237c7f8ec8d}},Context "." "." 1800 IN)
 parseLineRR :: [Token] -> Context -> Either String (ResourceRecord, Context)
 parseLineRR ts icontext = fst <$> runParser (zoneRR <* eof) icontext ts
 
