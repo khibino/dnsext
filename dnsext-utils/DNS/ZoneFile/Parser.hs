@@ -24,6 +24,7 @@ import qualified DNS.Parser as Poly
 import DNS.ZoneFile.Types
 import DNS.ZoneFile.ParserBase
 import DNS.ZoneFile.ParserDNSSEC
+import DNS.ZoneFile.ParserSVCB
 
 {- FOURMOLU_DISABLE -}
 data Context =
@@ -74,7 +75,9 @@ setClass = setCx (\x s -> s{cx_class = x})
 -- $setup
 -- >>> :seti -XOverloadedStrings
 -- >>> import DNS.SEC (addResourceDataForDNSSEC)
+-- >>> import DNS.SVCB (addResourceDataForSVCB)
 -- >>> runInitIO addResourceDataForDNSSEC
+-- >>> runInitIO addResourceDataForSVCB
 -- >>> cx = Context "" "" 3600 IN
 
 type Labels = [CString]
@@ -256,7 +259,8 @@ rrTyRData mk =
        , (CNAME  , rdataCNAME  )
        , (SOA    , rdataSOA    )
        ] ++
-       rdatasDNSSEC)
+       rdatasDNSSEC ++
+       rdatasSVCB domain)
     )
   where
     pair tbl ty = do
@@ -302,6 +306,8 @@ file = many (record <* this RSep)
 -- Right (ResourceRecord {rrname = "example.net.", rrtype = AAAA, rrclass = IN, rrttl = 7200(2 hours), rdata = 2001:db8::3},Context "." "example.net." 7200 IN)
 -- >>> parseLineRR [Dot,Blank,CS "IN",Blank,CS "DS",Blank,CS "20326",Blank,CS "8",Blank,CS "2",Blank,CS "E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D"] defaultContext
 -- Right (ResourceRecord {rrname = ".", rrtype = DS, rrclass = IN, rrttl = 1800(30 mins), rdata = RD_DS {ds_key_tag = 20326, ds_pubalg = RSASHA256, ds_digestalg = SHA256, ds_digest = \# 32 e06d44b80b8f1d39a95c0b0d7c65d08458e880409bbc683457104237c7f8ec8d}},Context "." "." 1800 IN)
+-- >>> parseLineRR [CS "_dns",Dot,CS "resolver",Dot,CS "arpa",Dot,Blank,CS "300",Blank,CS "IN",Blank,CS "SVCB",Blank,CS "1",Blank,CS "ns",Dot,CS "example",Dot,Blank,CS "alpn=",CS "h2,h3",Blank,CS "ipv4hint=192.0.2.19",Blank,CS "ipv6hint=2001:db8::13"] defaultContext
+-- Right (ResourceRecord {rrname = "_dns.resolver.arpa.", rrtype = SVCB, rrclass = IN, rrttl = 300(5 mins), rdata = RD_SVCB {svcb_priority = 1, svcb_target = "ns.example.", svcb_params = {alpn=["h2","h3"], ipv4hint=[192.0.2.19], ipv6hint=[2001:db8::13]}}},Context "." "_dns.resolver.arpa." 300 IN)
 parseLineRR :: [Token] -> Context -> Either String (ResourceRecord, Context)
 parseLineRR ts icontext = fst <$> runParser (zoneRR <* eof) icontext ts
 
