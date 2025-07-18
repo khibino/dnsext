@@ -23,18 +23,21 @@ blank :: MonadParser Token s m => m Token
 blank = this Blank
 
 {- FOURMOLU_DISABLE -}
-lstring :: MonadParser Token s m => m CString
+lstring :: MonadParser Token s m => m CS'
 lstring = do
     t <- token
     case t of
-        CS (CS'{cs_cs = cs})  -> pure cs
-        _                     -> raise $ "Parser.lstring: not CString: " ++ show t
+        CS cs  -> pure cs
+        _      -> raise $ "Parser.lstring: not CString token: " ++ show t
+
+cstring' :: MonadParser Token s m => m CS'
+cstring' = do
+    cs <- lstring
+    guard (Short.length (cs_cs cs) < 256) <|> raise ("Parser.cstring: too long: " ++ show cs)
+    pure cs
 
 cstring :: MonadParser Token s m => m CString
-cstring = do
-    cs <- lstring
-    guard (Short.length cs < 256) <|> raise ("Parser.cstring: too long: " ++ show cs)
-    pure cs
+cstring = cs_cs <$> cstring'
 {- FOURMOLU_ENABLE -}
 
 readCString :: (Read a, MonadParser Token s m) => String -> m a
