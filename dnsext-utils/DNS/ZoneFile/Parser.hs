@@ -261,7 +261,7 @@ rrTyRData mk =
   where
     pair tbl ty = do
          let left = raise $ "Zonefile.rdata: unsupported TYPE: " ++ show ty
-             right rd = mk ty <$> (blank *> rd :: Parser RData)
+             right rd = mk ty <$> (blank *> rd :: Parser RData {- for GHC 9.2. type-inference not working with fundep? -})
          maybe left right (lookup ty tbl)
 {- FOURMOLU_ENABLE -}
 
