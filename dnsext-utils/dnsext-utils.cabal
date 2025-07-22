@@ -30,6 +30,7 @@ library
         DNS.ZoneFile.Lexer
         DNS.ZoneFile.ParserBase
         DNS.ZoneFile.ParserDNSSEC
+        DNS.ZoneFile.ParserSVCB
         DNS.ZoneFile.Parser
         DNS.ZoneFile.IO
 
