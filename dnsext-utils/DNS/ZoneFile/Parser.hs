@@ -36,8 +36,7 @@ data Context =
     }
 
 instance Show Context where
-    show (Context z n t c) = unwords ["Context", show z, show n, show $ toInt t, show c]
-      where toInt = fromIntegral :: TTL -> Int
+    show (Context z n t c) = unwords ["Context", show z, show n, show $ toInteger t, show c]
 {- FOURMOLU_ENABLE -}
 
 defaultContext :: Context
