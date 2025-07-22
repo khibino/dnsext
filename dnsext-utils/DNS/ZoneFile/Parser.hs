@@ -37,10 +37,16 @@ data Context =
 
 instance Show Context where
     show (Context z n t c) = unwords ["Context", show z, show n, show $ toInteger t, show c]
-{- FOURMOLU_ENABLE -}
 
 defaultContext :: Context
-defaultContext = Context "." "." 1800 IN
+defaultContext =
+    Context
+    { cx_zone   = "."
+    , cx_name   = "."
+    , cx_ttl    = 1800
+    , cx_class  = IN
+    }
+{- FOURMOLU_ENABLE -}
 
 type Parser = StateT Context (Poly.Parser [Token])
 
