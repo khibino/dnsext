@@ -46,7 +46,7 @@ rdataDNSKEY = do
     keyflags = toDNSKEYflags <$> readCString "dnskey.flags"
     proto = readCString "dnskey.proto"
     handleB64 = either (raise . ("Parser.rdataDNSKEY: fromBase64: " ++)) pure
-    part = fromShort <$> lstring
+    part = fromShort . cs_cs <$> lstring
     parts = (mconcat <$>) $ (:) <$> part <*> many (blank *> part)
     keyB64 = handleB64 . Opaque.fromBase64 =<< parts
 {- FOURMOLU_ENABLE -}
