@@ -32,9 +32,11 @@ data TimeCache = TimeCache
 newTimeCache :: IO TimeCache
 newTimeCache = do
     let interval = 1_000_000
-    (onceGetTime  , close1) <- mkClosableAutoUpdate interval  getUnixTime
-    (onceGetString, close2) <- mkClosableAutoUpdate interval (getTimeShowS =<< onceGetTime)
-    return $ TimeCache (unixToEpoch <$> onceGetTime) onceGetString (close2 >> close1)
+    (onceGetString, close) <- mkClosableAutoUpdate interval (getTimeShowS =<< getUnixTime)
+    {- Due to the efficient time retrieval enabled by the vdso(7) mechanism, caching is not required.
+       Only the formatting of time strings is subject to caching.
+       https://man7.org/linux/man-pages/man7/vdso.7.html -}
+    return $ TimeCache (unixToEpoch <$> getUnixTime) onceGetString close
 {- FOURMOLU_ENABLE -}
 
 noneTimeCache :: TimeCache
