@@ -18,8 +18,7 @@ import Data.UnixTime (UnixTime (..), formatUnixTime, getUnixTime)
 import DNS.Types.Time (EpochTime)
 
 -- this package
-import Control.AutoUpdate
-import Control.AutoUpdate.Internal (mkClosableAutoUpdate)
+import DNS.Utils.AutoUpdate (mkClosableAutoUpdate)
 
 {- FOURMOLU_DISABLE -}
 data TimeCache = TimeCache
@@ -29,23 +28,16 @@ data TimeCache = TimeCache
     }
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 newTimeCache :: IO TimeCache
 newTimeCache = do
-    let settings0 =
-            defaultUpdateSettings
-                { updateFreq = 1_000_000
-                , updateAction = getUnixTime
-                , updateThreadName = "dnsext-utils: AutoUpdate for getUnixTime"
-                }
-    (onceGetTime, close1) <- mkClosableAutoUpdate settings0
-    let settings1 =
-            defaultUpdateSettings
-                { updateFreq = 1_000_000
-                , updateAction = getTimeShowS =<< onceGetTime
-                , updateThreadName = "dnsext-utils: AutoUpdate for onceGetTime"
-                }
-    (onceGetString, close2) <- mkClosableAutoUpdate settings1
-    return $ TimeCache (unixToEpoch <$> onceGetTime) onceGetString (close2 >> close1)
+    let interval = 1_000_000
+    (onceGetString, close) <- mkClosableAutoUpdate interval (getTimeShowS =<< getUnixTime)
+    {- Due to the efficient time retrieval enabled by the vdso(7) mechanism, caching is not required.
+       Only the formatting of time strings is subject to caching.
+       https://man7.org/linux/man-pages/man7/vdso.7.html -}
+    return $ TimeCache (unixToEpoch <$> getUnixTime) onceGetString close
+{- FOURMOLU_ENABLE -}
 
 noneTimeCache :: TimeCache
 noneTimeCache =
