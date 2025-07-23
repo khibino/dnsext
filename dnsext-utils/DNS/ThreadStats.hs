@@ -4,11 +4,10 @@ module DNS.ThreadStats where
 
 #if __GLASGOW_HASKELL__ >= 906
 
-import GHC.Conc.Sync (labelThread, threadStatus)
+import GHC.Conc.Sync (threadStatus)
 import qualified GHC.Conc.Sync as GHC
 import Control.Concurrent (ThreadId, myThreadId, threadDelay)
 import qualified Control.Concurrent as Concurrent
-import Control.Concurrent.Async (Async, asyncThreadId)
 import qualified Control.Concurrent.Async as Async
 import Control.Monad
 import Data.List
@@ -18,22 +17,26 @@ import Data.Maybe
 
 import Control.Concurrent (ThreadId, threadDelay)
 import qualified Control.Concurrent as Concurrent
-import Control.Concurrent.Async (Async)
 import qualified Control.Concurrent.Async as Async
 import Control.Monad
 
 #endif
 
-getThreadLabel :: IO String
-dumpThreads :: IO [String]
-dumper :: ([String] -> IO ()) -> IO ()
-
-#if __GLASGOW_HASKELL__ >= 906
+import Control.Concurrent.Async (Async, asyncThreadId)
+import Data.List
+import Data.Maybe
 
 showTid :: ThreadId -> String
 showTid tid = stripTh $ show tid
   where
     stripTh x = fromMaybe x $ stripPrefix "ThreadId " x
+
+---
+
+getThreadLabel :: IO String
+dumpThreads :: IO [String]
+
+#if __GLASGOW_HASKELL__ >= 906
 
 getThreadLabel = withName (pure "<no-label>") $ \tid n -> pure $ n ++ ": " ++ showTid tid
   where
@@ -55,71 +58,73 @@ dumpThreads = do
         pure (name, val)
     width = 24
 
+#else
+
+getThreadLabel = pure "<thread-label not supported>"
+dumpThreads = pure ["<not supported>"]
+
+#endif
+
+---
+
+dumper :: ([String] -> IO ()) -> IO ()
 dumper putLines = forever $ do
     putLines . (++ ["----------------------------------------"]) =<< dumpThreads
     threadDelay interval
   where
     interval = 3 * 1000 * 1000
 
-#else
-
-getThreadLabel = pure "<thread-label not supported>"
-dumpThreads = pure ["<not supported>"]
-dumper _ = forever $ threadDelay interval
-  where
-    interval = 3 * 1000 * 1000
-
-#endif
-
 ---
 
 listThreads :: IO [ThreadId]
 threadLabel :: ThreadId -> IO (Maybe String)
+labelThread :: ThreadId -> String -> IO ()
 
 #if __GLASGOW_HASKELL__ >= 906
 
 listThreads = GHC.listThreads
 threadLabel = GHC.threadLabel
+labelThread = GHC.labelThread
 
 #else
 
 listThreads = pure []
 threadLabel _ = pure Nothing
+labelThread _ _ = pure ()
 
 #endif
 
 ---
 
 forkIO :: String -> IO () -> IO ThreadId
-async :: String -> IO a -> IO (Async a)
-withAsync :: String -> IO a -> (Async a -> IO b) -> IO b
-withAsyncs :: [(String, IO a)] -> ([Async a] -> IO b) -> IO b
-concurrently :: String -> IO a -> String -> IO b -> IO (a, b)
-concurrently_ :: String -> IO a -> String -> IO b -> IO ()
-race :: String -> IO a -> String -> IO b -> IO (Either a b)
-race_ :: String -> IO a -> String -> IO b -> IO ()
-concurrentlyList :: [(String, IO a)] -> IO [a]
-concurrentlyList_ :: [(String, IO a)] -> IO ()
-raceList :: [(String, IO a)] -> IO (Async a, a)
-raceList_ :: [(String, IO a)] -> IO ()
-
-#if __GLASGOW_HASKELL__ >= 906
 forkIO name action = do
     tid <- Concurrent.forkIO action
     labelThread tid name
     pure tid
 
+async :: String -> IO a -> IO (Async a)
 async name io = do
     a <- Async.async io
     labelThread (asyncThreadId a) name
     pure a
 
+withAsync :: String -> IO a -> (Async a -> IO b) -> IO b
 withAsync name io h0 =
     Async.withAsync io h
   where
     h a = do
         labelThread (asyncThreadId a) name
         h0 a
+
+---
+
+withAsyncs :: [(String, IO a)] -> ([Async a] -> IO b) -> IO b
+concurrently :: String -> IO a -> String -> IO b -> IO (a, b)
+concurrently_ :: String -> IO a -> String -> IO b -> IO ()
+race :: String -> IO a -> String -> IO b -> IO (Either a b)
+race_ :: String -> IO a -> String -> IO b -> IO ()
+
+#if __GLASGOW_HASKELL__ >= 906
 
 withAsyncs ps h = foldr op (\f -> h (f [])) ps id
   where
@@ -143,24 +148,7 @@ race nleft left nright right =
 
 race_ nleft left nright right = void $ race nleft left nright right
 
--- |
--- >>> concurrentlyList $ zip [[c] | c <- ['a'..]] [pure x | x <- [1::Int .. 5]]
--- [1,2,3,4,5]
-concurrentlyList ps = withAsyncs ps $ mapM Async.wait
-
-concurrentlyList_ = void . concurrentlyList
-
-raceList ps = withAsyncs ps Async.waitAny
-
-raceList_ = void . raceList
-
 #else
-
-forkIO _ action = Concurrent.forkIO action
-
-async _ io = Async.async io
-
-withAsync _ io h = Async.withAsync io h
 
 withAsyncs ps h = foldr op (\f -> h (f [])) ps id
   where
@@ -174,15 +162,21 @@ race _ left _ right = Async.race left right
 
 race_ _ left _ right = Async.race_ left right
 
+#endif
+
+---
+
 -- |
 -- >>> concurrentlyList $ zip [[c] | c <- ['a'..]] [pure x | x <- [1::Int .. 5]]
 -- [1,2,3,4,5]
+concurrentlyList :: [(String, IO a)] -> IO [a]
 concurrentlyList ps = withAsyncs ps $ mapM Async.wait
 
+concurrentlyList_ :: [(String, IO a)] -> IO ()
 concurrentlyList_ = void . concurrentlyList
 
-raceList ps = withAsyncs ps $ Async.waitAny
+raceList :: [(String, IO a)] -> IO (Async a, a)
+raceList ps = withAsyncs ps Async.waitAny
 
+raceList_ :: [(String, IO a)] -> IO ()
 raceList_ = void . raceList
-
-#endif
