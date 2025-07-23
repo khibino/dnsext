@@ -10,8 +10,6 @@ import qualified GHC.Conc.Sync as GHC
 
 -- base
 import Control.Concurrent (myThreadId)
-import Data.List
-import Data.Maybe
 
 #else
 
@@ -28,17 +26,21 @@ import qualified Control.Concurrent as Concurrent
 import Control.Concurrent.Async (Async, asyncThreadId)
 import qualified Control.Concurrent.Async as Async
 import Control.Monad
+import Data.List
+import Data.Maybe
+
+showTid :: ThreadId -> String
+showTid tid = stripTh $ show tid
+  where
+    stripTh x = fromMaybe x $ stripPrefix "ThreadId " x
+
+---
 
 getThreadLabel :: IO String
 dumpThreads :: IO [String]
 dumper :: ([String] -> IO ()) -> IO ()
 
 #if __GLASGOW_HASKELL__ >= 906
-
-showTid :: ThreadId -> String
-showTid tid = stripTh $ show tid
-  where
-    stripTh x = fromMaybe x $ stripPrefix "ThreadId " x
 
 getThreadLabel = withName (pure "<no-label>") $ \tid n -> pure $ n ++ ": " ++ showTid tid
   where
