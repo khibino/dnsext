@@ -25,6 +25,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Monad
 import Data.List
 import Data.Maybe
+import Debug.Trace (traceEventIO)
 
 showTid :: ThreadId -> String
 showTid tid = stripTh $ show tid
@@ -32,6 +33,11 @@ showTid tid = stripTh $ show tid
     stripTh x = fromMaybe x $ stripPrefix "ThreadId " x
 
 ---
+
+eventLog :: String -> IO ()
+eventLog s = do
+    tid <- showTid <$> myThreadId
+    traceEventIO ("uevent: thread " ++ tid ++ " (" ++ s ++ ")")
 
 -- naming not named
 setThreadLabel :: String -> IO ()
