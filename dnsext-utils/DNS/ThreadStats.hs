@@ -16,9 +16,10 @@ import Data.Maybe
 
 #else
 
+import GHC.Conc.Sync (labelThread)
 import Control.Concurrent (ThreadId, threadDelay)
 import qualified Control.Concurrent as Concurrent
-import Control.Concurrent.Async (Async)
+import Control.Concurrent.Async (Async, asyncThreadId)
 import qualified Control.Concurrent.Async as Async
 import Control.Monad
 
@@ -103,7 +104,6 @@ concurrentlyList_ :: [(String, IO a)] -> IO ()
 raceList :: [(String, IO a)] -> IO (Async a, a)
 raceList_ :: [(String, IO a)] -> IO ()
 
-#if __GLASGOW_HASKELL__ >= 906
 forkIO name action = do
     tid <- Concurrent.forkIO action
     labelThread tid name
@@ -153,36 +153,3 @@ concurrentlyList_ = void . concurrentlyList
 raceList ps = withAsyncs ps Async.waitAny
 
 raceList_ = void . raceList
-
-#else
-
-forkIO _ action = Concurrent.forkIO action
-
-async _ io = Async.async io
-
-withAsync _ io h = Async.withAsync io h
-
-withAsyncs ps h = foldr op (\f -> h (f [])) ps id
-  where
-    op (_, io) action = \s -> Async.withAsync io $ \a -> action (s . (a:))
-
-concurrently _ left _ right = Async.concurrently left right
-
-concurrently_ _ left _ right = Async.concurrently_ left right
-
-race _ left _ right = Async.race left right
-
-race_ _ left _ right = Async.race_ left right
-
--- |
--- >>> concurrentlyList $ zip [[c] | c <- ['a'..]] [pure x | x <- [1::Int .. 5]]
--- [1,2,3,4,5]
-concurrentlyList ps = withAsyncs ps $ mapM Async.wait
-
-concurrentlyList_ = void . concurrentlyList
-
-raceList ps = withAsyncs ps $ Async.waitAny
-
-raceList_ = void . raceList
-
-#endif
