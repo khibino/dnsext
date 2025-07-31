@@ -283,7 +283,7 @@ console conf env ctl@Control{..} GlobalCache{gcacheControl=CacheControl{..}} srv
 
 withWait :: STM a -> IO b -> IO (Either a b)
 withWait qstm blockAct =
-    TStat.withAsync "monitor" blockAct $ \a ->
+    TStat.withAsync "bw.monitor" blockAct $ \a ->
         atomically $
             (Left <$> qstm)
                 <|> (Right <$> waitSTM a)
