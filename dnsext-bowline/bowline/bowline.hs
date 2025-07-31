@@ -147,12 +147,12 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     tidW <- runWriter
     runLogger
     runSSLKeyLogger
-    tidA <- mapM (TStat.forkIO "webapi-srv" . API.run mng) masock
+    tidA <- mapM (TStat.forkIO "bw.webapi-srv" . API.run mng) masock
     let withNum name xs = zipWith (\i x -> (name ++ printf "%4d" i, x)) [1 :: Int ..] xs
     let concServer =
             conc
-                [ TStat.concurrentlyList_ (withNum "cacher" cachers)
-                , TStat.concurrentlyList_ (withNum "worker" workers)
+                [ TStat.concurrentlyList_ (withNum "bw.cacher" cachers)
+                , TStat.concurrentlyList_ (withNum "bw.worker" workers)
                 , TStat.concurrentlyList_ [(n, as) | (n, _sks, ass) <- servers, as <- ass]
                 ]
     {- Advisedly separating 'dumper' thread from Async thread-tree
@@ -160,7 +160,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
        - Not to be affected by issued `cancel` to thread-tree
        The 'dumper' thread separated by forkIO automatically terminates
        when the 'main' thread ends, so there's no need for cleanup.          -}
-    sequence_ [TStat.forkIO "dumper" (TStat.dumper $ putLines Log.SYSTEM Nothing) | cnf_threads_dumper]
+    sequence_ [TStat.forkIO "bw.dumper" (TStat.dumper $ putLines Log.SYSTEM Nothing) | cnf_threads_dumper]
     race_ concServer (conc monitor)
         -- Teardown
         `finally` do
@@ -171,13 +171,13 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
   where
     maybeKill = maybe (return ()) killThread
     trans creds sm =
-        [ (cnf_udp, "udp-srv", udpServers udpconf, Datagram, cnf_udp_port)
-        , (cnf_tcp, "tcp-srv", tcpServers vcconf, Stream, cnf_tcp_port)
-        , (cnf_h2c, "h2c-srv", http2cServers vcconf, Stream, cnf_h2c_port)
-        , (cnf_h2, "h2-srv", http2Servers vcconf, Stream, cnf_h2_port)
-        , (cnf_h3, "h3-srv", http3Servers vcconf, Datagram, cnf_h3_port)
-        , (cnf_tls, "tls-srv", tlsServers vcconf, Stream, cnf_tls_port)
-        , (cnf_quic, "quic-srv", quicServers vcconf, Datagram, cnf_quic_port)
+        [ (cnf_udp, "bw.udp-srv", udpServers udpconf, Datagram, cnf_udp_port)
+        , (cnf_tcp, "bw.tcp-srv", tcpServers vcconf, Stream, cnf_tcp_port)
+        , (cnf_h2c, "bw.h2c-srv", http2cServers vcconf, Stream, cnf_h2c_port)
+        , (cnf_h2, "bw.h2-srv", http2Servers vcconf, Stream, cnf_h2_port)
+        , (cnf_h3, "bw.h3-srv", http3Servers vcconf, Datagram, cnf_h3_port)
+        , (cnf_tls, "bw.tls-srv", tlsServers vcconf, Stream, cnf_tls_port)
+        , (cnf_quic, "bw.quic-srv", quicServers vcconf, Datagram, cnf_quic_port)
         ]
       where
         vcconf =
@@ -267,7 +267,7 @@ getLogger ruid conf@Config{..} TimeCache{..}
         let getpts
                 | cnf_log_timestamp  = getTimeStr <&> (. (' ' :))
                 | otherwise          = pure id
-            result hreop a _ p k r = return (void $ TStat.forkIO "logger" a, p, k, hreop r)
+            result hreop a _ p k r = return (void $ TStat.forkIO "bw.logger" a, p, k, hreop r)
             lk open close fr = Log.with getpts open close cnf_log_level (result fr)
             handle   = lk (pure $ Log.stdHandle cnf_log_output)         (\_ -> pure ()) (\_ -> pure ())
             file fn  = lk (withRoot ruid conf $ openFile fn AppendMode)  hClose         id
@@ -286,7 +286,7 @@ getSSLKeyLogger ruid conf =
     logger fn = either left pure =<< tryIOError (logger' fn)
     left e = putStrLn ("sslkey-logfile: logger open failed: " ++ show e) $> nolog
     logger' fn = Log.with (pure id) (open fn) hClose Log.INFO $
-        \a _ p k _ -> pure (void $ TStat.forkIO "logger" a, \s -> p Log.INFO Nothing [s], k)
+        \a _ p k _ -> pure (void $ TStat.forkIO "bw.sslkey" a, \s -> p Log.INFO Nothing [s], k)
     open fn = do
         fh <- withRoot ruid conf $ openFile fn AppendMode
         hSetBuffering fh LineBuffering
