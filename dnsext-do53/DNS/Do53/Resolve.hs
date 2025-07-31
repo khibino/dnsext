@@ -67,7 +67,7 @@ resolveConcurrent
     :: NonEmpty ResolveInfo -> OneshotResolver -> Resolver
 resolveConcurrent ris@(ResolveInfo{rinfoActions = riAct} :| _) resolver q@Question{..} qctl = do
     caller <- TStat.getThreadLabel
-    ex <- E.try $ raceAnyL [(caller ++ ": do53-res: " ++ show (rinfoIP ri), resolver' ri) | ri <- NE.toList ris]
+    ex <- E.try $ raceAnyL [(caller ++ ".do53-res: " ++ show (rinfoIP ri), resolver' ri) | ri <- NE.toList ris]
     case ex of
         Right r@Reply{..} -> do
             let ~tag =
