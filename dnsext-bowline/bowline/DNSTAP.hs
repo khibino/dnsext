@@ -23,7 +23,7 @@ new :: Config -> Log.PutLines IO -> IO (IO (Maybe ThreadId), Message -> IO ())
 new conf@Config{..} logP
     | cnf_dnstap = do
         (writer, put) <- newDnstapWriter conf logP
-        return (Just <$> TStat.forkIO "dnstap-writer" writer, put)
+        return (Just <$> TStat.forkIO "bw.dnstap-writer" writer, put)
     | otherwise = do
         let put ~_ = return ()
         return (return Nothing, put)
