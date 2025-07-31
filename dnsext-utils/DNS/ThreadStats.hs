@@ -95,6 +95,7 @@ threadLabel _ = pure Nothing
 
 ---
 
+{- FOURMOLU_DISABLE -}
 forkIO :: String -> IO () -> IO ThreadId
 async :: String -> IO a -> IO (Async a)
 withAsync :: String -> IO a -> (Async a -> IO b) -> IO b
@@ -107,6 +108,7 @@ concurrentlyList :: [(String, IO a)] -> IO [a]
 concurrentlyList_ :: [(String, IO a)] -> IO ()
 raceList :: [(String, IO a)] -> IO (Async a, a)
 raceList_ :: [(String, IO a)] -> IO ()
+{- FOURMOLU_ENABLE -}
 
 forkIO name action = do
     tid <- Concurrent.forkIO action
@@ -127,7 +129,7 @@ withAsync name io h0 =
 
 withAsyncs ps h = foldr op (\f -> h (f [])) ps id
   where
-    op (n, io) action = \s -> withAsync n io $ \a -> action (s . (a:))
+    op (n, io) action = \s -> withAsync n io $ \a -> action (s . (a :))
 
 {- FOURMOLU_DISABLE -}
 concurrently nleft left nright right =
