@@ -54,6 +54,7 @@ help = putStrLn "bowline [<confFile>] [<conf-key>=<conf-value> ...]"
 
 run :: UserID -> IO Config -> IO ()
 run ruid readConfig = do
+    TStat.setThreadLabel "bw.main"
     -- TimeCache uses Control.AutoUpdate which
     -- does not provide a way to kill the internal thread.
     tcache <- newTimeCache
