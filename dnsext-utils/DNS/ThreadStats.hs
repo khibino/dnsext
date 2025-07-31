@@ -4,26 +4,30 @@ module DNS.ThreadStats where
 
 #if __GLASGOW_HASKELL__ >= 906
 
-import GHC.Conc.Sync (labelThread, threadStatus)
+-- GHC internal
+import GHC.Conc.Sync (threadStatus)
 import qualified GHC.Conc.Sync as GHC
-import Control.Concurrent (ThreadId, myThreadId, threadDelay)
-import qualified Control.Concurrent as Concurrent
-import Control.Concurrent.Async (Async, asyncThreadId)
-import qualified Control.Concurrent.Async as Async
-import Control.Monad
+
+-- base
+import Control.Concurrent (myThreadId)
 import Data.List
 import Data.Maybe
 
 #else
 
+-- (imports for case, GHC 9.4.x, GHC 9.2.x)
+
+#endif
+
+-- GHC internal
 import GHC.Conc.Sync (labelThread)
+
+-- base
 import Control.Concurrent (ThreadId, threadDelay)
 import qualified Control.Concurrent as Concurrent
 import Control.Concurrent.Async (Async, asyncThreadId)
 import qualified Control.Concurrent.Async as Async
 import Control.Monad
-
-#endif
 
 getThreadLabel :: IO String
 dumpThreads :: IO [String]
