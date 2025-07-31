@@ -8,9 +8,6 @@ module DNS.ThreadStats where
 import GHC.Conc.Sync (threadStatus)
 import qualified GHC.Conc.Sync as GHC
 
--- base
-import Control.Concurrent (myThreadId)
-
 #else
 
 -- (imports for case, GHC 9.4.x, GHC 9.2.x)
@@ -21,7 +18,7 @@ import Control.Concurrent (myThreadId)
 import GHC.Conc.Sync (labelThread)
 
 -- base
-import Control.Concurrent (ThreadId, threadDelay)
+import Control.Concurrent (ThreadId, myThreadId, threadDelay)
 import qualified Control.Concurrent as Concurrent
 import Control.Concurrent.Async (Async, asyncThreadId)
 import qualified Control.Concurrent.Async as Async
@@ -33,6 +30,14 @@ showTid :: ThreadId -> String
 showTid tid = stripTh $ show tid
   where
     stripTh x = fromMaybe x $ stripPrefix "ThreadId " x
+
+---
+
+-- naming not named
+setThreadLabel :: String -> IO ()
+setThreadLabel name = do
+    tid <- myThreadId
+    maybe (labelThread tid name) (const $ pure ()) =<< threadLabel tid
 
 ---
 
