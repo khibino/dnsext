@@ -60,7 +60,7 @@ tlsServer VcServerConfig{..} env toCacher s = do
         logLn env Log.DEBUG $ "tls-srv: accept: " ++ show peersa
         inpq <- newTQueueIO
         (vcSess, toSender, fromX) <- initVcSession (return $ checkInp inpq)
-        E.bracket (TStat.forkIO "TLS reader" $ reader backend inpq) killThread $ \_ -> do
+        E.bracket (TStat.forkIO "bw.tls-reader" $ reader backend inpq) killThread $ \_ -> do
             withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) $ \vcTimer -> do
                 recv <- makeNBRecvVC maxSize $ getInp inpq
                 let onRecv bs = do
@@ -69,7 +69,7 @@ tlsServer VcServerConfig{..} env toCacher s = do
                 let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC (H2.sendMany backend) bs
                     receiver = receiverVCnonBlocking "tls-recv" env vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DOT
                     sender = senderVC "tls-send" env vcSess send fromX
-                TStat.concurrently_ "tls-send" sender "tls-recv" receiver
+                TStat.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
             logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 
 reader :: H2.IOBackend -> TQueue ByteString -> IO ()
