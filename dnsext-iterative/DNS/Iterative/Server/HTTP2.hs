@@ -115,7 +115,7 @@ doHTTP name sbracket incQuery env toCacher httpProto ServerIO{..} = do
             let header = mkHeader bs'
                 response = H2.responseBuilder HT.ok200 header $ byteString bs'
             sioWriteResponse (fromSuperStream sprstrm) response
-    return $ sbracket $ TStat.concurrently_ (name ++ "-send") sender (name ++ "-recv") receiver
+    return $ sbracket $ TStat.concurrently_ ("bw." ++ name ++ "-send") sender ("bw." ++ name ++ "-recv") receiver
   where
     mkHeader bs =
         [ (HT.hContentType, "application/dns-message")
