@@ -64,7 +64,7 @@ quicServers VcServerConfig{..} env toCacher ss = do
                 -- FIXME
                 receiver = receiverVC "quic-recv" env vcSess recv toCacher $ mkInput mysa toSender DOQ
                 sender = senderVC "quic-send" env vcSess send fromX
-            TStat.concurrently_ "quic-send" sender "quic-recv" receiver
+            TStat.concurrently_ "bw.quic-send" sender "bw.quic-recv" receiver
 
 getServerConfig :: Credentials -> SessionManager -> ByteString -> Int -> Env -> ServerConfig
 getServerConfig creds sm alpn tmills env =
