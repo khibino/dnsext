@@ -82,6 +82,7 @@ resolveConcurrent ris@(ResolveInfo{rinfoActions = riAct} :| _) resolver q@Questi
         le@(Left (_ :: DNSError)) -> return le
   where
     resolver' ri = do
+        TStat.eventLog ("do53.conc " ++ show qname ++ " " ++ show qtype ++ " " ++ show (rinfoIP ri))
         erply <- E.mapException (appendErrorContext q ri) $ resolver ri q qctl
         case erply of
             Right rply -> return rply
