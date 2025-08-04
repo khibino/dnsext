@@ -35,6 +35,7 @@ import DNS.RRCache (
  )
 import qualified DNS.RRCache as Cache
 import DNS.SEC
+import qualified DNS.ThreadStats as TStat
 import DNS.Types
 import qualified DNS.Types as DNS
 import Data.IP (IP)
@@ -114,6 +115,7 @@ resolveExactDC dc n typ
         failWithCacheOrigName Cache.RankAnswer DNS.ServerFailure
     | otherwise = do
         anchor <- getAnchor
+        liftIO $ TStat.eventLog ("iter.rec " ++ show dc ++ " " ++ show n ++ " " ++ show typ)
         (mmsg, nss) <- iterative dc anchor $ DNS.superDomains' (delegationZone anchor) n
         let reuseMsg msg
                 | typ == requestDelegationTYPE  = do

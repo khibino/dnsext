@@ -46,6 +46,7 @@ import Control.Concurrent.Async (AsyncCancelled)
 import qualified DNS.Log as Log
 import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 import qualified DNS.TAP.Schema as DNSTAP
+import qualified DNS.ThreadStats as TStat
 import DNS.Types (DNSFlags (..), DNSMessage (..), EDNS (..), EDNSheader (..), Question (..), RCODE (..))
 import qualified DNS.Types.Decode as DNS
 import qualified DNS.Types.Encode as DNS
@@ -145,12 +146,16 @@ workerLogic :: Env -> WorkerStatOP -> IO FromCacher -> IO ()
 workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     setWorkerStat WWaitDequeue
     inp@Input{..} <- fromCacher
-    case question inputQuery of
-        q : _ -> setWorkerStat (WRun q)
-        [] -> pure ()
+    let showQ q = show (qname q) ++ " " ++ show (qtype q)
+        whenQ1 f =
+            case question inputQuery of
+                q : _ -> f q
+                [] -> pure ()
+    whenQ1 (\q -> setWorkerStat (WRun q) >> TStat.eventLog ("iter.bgn " ++ showQ q))
     ex <- foldResponseIterative Left (curry Right) env inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
+    whenQ1 (\q -> TStat.eventLog ("iter.end " ++ showQ q))
     setWorkerStat WWaitEnqueue
     case ex of
         Right (vr, replyMsg) -> do
