@@ -8,11 +8,6 @@ module DNS.ThreadStats where
 import GHC.Conc.Sync (threadStatus)
 import qualified GHC.Conc.Sync as GHC
 
--- base
-import Control.Concurrent (myThreadId)
-import Data.List
-import Data.Maybe
-
 #else
 
 -- (imports for case, GHC 9.4.x, GHC 9.2.x)
@@ -23,22 +18,40 @@ import Data.Maybe
 import GHC.Conc.Sync (labelThread)
 
 -- base
-import Control.Concurrent (ThreadId, threadDelay)
+import Control.Concurrent (ThreadId, myThreadId, threadDelay)
 import qualified Control.Concurrent as Concurrent
 import Control.Concurrent.Async (Async, asyncThreadId)
 import qualified Control.Concurrent.Async as Async
 import Control.Monad
+import Data.List
+import Data.Maybe
+import Debug.Trace (traceEventIO)
+
+showTid :: ThreadId -> String
+showTid tid = stripTh $ show tid
+  where
+    stripTh x = fromMaybe x $ stripPrefix "ThreadId " x
+
+---
+
+eventLog :: String -> IO ()
+eventLog s = do
+    tid <- showTid <$> myThreadId
+    traceEventIO ("uevent: thread " ++ tid ++ " (" ++ s ++ ")")
+
+-- naming not named
+setThreadLabel :: String -> IO ()
+setThreadLabel name = do
+    tid <- myThreadId
+    maybe (labelThread tid name) (const $ pure ()) =<< threadLabel tid
+
+---
 
 getThreadLabel :: IO String
 dumpThreads :: IO [String]
 dumper :: ([String] -> IO ()) -> IO ()
 
 #if __GLASGOW_HASKELL__ >= 906
-
-showTid :: ThreadId -> String
-showTid tid = stripTh $ show tid
-  where
-    stripTh x = fromMaybe x $ stripPrefix "ThreadId " x
 
 getThreadLabel = withName (pure "<no-label>") $ \tid n -> pure $ n ++ ": " ++ showTid tid
   where
