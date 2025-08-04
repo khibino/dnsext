@@ -129,7 +129,7 @@ spawn
     -> IORef (Maybe ThreadId)
     -> IO ()
 spawn settings stateRef lookupRef tidRef = do
-    tid <- TStat.forkIO "reaper-red-spawn" $ reaper settings stateRef lookupRef tidRef
+    tid <- TStat.forkIO "bw.rrcache-reaper" $ reaper settings stateRef lookupRef tidRef
     writeIORef tidRef $ Just tid
 
 reaper

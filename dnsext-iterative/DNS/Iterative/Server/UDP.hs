@@ -59,7 +59,7 @@ udpServer UdpServerConfig{..} env toCacher s = do
         send _ _ = return ()
         receiver = receiverLogic env mysa recv toCacher toSender UDP
         sender = senderLogic env send fromX
-    return [TStat.concurrently_ "udp-send" sender "udp-recv" receiver]
+    return [TStat.concurrently_ "bw.udp-send" sender "bw.udp-recv" receiver]
 
 setPktInfo :: Socket -> IO ()
 setPktInfo s = do
