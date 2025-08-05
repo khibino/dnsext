@@ -24,7 +24,7 @@ import System.Timeout (timeout)
 import Text.Printf (printf)
 
 -- dnsext-* deps
-import DNS.Iterative.Server as Server
+import DNS.Iterative.Server as Server hiding (Control, newControl)
 import qualified DNS.Log as Log
 import qualified DNS.RRCache as Cache
 import qualified DNS.SEC as DNS
