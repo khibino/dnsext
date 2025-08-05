@@ -43,11 +43,12 @@ import GHC.Event (TimeoutKey, TimerManager, getSystemTimerManager, registerTimeo
 import Control.Concurrent.Async (AsyncCancelled)
 
 -- dnsext packages
+import DNS.Do53.Internal (VCLimit, decodeVCLength)
 import qualified DNS.Log as Log
 import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 import qualified DNS.TAP.Schema as DNSTAP
 import qualified DNS.ThreadStats as TStat
-import DNS.Types (DNSFlags (..), DNSMessage (..), EDNS (..), EDNSheader (..), Question (..), RCODE (..))
+import DNS.Types (DNSError (..), DNSFlags (..), DNSMessage (..), EDNS (..), EDNSheader (..), Question (..), RCODE (..))
 import qualified DNS.Types.Decode as DNS
 import qualified DNS.Types.Encode as DNS
 import DNS.Types.Time
@@ -275,31 +276,44 @@ receiverVC name env vcs@VcSession{..} recv toCacher mkInput_ =
 receiverVCnonBlocking
     :: String
     -> Env
+    -> VCLimit
     -> VcSession
     -> Peer
-    -> IO NBRecvR
-    -> (ByteString -> IO ())
+    -> (Int -> IO BS)
+    -> (BS -> IO ())
     -> (ToCacher -> IO ())
     -> MkInput
     -> IO VcFinished
-receiverVCnonBlocking name env vcs@VcSession{..} peerInfo recv onRecv toCacher mkInput_ =
-    loop 1 `E.catch` onError
+receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCacher mkInput_ = do
+    ctl <- newControl $ waitVcInput vcs
+    loop ctl 1 `E.catch` onError
   where
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
-    loop i = do
-        timeout <- waitVcInput vcs
-        if timeout
-            then return VfTimeout
-            else do
-                r <- recv
-                case r of
-                    EOF _bs -> caseEof
-                    NotEnough -> loop i
-                    NBytes bs -> do
+    loop ctl i = do
+        en <- withControlledRecv ctl recvN 2 $ \bs ->
+            return $ decodeVCLength bs
+        case en of
+            Left EOF -> caseEof
+            Left Break -> return VfTimeout
+            Right len
+                | fromIntegral len > lim ->
+                    E.throwIO $
+                        DecodeError $
+                            "length is over the limit: should be len <= lim, but (len: "
+                                ++ show len
+                                ++ ") > (lim: "
+                                ++ show lim
+                                ++ ") "
+                | otherwise -> do
+                    ex <- withControlledRecv ctl recvN len $ \bs -> do
                         onRecv bs
                         ts <- currentTimeUsec_ env
                         step bs ts
-                        loop (i + 1)
+                        return ()
+                    case ex of
+                        Left EOF -> caseEof
+                        Left Break -> return VfTimeout
+                        Right () -> loop ctl (i + 1)
       where
         caseEof = atomically (enableVcEof vcEof_) >> return VfEof
         step bs ts = do
@@ -426,7 +440,9 @@ withVcTimer
 withVcTimer micro actionTO = bracket (initVcTimer micro actionTO) finalizeVcTimer
 
 {- FOURMOLU_DISABLE -}
-initVcSession :: IO (STM VcWaitRead) -> IO (VcSession, ToSender -> IO (), IO FromX)
+initVcSession
+    :: IO (STM VcWaitRead)
+    -> IO (VcSession, ToSender -> IO (), IO FromX)
 initVcSession getWaitIn = do
     vcEof       <- newTVarIO False
     vcTimeout   <- newTVarIO False
