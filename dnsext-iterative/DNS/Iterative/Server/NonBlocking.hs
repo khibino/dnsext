@@ -53,6 +53,8 @@ data Result
     deriving (Eq, Show)
 
 -- | Controlled receiving function.
+--
+--   one-shot blocking on `controlBreak`
 controlledRecv :: Control -> (Int -> IO ByteString) -> Int -> IO Result
 controlledRecv Control{..} recvN len = do
     brk <- controlBreak
@@ -86,6 +88,8 @@ getLeftover Control{..} = do
     return leftover
 
 -- | Calling an action with 'ByteString' of the exact size.
+--
+--   event loop, blocking on waiting events.
 withControlledRecv
     :: Control
     -> (Int -> IO ByteString)

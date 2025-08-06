@@ -20,6 +20,7 @@ module DNS.Iterative.Server.Pipeline (
     addVcPending,
     delVcPending,
     checkReceived,
+    controlledRecvVC,
     receiverVC,
     receiverVCnonBlocking,
     getSendVC,
@@ -273,6 +274,33 @@ receiverVC name env vcs@VcSession{..} recv toCacher mkInput_ =
             let delPending = atomically $ delVcPending vcPendings_ i
             toCacher $ mkInput_ bs peerInfo (VcPendingOp{vpReqNum = i, vpDelete = delPending}) ts
 
+-- Since repeating event waiting and non-blocking reads,
+-- `controlledRecvVC` itself blocks on event waiting.
+controlledRecvVC
+    :: Control
+    -> (Int -> IO BS)
+    -- ^ Receiving function
+    -> VCLimit
+    -- ^ VC length limit
+    -> IO (Either Terminate BS)
+controlledRecvVC ctl recvN lim = go
+  where
+    go = do
+        en <- withControlledRecv ctl recvN 2 $ \bs ->
+            return $ decodeVCLength bs
+        case en of
+            Left term -> return (Left term)
+            Right len
+                | fromIntegral len > lim ->
+                    E.throwIO $
+                        DecodeError $
+                            "length is over the limit: should be len <= lim, but (len: "
+                                ++ show len
+                                ++ ") > (lim: "
+                                ++ show lim
+                                ++ ")"
+                | otherwise -> withControlledRecv ctl recvN len return
+
 receiverVCnonBlocking
     :: String
     -> Env
@@ -290,30 +318,15 @@ receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCac
   where
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
     loop ctl i = do
-        en <- withControlledRecv ctl recvN 2 $ \bs ->
-            return $ decodeVCLength bs
-        case en of
+        ex <- controlledRecvVC ctl recvN lim
+        case ex of
             Left EOF -> caseEof
             Left Break -> return VfTimeout
-            Right len
-                | fromIntegral len > lim ->
-                    E.throwIO $
-                        DecodeError $
-                            "length is over the limit: should be len <= lim, but (len: "
-                                ++ show len
-                                ++ ") > (lim: "
-                                ++ show lim
-                                ++ ") "
-                | otherwise -> do
-                    ex <- withControlledRecv ctl recvN len $ \bs -> do
-                        onRecv bs
-                        ts <- currentTimeUsec_ env
-                        step bs ts
-                        return ()
-                    case ex of
-                        Left EOF -> caseEof
-                        Left Break -> return VfTimeout
-                        Right () -> loop ctl (i + 1)
+            Right bs -> do
+                onRecv bs
+                ts <- currentTimeUsec_ env
+                step bs ts
+                loop ctl (i + 1)
       where
         caseEof = atomically (enableVcEof vcEof_) >> return VfEof
         step bs ts = do
