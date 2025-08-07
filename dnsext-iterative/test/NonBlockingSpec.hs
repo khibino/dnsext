@@ -32,20 +32,20 @@ specFromChunks :: Spec
 specFromChunks = do
     describe "controlledRecv from chunks" $ do
         it "chuncked read" $ do
-            testNBRecvN "" [] 5 [eof, eof, eof]
-            testNBRecvN "" ["abcde"] 5 [nbytes "abcde", eof]
-            testNBRecvN
+            testFromChunks "" [] 5 [eof, eof, eof]
+            testFromChunks "" ["abcde"] 5 [nbytes "abcde", eof]
+            testFromChunks
                 ""
                 ["abcdefgh"]
                 5
                 [nbytes "abcde", NotEnough, eof]
 
-            testNBRecvN
+            testFromChunks
                 ""
                 ["ab", "cdefgh"]
                 5
                 [NotEnough, nbytes "abcde", NotEnough, eof]
-            testNBRecvN
+            testFromChunks
                 ""
                 ["a", "b", "c", "d", "e", "f", "g", "h"]
                 5
@@ -61,21 +61,21 @@ specFromChunks = do
                 , eof
                 ]
 
-            testNBRecvN "xyz" [] 2 [nbytes "xy", NotEnough, eof, eof]
-            testNBRecvN "xyz" [] 5 [NotEnough, eof, eof]
-            testNBRecvN "xyz" ["ab"] 5 [nbytes "xyzab", eof, eof]
-            testNBRecvN
+            testFromChunks "xyz" [] 2 [nbytes "xy", NotEnough, eof, eof]
+            testFromChunks "xyz" [] 5 [NotEnough, eof, eof]
+            testFromChunks "xyz" ["ab"] 5 [nbytes "xyzab", eof, eof]
+            testFromChunks
                 "xyz"
                 ["abcdefgh"]
                 5
                 [nbytes "xyzab", nbytes "cdefg", NotEnough, eof]
 
-            testNBRecvN
+            testFromChunks
                 "xyz"
                 ["ab", "cdefgh"]
                 5
                 [nbytes "xyzab", nbytes "cdefg", NotEnough, eof]
-            testNBRecvN
+            testFromChunks
                 "xyz"
                 ["a", "b", "c", "d", "e", "f", "g", "h"]
                 5
@@ -91,11 +91,6 @@ specFromChunks = do
                 , eof
                 ]
 {- FOURMOLU_ENABLE -}
-
--- old name for checking from-chunks cases
-testNBRecvN
-    :: String -> [String] -> Int -> [Result] -> IO ()
-testNBRecvN = testFromChunks
 
 {- FOURMOLU_DISABLE -}
 testFromChunks
@@ -118,38 +113,33 @@ specReadable :: Spec
 specReadable = do
     describe "controlledRecv readable" $ do
         it "eof" $ do
-            testNBRecvNReadable
+            testCtlRecvReadable
                 [ (Close, True, [ (3, eof, False) ])
                 ]
         it "not-enough" $ do
-            testNBRecvNReadable
+            testCtlRecvReadable
                 [ (Bytes "abc", True, [ (5, NotEnough, False) ])
                 , (Close      , True, [])
                 ]
         it "n-bytes - just" $ do
-            testNBRecvNReadable
+            testCtlRecvReadable
                 [ (Bytes "abc", True, [ (3, nbytes "abc", False) ])
                 , (Close      , True, [ (3, eof         , False) ])
                 ]
         it "n-bytes - over" $ do
-            testNBRecvNReadable
+            testCtlRecvReadable
                 [ (Bytes "abcdef", True, [ (3, nbytes "abc", True) ])
                 , (Close         , True, [ (3, nbytes "def", True)
                                          , (3, eof         , False) ])
                 ]
         it "like VC dns message" $ do
-            testNBRecvNReadable
+            testCtlRecvReadable
                 [ (Bytes ("\x00\x07" <> "abcdefg"), True, [ (2, nbytes "\x00\x07", True)
                                                           , (7, nbytes "abcdefg" , False)
                                                           ])
                 , (Close                          , True, [ (2, eof              , False) ])
                 ]
 {- FOURMOLU_ENABLE -}
-
--- old name for checking readable state
-testNBRecvNReadable
-    :: [(InEvent, Bool, [(Int, Result, Bool)])] -> IO ()
-testNBRecvNReadable = testCtlRecvReadable
 
 testCtlRecvReadable
     :: [(InEvent, Bool, [(Int, Result, Bool)])] -> IO ()
