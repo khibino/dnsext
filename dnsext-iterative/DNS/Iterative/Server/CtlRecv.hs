@@ -58,27 +58,33 @@ data Result
 controlledRecv :: CtlRecv -> (Int -> IO ByteString) -> Int -> IO Result
 controlledRecv CtlRecv{..} recvN len = do
     brk <- ctlRecvBreak
-    (blen, builder) <- readIORef ctlRecvBuillder
     if brk
-        then
-            return $ Terminate Break
+        then return $ Terminate Break
+        else controlledRecv' ctlRecvBuillder recvN len
+
+controlledRecv'
+    :: IORef (Int, [ByteString] -> [ByteString])
+    -> (Int -> IO ByteString)
+    -> Int
+    -> IO Result
+controlledRecv' recvBuillder recvN len = do
+    (blen, builder) <- readIORef recvBuillder
+    let wantN = len - blen
+    bs <- recvN wantN
+    let n = BS.length bs
+    if n == 0
+        then return $ Terminate EOF
         else do
-            let wantN = len - blen
-            bs <- recvN wantN
-            let n = BS.length bs
-            if n == 0
-                then return $ Terminate EOF
+            let builder' = builder . (bs :)
+            if n == wantN
+                then do
+                    let finalBS = BS.concat $ builder' []
+                    writeIORef recvBuillder (0, id)
+                    return $ NBytes finalBS
                 else do
-                    let builder' = builder . (bs :)
-                    if n == wantN
-                        then do
-                            let finalBS = BS.concat $ builder' []
-                            writeIORef ctlRecvBuillder (0, id)
-                            return $ NBytes finalBS
-                        else do
-                            let blen' = blen + n
-                            writeIORef ctlRecvBuillder (blen', builder')
-                            return NotEnough
+                    let blen' = blen + n
+                    writeIORef recvBuillder (blen', builder')
+                    return NotEnough
 
 -- | Use to get leftover for 'Terminate'.
 getLeftover :: CtlRecv -> IO ByteString
