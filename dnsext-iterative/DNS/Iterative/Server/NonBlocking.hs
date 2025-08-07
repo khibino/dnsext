@@ -1,117 +1,109 @@
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Server.NonBlocking (
-    -- * Non-blocking size specified recv
-    NBRecvR (..),
-    makeNBRecvVC,
+    -- * Controlled receiving
+    Check,
+    CtlRecv,
+    ctlRecvBreak,
+    newCtlRecv,
+    Terminate (..),
+    withControlledRecv,
+    getLeftover,
 
-    -- * for testing
-    makeNBRecvN,
+    -- * Internal
+    controlledRecv,
+    Result (..),
+) where
 
-    -- * to fix
-    makeNBRecvVCNoSize,
-)
-where
-
-import qualified Control.Exception as E
-import Control.Monad (when)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.IORef
 
-import DNS.Do53.Internal (VCLimit, decodeVCLength)
-import DNS.Types
+-- | Return 'True' when a break (aka Timeout) happens.
+type Check = IO Bool
 
-data NBRecvR = EOF ByteString | NotEnough | NBytes ByteString
+-- | Control data for a receiving function.
+data CtlRecv = CtlRecv
+    { ctlRecvBreak :: Check
+    , ctlRecvBuillder :: IORef (Int, [ByteString] -> [ByteString])
+    }
+
+-- | Creating 'CtlRecv'.
+newCtlRecv
+    :: Check
+    -> IO CtlRecv
+newCtlRecv ctlRecvBreak = do
+    ctlRecvBuillder <- newIORef (0, id)
+    return CtlRecv{..}
+
+-- | The reason why the receiving function is terminated.
+data Terminate
+    = -- | End of file.
+      EOF
+    | -- | When 'Check' returns 'False', 'Break' is retuned. 'Break'
+      --   is timeout in the normal case.
+      Break
     deriving (Eq, Show)
 
-type BS = ByteString
-type Buffer = [ByteString] -> [ByteString]
+-- | Result.
+data Result
+    = Terminate Terminate
+    | NotEnough
+    | NBytes ByteString
+    deriving (Eq, Show)
 
-----------------------------------------------------------------
-
-{-# WARNING makeNBRecvVCNoSize "should not recv data not received by app for right socket readable state" #-}
-makeNBRecvVCNoSize :: VCLimit -> IO BS -> IO (IO NBRecvR)
-makeNBRecvVCNoSize lim rcv = makeNBRecvVC lim $ \_ -> rcv
-
-makeNBRecvVC :: VCLimit -> (Int -> IO BS) -> IO (IO NBRecvR)
-makeNBRecvVC lim rcv = do
-    ref <- newIORef Nothing
-    nbrecvN <- makeNBRecvN "" rcv
-    return $ nbRecvVC lim ref nbrecvN
-
-----------------------------------------------------------------
-
-makeNBRecvN :: ByteString -> (Int -> IO BS) -> IO (Int -> IO NBRecvR)
-makeNBRecvN "" rcv = nbRecvN rcv <$> newIORef (0, id)
-makeNBRecvN bs0 rcv = nbRecvN rcv <$> newIORef (len, (bs0 :))
-  where
-    len = BS.length bs0
-
-nbRecvVC :: VCLimit -> IORef (Maybe Int) -> (Int -> IO NBRecvR) -> IO NBRecvR
-nbRecvVC lim ref nbrecvN = do
-    mi <- readIORef ref
-    case mi of
-        Nothing -> do
-            x <- nbrecvN 2
-            case x of
-                NBytes bs -> do
-                    let len = decodeVCLength bs
-                    when (fromIntegral len > lim) $
-                        E.throwIO $
-                            DecodeError $
-                                "length is over the limit: should be len <= lim, but (len: "
-                                    ++ show len
-                                    ++ ") > (lim: "
-                                    ++ show lim
-                                    ++ ") "
-                    writeIORef ref $ Just len
-                    return NotEnough
-                _ -> return x
-        Just len -> do
-            y <- nbrecvN len
-            case y of
-                NBytes _ -> writeIORef ref Nothing
-                _ -> return ()
-            return y
-
-----------------------------------------------------------------
-
-nbRecvN
-    :: (Int -> IO BS)
-    -> IORef (Int, Buffer)
-    -> (Int -> IO NBRecvR)
-nbRecvN rcv ref n = do
-    (len0, build0) <- readIORef ref
-    if
-        | len0 == n -> do
-            writeIORef ref (0, id)
-            return $ NBytes $ BS.concat $ build0 []
-        | len0 > n -> do
-            {- only wrong, over-sized case -}
-            let bs = BS.concat $ build0 []
-                (ret, left) = BS.splitAt n bs
-            writeIORef ref (BS.length left, (left :))
-            return $ NBytes ret
-        | otherwise -> do
-            bs1 <- rcv (n - len0)
-            if BS.null bs1
-                then do
-                    writeIORef ref (0, id)
-                    return $ EOF $ BS.concat $ build0 []
+-- | Controlled receiving function.
+--
+--   one-shot blocking on `ctlRecvBreak`
+controlledRecv :: CtlRecv -> (Int -> IO ByteString) -> Int -> IO Result
+controlledRecv CtlRecv{..} recvN len = do
+    brk <- ctlRecvBreak
+    (blen, builder) <- readIORef ctlRecvBuillder
+    if brk
+        then
+            return $ Terminate Break
+        else do
+            let wantN = len - blen
+            bs <- recvN wantN
+            let n = BS.length bs
+            if n == 0
+                then return $ Terminate EOF
                 else do
-                    let len1 = BS.length bs1
-                        len2 = len0 + len1
-                    if
-                        | len2 == n -> do
-                            writeIORef ref (0, id)
-                            return $ NBytes $ BS.concat $ build0 [bs1]
-                        | len2 > n -> do
-                            {- only wrong, over-sized case -}
-                            let (bs3, left) = BS.splitAt (n - len0) bs1
-                            writeIORef ref (BS.length left, (left :))
-                            return $ NBytes $ BS.concat $ build0 [bs3]
-                        | otherwise -> do
-                            writeIORef ref (len2, build0 . (bs1 :))
+                    let builder' = builder . (bs :)
+                    if n == wantN
+                        then do
+                            let finalBS = BS.concat $ builder' []
+                            writeIORef ctlRecvBuillder (0, id)
+                            return $ NBytes finalBS
+                        else do
+                            let blen' = blen + n
+                            writeIORef ctlRecvBuillder (blen', builder')
                             return NotEnough
+
+-- | Use to get leftover for 'Terminate'.
+getLeftover :: CtlRecv -> IO ByteString
+getLeftover CtlRecv{..} = do
+    (_blen, builder) <- readIORef ctlRecvBuillder
+    let leftover = BS.concat $ builder []
+    return leftover
+
+-- | Calling an action with 'ByteString' of the exact size.
+--
+--   event loop, blocking on waiting events.
+withControlledRecv
+    :: CtlRecv
+    -> (Int -> IO ByteString)
+    -- ^ Receiving function
+    -> Int
+    -- ^ How many bytes are wanted.
+    -> (ByteString -> IO a)
+    -- ^ An action which receives 'ByteString' of the exact size.
+    -> IO (Either Terminate a)
+withControlledRecv ctl recvN len action = go
+  where
+    go = do
+        r <- controlledRecv ctl recvN len
+        case r of
+            NotEnough -> go
+            Terminate t -> return $ Left t
+            NBytes bs -> Right <$> action bs

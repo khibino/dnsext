@@ -1,132 +1,182 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module NonBlockingSpec where
 
+-- GHC packages
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.Functor
 import Data.IORef
 import Data.String
+
+-- packages for tests
 import Test.Hspec (Spec, describe, hspec, it, shouldReturn)
 import Test.Hspec.Expectations.Contrib (annotate)
 
+-- this packages
 import DNS.Iterative.Server
 
 main :: IO ()
 main = hspec spec
 
-{- FOURMOLU_DISABLE -}
 spec :: Spec
 spec = do
-    describe "NBRecvN" $ do
-        it "should work well" $ do
-            testNBRecvN "" [] 5 [EOF "", EOF "", EOF ""]
-            testNBRecvN "" ["abcde"] 5 [NBytes "abcde", EOF ""]
-            testNBRecvN
-                ""
-                ["abcdefgh"]
-                5
-                [NBytes "abcde", EOF "fgh", EOF ""]
-
-            testNBRecvN
-                ""
-                ["ab", "cdefgh"]
-                5
-                [NotEnough, NBytes "abcde", EOF "fgh", EOF ""]
-            testNBRecvN
-                ""
-                ["a", "b", "c", "d", "e", "f", "g", "h"]
-                5
-                [ NotEnough
-                , NotEnough
-                , NotEnough
-                , NotEnough
-                , NBytes "abcde"
-                , NotEnough
-                , NotEnough
-                , NotEnough
-                , EOF "fgh"
-                , EOF ""
-                ]
-
-            testNBRecvN "xyz" [] 2 [NBytes "xy", EOF "z", EOF "", EOF ""]
-            testNBRecvN "xyz" [] 5 [EOF "xyz", EOF "", EOF ""]
-            testNBRecvN "xyz" ["ab"] 5 [NBytes "xyzab", EOF "", EOF ""]
-            testNBRecvN
-                "xyz"
-                ["abcdefgh"]
-                5
-                [NBytes "xyzab", NBytes "cdefg", EOF "h", EOF ""]
-
-            testNBRecvN
-                "xyz"
-                ["ab", "cdefgh"]
-                5
-                [NBytes "xyzab", NBytes "cdefg", EOF "h", EOF ""]
-            testNBRecvN
-                "xyz"
-                ["a", "b", "c", "d", "e", "f", "g", "h"]
-                5
-                [ NotEnough
-                , NBytes "xyzab"
-                , NotEnough
-                , NotEnough
-                , NotEnough
-                , NotEnough
-                , NBytes "cdefg"
-                , NotEnough
-                , EOF "h"
-                , EOF ""
-                ]
+    specFromChunks
     specReadable
-    specVCReadable
+    specCtlRecvVC
 
+---
+
+{- FOURMOLU_DISABLE -}
+-- test cases, read results from readable chunks
+specFromChunks :: Spec
+specFromChunks = do
+    describe "controlledRecv from chunks" $ do
+        it "chuncked read" $ do
+            testFromChunks "" [] 5 [eof, eof, eof]
+            testFromChunks "" ["abcde"] 5 [nbytes "abcde", eof]
+            testFromChunks
+                ""
+                ["abcdefgh"]
+                5
+                [nbytes "abcde", NotEnough, eof]
+
+            testFromChunks
+                ""
+                ["ab", "cdefgh"]
+                5
+                [NotEnough, nbytes "abcde", NotEnough, eof]
+            testFromChunks
+                ""
+                ["a", "b", "c", "d", "e", "f", "g", "h"]
+                5
+                [ NotEnough
+                , NotEnough
+                , NotEnough
+                , NotEnough
+                , nbytes "abcde"
+                , NotEnough
+                , NotEnough
+                , NotEnough
+                , eof
+                , eof
+                ]
+
+            testFromChunks "xyz" [] 2 [nbytes "xy", NotEnough, eof, eof]
+            testFromChunks "xyz" [] 5 [NotEnough, eof, eof]
+            testFromChunks "xyz" ["ab"] 5 [nbytes "xyzab", eof, eof]
+            testFromChunks
+                "xyz"
+                ["abcdefgh"]
+                5
+                [nbytes "xyzab", nbytes "cdefg", NotEnough, eof]
+
+            testFromChunks
+                "xyz"
+                ["ab", "cdefgh"]
+                5
+                [nbytes "xyzab", nbytes "cdefg", NotEnough, eof]
+            testFromChunks
+                "xyz"
+                ["a", "b", "c", "d", "e", "f", "g", "h"]
+                5
+                [ NotEnough
+                , nbytes "xyzab"
+                , NotEnough
+                , NotEnough
+                , NotEnough
+                , NotEnough
+                , nbytes "cdefg"
+                , NotEnough
+                , eof
+                , eof
+                ]
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+testFromChunks
+    :: String -> [String] -> Int -> [Result] -> IO ()
+testFromChunks ini xxs n ress = do
+    rcv      <- mockFromChunks [fromString x | x <- prepend ini xxs]
+    ctlRecv  <- controlledRecv <$> newCtlRecv (return False) <*> pure rcv
+    sequence_ [annotate (show (ini, xxs, n)) $ ctlRecv n `shouldReturn` res | res <- ress]
+  where
+    prepend i  [] | i == mempty  = []
+                  | otherwise    = [i]
+    prepend i (x:xs)             = i <> x : xs
+{- FOURMOLU_ENABLE -}
+
+---
+
+{- FOURMOLU_DISABLE -}
+-- test cases, readable state with events
 specReadable :: Spec
 specReadable = do
-    describe "NBRecvN readable" $ do
+    describe "controlledRecv readable" $ do
         it "eof" $ do
-            testNBRecvNReadable
-                [ (Close, True, [ (3, EOF "", False) ])
+            testCtlRecvReadable
+                [ (Close, True, [ (3, eof, False) ])
                 ]
         it "not-enough" $ do
-            testNBRecvNReadable
+            testCtlRecvReadable
                 [ (Bytes "abc", True, [ (5, NotEnough, False) ])
                 , (Close      , True, [])
                 ]
         it "n-bytes - just" $ do
-            testNBRecvNReadable
-                [ (Bytes "abc", True, [ (3, NBytes "abc", False) ])
-                , (Close      , True, [ (3, EOF ""      , False) ])
+            testCtlRecvReadable
+                [ (Bytes "abc", True, [ (3, nbytes "abc", False) ])
+                , (Close      , True, [ (3, eof         , False) ])
                 ]
         it "n-bytes - over" $ do
-            testNBRecvNReadable
-                [ (Bytes "abcdef", True, [ (3, NBytes "abc", True) ])
-                , (Close         , True, [ (3, NBytes "def", True)
-                                         , (3, EOF ""      , False) ])
+            testCtlRecvReadable
+                [ (Bytes "abcdef", True, [ (3, nbytes "abc", True) ])
+                , (Close         , True, [ (3, nbytes "def", True)
+                                         , (3, eof         , False) ])
                 ]
         it "like VC dns message" $ do
-            testNBRecvNReadable
-                [ (Bytes ("\x00\x07" <> "abcdefg"), True, [ (2, NBytes "\x00\x07", True)
-                                                          , (7, NBytes "abcdefg" , False)
+            testCtlRecvReadable
+                [ (Bytes ("\x00\x07" <> "abcdefg"), True, [ (2, nbytes "\x00\x07", True)
+                                                          , (7, nbytes "abcdefg" , False)
                                                           ])
-                , (Close                          , True, [ (2, EOF ""          , False) ])
+                , (Close                          , True, [ (2, eof              , False) ])
                 ]
+{- FOURMOLU_ENABLE -}
 
-specVCReadable :: Spec
-specVCReadable = do
-    describe "NBRecvVC readable" $ do
+testCtlRecvReadable
+    :: [(InEvent, Bool, [(Int, Result, Bool)])] -> IO ()
+testCtlRecvReadable xs = do
+    (readable, pushEv, rcv) <- mockSizedRecv
+    ctlRecv <- controlledRecv <$> newCtlRecv (return False) <*> pure rcv
+    readable `shouldReturn` False
+    let check i j (sz, exnbr, exrd) = do
+            let ix = show i ++ ": " ++ show j ++ ": "
+            annotate (ix ++ "nbrecv result") $ ctlRecv sz `shouldReturn` exnbr
+            annotate (ix ++ "readable after recv") $ readable `shouldReturn` exrd
+        action i (ev, exrd0, ys) = do
+            pushEv ev
+            annotate (show i ++ ": readable after event") $ readable `shouldReturn` exrd0
+            sequence_ $ zipWith (check i) [(1 :: Int) ..] ys
+    sequence_ $ zipWith action [(1 :: Int) ..] xs
+
+---
+
+{- FOURMOLU_DISABLE -}
+-- test cases, blocking controlledRecvVC
+specCtlRecvVC :: Spec
+specCtlRecvVC = do
+    describe "controlledRecvVC" $ do
         it "eof" $ do
-            testNBRecvVCReadable
-                [ (Close, True, [ (EOF "", False) ])
+            testCtlRecvVC
+                [ (Close, True, [ (eof', False) ])
                 ]
         it "q1" $ do
-            testNBRecvVCReadable
+            testCtlRecvVC
                 [ ( Bytes ("\x00\x03" <> "abc")
-                  , True, [ (NotEnough, True)
-                          , (NBytes "abc", False)
+                  , True, [ (rightVC "abc", False)
                           ])
                 , ( Close
                   , True, [] )
                 ]
+        {-
+        -- controlledRecvVC is blocked with chunked message
         it "q1-s" $ do
             testNBRecvVCReadable
                 [ ( Bytes "\x00\x03"
@@ -138,17 +188,18 @@ specVCReadable = do
                 , ( Close
                   , True, [] )
                 ]
+        -}
         it "q2" $ do
-            testNBRecvVCReadable
+            testCtlRecvVC
                 [ (Bytes ("\x00\x03" <> "abc" <> "\x00\x04" <> "defg")
-                  , True, [ (NotEnough, True)
-                          , (NBytes "abc", True)
-                          , (NotEnough, True)
-                          , (NBytes "defg", False)
+                  , True, [ (rightVC "abc", True)
+                          , (rightVC "defg", False)
                           ])
                 , (Close
                   , True, [] )
                 ]
+        {-
+        -- `controlledRecvVC` is blocked with chunked message
         it "q2-s" $ do
             testNBRecvVCReadable
                 [ (Bytes ("\x00\x03" <> "abc")
@@ -162,61 +213,67 @@ specVCReadable = do
                 , (Close
                   , True, [] )
                 ]
+        -}
 {- FOURMOLU_ENABLE -}
 
-testNBRecvN
-    :: ByteString -> [ByteString] -> Int -> [NBRecvR] -> IO ()
-testNBRecvN ini xs n ress = do
-    rcv <- makeRecv xs
-    nbRecvN <- makeNBRecvN ini (\_ -> rcv)
-    mapM_ (nbRecvN n `shouldReturn`) ress
+type ResultVC = Either Terminate ByteString
 
-makeRecv :: [ByteString] -> IO (IO ByteString)
-makeRecv xs0 = do
-    ref <- newIORef xs0
-    return $ rcv ref
-  where
-    rcv ref = do
-        xss <- readIORef ref
-        case xss of
-            [] -> return ""
-            x : xs -> do
-                writeIORef ref xs
-                return x
+rightVC :: String -> ResultVC
+rightVC = Right . fromString
 
----
+eof' :: ResultVC
+eof' = Left EOF
 
-testNBRecvNReadable
-    :: [(InEvent, Bool, [(Int, NBRecvR, Bool)])] -> IO ()
-testNBRecvNReadable xs = do
-    (readable, pushEv, rcv) <- makeSizedRecv
-    nbrecvN <- makeNBRecvN "" rcv
-    readable `shouldReturn` False
-    let check i j (sz, exnbr, exrd) = do
-            let ix = show i ++ ": " ++ show j ++ ": "
-            annotate (ix ++ "nbrecv result") $ nbrecvN sz `shouldReturn` exnbr
-            annotate (ix ++ "readable after recv") $ readable `shouldReturn` exrd
-        action i (ev, exrd0, ys) = do
-            pushEv ev
-            annotate (show i ++ ": readable after event") $ readable `shouldReturn` exrd0
-            sequence_ $ zipWith (check i) [(1 :: Int) ..] ys
-    sequence_ $ zipWith action [(1 :: Int) ..] xs
-
-testNBRecvVCReadable
-    :: [(InEvent, Bool, [(NBRecvR, Bool)])] -> IO ()
-testNBRecvVCReadable xs = do
-    (readable, pushEv, rcv) <- makeSizedRecv
-    nbrecvVC <- makeNBRecvVC 2048 rcv
+testCtlRecvVC
+    :: [(InEvent, Bool, [(ResultVC, Bool)])] -> IO ()
+testCtlRecvVC xs = do
+    (readable, pushEv, rcv) <- mockSizedRecv
+    ctlRecvVC <- controlledRecvVC <$> newCtlRecv (return False) <*> pure rcv <*> pure 2048
     readable `shouldReturn` False
     let check i j (exnbr, exrd) = do
             let ix = show i ++ ": " ++ show j ++ ": "
-            annotate (ix ++ "nbrecvVC result") $ nbrecvVC `shouldReturn` exnbr
+            annotate (ix ++ "ctlRecvVC result") $ ctlRecvVC `shouldReturn` exnbr
             annotate (ix ++ "readable after recvVC") $ readable `shouldReturn` exrd
         action i (ev, exrd0, ys) = do
             pushEv ev
             annotate (show i ++ ": readable after event") $ readable `shouldReturn` exrd0
             sequence_ $ zipWith (check i) [(1 :: Int) ..] ys
     sequence_ $ zipWith action [(1 :: Int) ..] xs
+
+------------------------------------------------------------
+
+nbytes :: String -> Result
+nbytes = NBytes . fromString
+
+eof :: Result
+eof = Terminate EOF
+
+------------------------------------------------------------
+-- chuncks mock
+
+mockFromChunks :: [ByteString] -> IO (Int -> IO ByteString)
+mockFromChunks xs0 = fst <$> mockFromChunks' xs0
+
+mockFromChunks' :: [ByteString] -> IO (Int -> IO ByteString, IORef [ByteString])
+mockFromChunks' xs0 = do
+    ref <- newIORef xs0
+    return (rcv ref, ref)
+  where
+    rcv ref n = do
+        xss <- readIORef ref
+        case xss of
+            [] -> return mempty
+            x : xs -> do
+                writeIORef ref nexts
+                return hd
+              where
+                (hd, tl) = BS.splitAt n x
+                nexts
+                    | tl == mempty = xs
+                    | otherwise = tl : xs
+
+------------------------------------------------------------
+-- stream mock like readable network
 
 data InEvent
     = Bytes String
@@ -257,7 +314,7 @@ consume is sz = do
   where
     consume'  Nothing                = fail "cannot consume. after closed"
     consume' (Just NoArrived)        = fail "cannot consume. no-avail data, blocked"
-    consume' (Just (EndOfInput ""))  = writeIORef is  Nothing $> ""
+    consume' (Just (EndOfInput ""))  = writeIORef is  Nothing $> mempty
     consume' (Just (EndOfInput s0))  = writeIORef is (Just next) $> fromString hd
       where
         next
@@ -272,8 +329,8 @@ consume is sz = do
         (hd, tl) = splitAt sz s0
 {- FOURMOLU_ENABLE -}
 
-makeSizedRecv :: IO (IO Bool, InEvent -> IO (), Int -> IO ByteString)
-makeSizedRecv = do
+mockSizedRecv :: IO (IO Bool, InEvent -> IO (), Int -> IO ByteString)
+mockSizedRecv = do
     inSt <- newIORef $ Just NoArrived
     let readable = readable' <$> readIORef inSt
     return (readable, arrive inSt, consume inSt)
