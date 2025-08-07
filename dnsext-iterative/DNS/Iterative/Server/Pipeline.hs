@@ -58,7 +58,7 @@ import DNS.Types.Time
 import DNS.Iterative.Imports
 import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseIterative)
-import DNS.Iterative.Server.NonBlocking
+import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Server.WorkerStats
 import DNS.Iterative.Stats

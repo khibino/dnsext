@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module DNS.Iterative.Server.NonBlocking (
+module DNS.Iterative.Server.CtlRecv (
     -- * Controlled receiving
     Check,
     CtlRecv,

@@ -21,13 +21,12 @@ library
         DNS.Iterative.Query.API
         DNS.Iterative.Query.Cache
         DNS.Iterative.Query.Class
+        DNS.Iterative.Query.DefaultLocal
         DNS.Iterative.Query.Delegation
         DNS.Iterative.Query.Env
         DNS.Iterative.Query.Helpers
         DNS.Iterative.Query.Local
-        DNS.Iterative.Query.DefaultLocal
         DNS.Iterative.Query.LocalZone
-        DNS.Iterative.Query.ZoneMap
         DNS.Iterative.Query.Norec
         DNS.Iterative.Query.Random
         DNS.Iterative.Query.Resolve
@@ -38,11 +37,12 @@ library
         DNS.Iterative.Query.Utils
         DNS.Iterative.Query.Verify
         DNS.Iterative.Query.WitnessInfo
+        DNS.Iterative.Query.ZoneMap
         DNS.Iterative.RootServers
         DNS.Iterative.RootTrustAnchors
+        DNS.Iterative.Server.CtlRecv
         DNS.Iterative.Server.HTTP2
         DNS.Iterative.Server.HTTP3
-        DNS.Iterative.Server.NonBlocking
         DNS.Iterative.Server.Pipeline
         DNS.Iterative.Server.PrometheusHisto
         DNS.Iterative.Server.QUIC
@@ -125,7 +125,7 @@ test-suite spec
     build-tool-depends: hspec-discover:hspec-discover
     hs-source-dirs:     test
     other-modules:
-                        NonBlockingSpec
+                        CtlRecvSpec
                         QuerySpec
                         SessionPropSpec
                         SessionSpec

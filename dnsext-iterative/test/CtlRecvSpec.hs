@@ -1,4 +1,4 @@
-module NonBlockingSpec where
+module CtlRecvSpec where
 
 -- GHC packages
 import Data.ByteString (ByteString)
