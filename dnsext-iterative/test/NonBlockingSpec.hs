@@ -1,4 +1,3 @@
-
 module NonBlockingSpec where
 
 -- GHC packages
@@ -97,7 +96,7 @@ testFromChunks
     :: String -> [String] -> Int -> [Result] -> IO ()
 testFromChunks ini xxs n ress = do
     rcv      <- mockFromChunks [fromString x | x <- prepend ini xxs]
-    ctlRecv  <- controlledRecv <$> newControl (return False) <*> pure rcv
+    ctlRecv  <- controlledRecv <$> newCtlRecv (return False) <*> pure rcv
     sequence_ [annotate (show (ini, xxs, n)) $ ctlRecv n `shouldReturn` res | res <- ress]
   where
     prepend i  [] | i == mempty  = []
@@ -145,7 +144,7 @@ testCtlRecvReadable
     :: [(InEvent, Bool, [(Int, Result, Bool)])] -> IO ()
 testCtlRecvReadable xs = do
     (readable, pushEv, rcv) <- mockSizedRecv
-    ctlRecv <- controlledRecv <$> newControl (return False) <*> pure rcv
+    ctlRecv <- controlledRecv <$> newCtlRecv (return False) <*> pure rcv
     readable `shouldReturn` False
     let check i j (sz, exnbr, exrd) = do
             let ix = show i ++ ": " ++ show j ++ ": "
@@ -229,7 +228,7 @@ testCtlRecvVC
     :: [(InEvent, Bool, [(ResultVC, Bool)])] -> IO ()
 testCtlRecvVC xs = do
     (readable, pushEv, rcv) <- mockSizedRecv
-    ctlRecvVC <- controlledRecvVC <$> newControl (return False) <*> pure rcv <*> pure 2048
+    ctlRecvVC <- controlledRecvVC <$> newCtlRecv (return False) <*> pure rcv <*> pure 2048
     readable `shouldReturn` False
     let check i j (exnbr, exrd) = do
             let ix = show i ++ ": " ++ show j ++ ": "
@@ -270,8 +269,8 @@ mockFromChunks' xs0 = do
               where
                 (hd, tl) = BS.splitAt n x
                 nexts
-                  | tl == mempty = xs
-                  | otherwise = tl : xs
+                    | tl == mempty = xs
+                    | otherwise = tl : xs
 
 ------------------------------------------------------------
 -- stream mock like readable network

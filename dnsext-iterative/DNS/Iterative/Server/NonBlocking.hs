@@ -3,9 +3,9 @@
 module DNS.Iterative.Server.NonBlocking (
     -- * Controlled receiving
     Check,
-    Control,
-    controlBreak,
-    newControl,
+    CtlRecv,
+    ctlRecvBreak,
+    newCtlRecv,
     Terminate (..),
     withControlledRecv,
     getLeftover,
@@ -23,18 +23,18 @@ import Data.IORef
 type Check = IO Bool
 
 -- | Control data for a receiving function.
-data Control = Control
-    { controlBreak :: Check
-    , controlBuilder :: IORef (Int, [ByteString] -> [ByteString])
+data CtlRecv = CtlRecv
+    { ctlRecvBreak :: Check
+    , ctlRecvBuillder :: IORef (Int, [ByteString] -> [ByteString])
     }
 
--- | Creating 'Control'.
-newControl
+-- | Creating 'CtlRecv'.
+newCtlRecv
     :: Check
-    -> IO Control
-newControl controlBreak = do
-    controlBuilder <- newIORef (0, id)
-    return Control{..}
+    -> IO CtlRecv
+newCtlRecv ctlRecvBreak = do
+    ctlRecvBuillder <- newIORef (0, id)
+    return CtlRecv{..}
 
 -- | The reason why the receiving function is terminated.
 data Terminate
@@ -54,11 +54,11 @@ data Result
 
 -- | Controlled receiving function.
 --
---   one-shot blocking on `controlBreak`
-controlledRecv :: Control -> (Int -> IO ByteString) -> Int -> IO Result
-controlledRecv Control{..} recvN len = do
-    brk <- controlBreak
-    (blen, builder) <- readIORef controlBuilder
+--   one-shot blocking on `ctlRecvBreak`
+controlledRecv :: CtlRecv -> (Int -> IO ByteString) -> Int -> IO Result
+controlledRecv CtlRecv{..} recvN len = do
+    brk <- ctlRecvBreak
+    (blen, builder) <- readIORef ctlRecvBuillder
     if brk
         then
             return $ Terminate Break
@@ -73,17 +73,17 @@ controlledRecv Control{..} recvN len = do
                     if n == wantN
                         then do
                             let finalBS = BS.concat $ builder' []
-                            writeIORef controlBuilder (0, id)
+                            writeIORef ctlRecvBuillder (0, id)
                             return $ NBytes finalBS
                         else do
                             let blen' = blen + n
-                            writeIORef controlBuilder (blen', builder')
+                            writeIORef ctlRecvBuillder (blen', builder')
                             return NotEnough
 
 -- | Use to get leftover for 'Terminate'.
-getLeftover :: Control -> IO ByteString
-getLeftover Control{..} = do
-    (_blen, builder) <- readIORef controlBuilder
+getLeftover :: CtlRecv -> IO ByteString
+getLeftover CtlRecv{..} = do
+    (_blen, builder) <- readIORef ctlRecvBuillder
     let leftover = BS.concat $ builder []
     return leftover
 
@@ -91,7 +91,7 @@ getLeftover Control{..} = do
 --
 --   event loop, blocking on waiting events.
 withControlledRecv
-    :: Control
+    :: CtlRecv
     -> (Int -> IO ByteString)
     -- ^ Receiving function
     -> Int

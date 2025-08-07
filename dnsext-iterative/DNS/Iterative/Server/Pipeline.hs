@@ -277,7 +277,7 @@ receiverVC name env vcs@VcSession{..} recv toCacher mkInput_ =
 -- Since repeating event waiting and non-blocking reads,
 -- `controlledRecvVC` itself blocks on event waiting.
 controlledRecvVC
-    :: Control
+    :: CtlRecv
     -> (Int -> IO BS)
     -- ^ Receiving function
     -> VCLimit
@@ -313,7 +313,7 @@ receiverVCnonBlocking
     -> MkInput
     -> IO VcFinished
 receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCacher mkInput_ = do
-    ctl <- newControl $ waitVcInput vcs
+    ctl <- newCtlRecv $ waitVcInput vcs
     loop ctl 1 `E.catch` onError
   where
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
