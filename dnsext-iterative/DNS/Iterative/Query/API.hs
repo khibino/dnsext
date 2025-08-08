@@ -178,23 +178,27 @@ replyDNSMessage
     :: EDNSheader -> Maybe OD_NSID
     -> Identifier -> [Question] -> RCODE -> DNSFlags -> [RR] -> [RR] -> DNSMessage
 replyDNSMessage reqEH nsid ident rqs rcode flags rrs auth =
-    addNSID reqEH nsid res
-        { DNS.identifier = ident
-        , DNS.rcode = rcode
-        , DNS.flags = flags
-        , DNS.answer = rrs
-        , DNS.authority = auth
-        , DNS.question = rqs
-        }
+    ednsHeaderCases (withRequestEDNS nsid res) res res reqEH
   where
     res = DNS.defaultResponse
-{- FOURMOLU_ENABLE -}
+          { DNS.identifier = ident
+          , DNS.rcode = rcode
+          , DNS.flags = flags
+          , DNS.answer = rrs
+          , DNS.authority = auth
+          , DNS.question = rqs
+          }
 
-addNSID :: EDNSheader -> Maybe OD_NSID -> DNSMessage -> DNSMessage
-addNSID reqEH mnsid resM@DNSMessage{ednsHeader = eh} = ednsHeaderCases h resM resM reqEH
+withRequestEDNS :: Maybe OD_NSID -> DNSMessage -> EDNS -> DNSMessage
+withRequestEDNS nsid' res0 reqEDNS = addNSID nsid' res0
   where
-    h edns = maybe resM (add edns) mnsid
-    add EDNS{..} nsid = resM{ednsHeader = addODataEDNS (mapOData (\(OD_NSID{}) -> OData nsid) ednsOptions) eh}
+    addNSID  Nothing    res  = res
+    addNSID (Just nsid) res  = ednsHeaderCases has no res (ednsHeader res)
+      where
+        fill = mapOData (\(OD_NSID{}) -> OData nsid) (ednsOptions reqEDNS)
+        has edns  = res{ednsHeader = EDNSheader edns{ednsOptions = fill ++ ednsOptions edns}}
+        no        = res{ednsHeader = EDNSheader defaultEDNS{ednsOptions = fill}}
+{- FOURMOLU_ENABLE -}
 
 filterWithDO :: RequestDO -> ([RR] -> [RR] -> a) -> ([RR] -> [RR] -> a)
 filterWithDO reqDO k2 ans auth =
