@@ -174,14 +174,6 @@ foldDNSErrorToRCODE n j e = case e of
 
 ---
 
-{- FOURMOLU_DISABLE -}
-addODataEDNS :: [OData] -> EDNSheader -> EDNSheader
-addODataEDNS ods = ednsHeaderCases
-    (\edns  -> EDNSheader        edns{ednsOptions = ods ++ ednsOptions edns})
-    (          EDNSheader defaultEDNS{ednsOptions = ods})
-    InvalidEDNS
-{- FOURMOLU_ENABLE -}
-
 mapOData :: OptData a => (a -> OData) -> [OData] -> [OData]
 mapOData f xs = [f od | x <- xs, Just od <- [fromOData x]]
 
