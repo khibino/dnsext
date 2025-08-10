@@ -5,11 +5,13 @@ module DNS.SVCB.SVCB where
 
 import DNS.SVCB.Imports
 import DNS.SVCB.Key
+
 import DNS.SVCB.Params
 import DNS.SVCB.Value
 import DNS.Types
 import DNS.Types.Internal
 import qualified DNS.Types.Opaque as Opaque
+import qualified Data.ByteString.Char8 as C8
 import qualified Data.IntMap.Strict as M
 
 ----------------------------------------------------------------
@@ -30,7 +32,7 @@ data RD_SVCB = RD_SVCB
     deriving (Eq, Ord)
 
 instance Show RD_SVCB where
-    show RD_SVCB{..} = show svcb_priority ++ " " ++ show svcb_target ++ " " ++ show svcb_params
+    show RD_SVCB{..} = show svcb_priority ++ " " ++ C8.unpack (toRepresentation svcb_target) ++ " " ++ show svcb_params
 
 instance ResourceData RD_SVCB where
     resourceDataType _ = SVCB
@@ -80,7 +82,7 @@ data RD_HTTPS = RD_HTTPS
     deriving (Eq, Ord)
 
 instance Show RD_HTTPS where
-    show RD_HTTPS{..} = show https_priority ++ " " ++ show https_target ++ " " ++ show https_params
+    show RD_HTTPS{..} = show https_priority ++ " " ++ C8.unpack (toRepresentation https_target) ++ " " ++ show https_params
 
 instance ResourceData RD_HTTPS where
     resourceDataType _ = HTTPS
