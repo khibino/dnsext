@@ -97,4 +97,5 @@ getQUICParams ResolveInfo{..} tag alpn0 = do
                             ~msg = ver ++ "(" ++ mode ++ ")"
                         ractionOnConnectionInfo rinfoActions tag msg
                     }
+            , ccPacketSize = Just 1200
             }

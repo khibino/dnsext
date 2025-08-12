@@ -48,8 +48,8 @@ library
         http2-tls >= 0.4.8 && < 0.5,
         http3 >= 0.1 && < 0.2,
         iproute,
-        network >= 3.2.2 && < 3.3,
-        quic >= 0.2.15 && < 0.3,
+        network >= 3.2.8 && < 3.3,
+        quic >= 0.2.19 && < 0.3,
         serialise,
         tls >= 2.1.10
 
