@@ -35,7 +35,7 @@ jobs:
         detached: true
     - name: env variable
       run: |
-        echo "deb_version=0.0.0."$(date +%Y%m%d)"" >> $GITHUB_ENV
+        echo "pkg_version=0.0.0."$(date +%Y%m%d)"" >> $GITHUB_ENV
         if [ ${{ github.event_name }} == "pull_request" ] ; then
           echo "head_commit=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
         else
@@ -67,18 +67,18 @@ jobs:
             "cp /opt/bowline/bin/{bowline,dug,dump} `pwd`/"
     - name: build deb package
       run: |
-        mkdir -p pkg/work/bowline-${{ env.deb_version }}/bin
+        mkdir -p pkg/work/bowline-${{ env.pkg_version }}/bin
         docker run --rm -i --name build-bowline \
             -v /home:/home debian:bookworm-slim \
             bash -x -c \
             "apt-get update ;\
             apt-get install -y devscripts ;\
             cd `pwd`; \
-            cd pkg/template; debchange -v ${{ env.deb_version }} -M 'gh action build'; \
+            cd pkg/template; debchange -v ${{ env.pkg_version }} -M 'gh action build'; \
             cd ../work; ln -s ../../../dnsext ./; cd .. ; \
-            ./pkgctl.sh data ${{ env.deb_version }} ;\
-            cp ../{bowline,dug,dump} ./work/bowline-${{ env.deb_version }}/bin/ ;\
-            ./pkgctl.sh pkgs ${{ env.deb_version }} ;\
+            ./pkgctl.sh data ${{ env.pkg_version }} ;\
+            cp ../{bowline,dug,dump} ./work/bowline-${{ env.pkg_version }}/bin/ ;\
+            ./pkgctl.sh pkgs ${{ env.pkg_version }} ;\
             "
         mv pkg/work/*.deb ./
         echo "PACKAGE_FILENAME="$(ls *.deb) >> $GITHUB_ENV
@@ -131,6 +131,19 @@ jobs:
       with:
         path: ${{ env.PACKAGE_FILENAME }}
         name: ${{ env.PACKAGE_FILENAME }}
+    - name: login to ghcr.io
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: push container image
+      if: github.event_name != 'pull_request'
+      run: |
+        docker tag bowline:bookworm ghcr.io/${{ github.repository_owner }}/bowline:bookworm-${{ env.pkg_version }}
+        docker tag bowline:bookworm ghcr.io/${{ github.repository_owner }}/bowline:bookworm-latest
+        docker push ghcr.io/${{ github.repository_owner }}/bowline:bookworm-${{ env.pkg_version }}
+        docker push ghcr.io/${{ github.repository_owner }}/bowline:bookworm-latest
     - name: Github Releases
       if: gitHub.event_name == 'release'
       uses: softprops/action-gh-release@v2
