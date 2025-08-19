@@ -17,12 +17,12 @@ import Data.Array.IO
 import Data.Array.Unboxed
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy.Char8 as BL
-import Data.Functor
-import Data.Int
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import Network.Socket (SockAddr (..))
+
+import DNS.Iterative.Imports
 
 newtype StatsIx = StatsIx Int deriving (Eq, Ord, Enum, Ix)
 
