@@ -133,7 +133,7 @@ cacherLogic env fromReceiver toWorker = handledLoop env "cacher" $ do
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
-                    let bs = DNS.encode replyMsg
+                    let bs = encodeWithTC env inputPeerInfo (ednsHeader queryMsg) replyMsg
                     record env inp replyMsg bs
                     inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
@@ -162,7 +162,7 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     case ex of
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
-            let bs = DNS.encode replyMsg
+            let bs = encodeWithTC env inputPeerInfo (ednsHeader inputQuery) replyMsg
             record env inp replyMsg bs
             inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
