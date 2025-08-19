@@ -47,7 +47,6 @@ module DNS.Iterative.Query.Class (
 -- GHC packages
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.IP (IP, IPv4, IPv6)
-import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Network.Socket (PortNumber)
 
