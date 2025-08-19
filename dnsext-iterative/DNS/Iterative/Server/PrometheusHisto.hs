@@ -3,11 +3,9 @@
 -- emulate prometheus histogram
 module DNS.Iterative.Server.PrometheusHisto where
 
-import Data.Int
-import Data.String
-
 import Data.ByteString.Builder (Builder)
 
+import DNS.Iterative.Imports
 import DNS.Iterative.Stats (Stats, bucketUpperBounds, readHistogram, readQueryTimeSumUsec)
 
 getHistogramBucktes :: Stats -> Builder -> IO Builder
