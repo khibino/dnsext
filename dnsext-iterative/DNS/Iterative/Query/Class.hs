@@ -30,7 +30,6 @@ module DNS.Iterative.Query.Class (
     RequestDO (..),
     RequestCD (..),
     RequestAD (..),
-    ednsHeaderCases,
     --
     QueryState (..),
     newQueryState,
@@ -48,7 +47,6 @@ module DNS.Iterative.Query.Class (
 -- GHC packages
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.IP (IP, IPv4, IPv6)
-import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Network.Socket (PortNumber)
 
@@ -299,17 +297,6 @@ toRequestCD = bool NoCheckDisabled CheckDisabled . chkDisable
 
 toRequestAD :: DNSFlags -> RequestAD
 toRequestAD = bool NoAuthenticatedData AuthenticatedData . authenData
-
-----------
--- fold EDNS
-
-{- FOURMOLU_DISABLE -}
-ednsHeaderCases :: (EDNS -> a) -> a -> a -> EDNSheader -> a
-ednsHeaderCases heh noh inv eh = case eh of
-    EDNSheader edns  -> heh edns
-    NoEDNS           -> noh
-    InvalidEDNS      -> inv
-{- FOURMOLU_ENABLE -}
 
 ----------
 -- QueryState context type for Monad

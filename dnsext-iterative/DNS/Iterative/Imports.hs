@@ -14,6 +14,7 @@ module DNS.Iterative.Imports (
     module Data.Bool,
     module Data.Function,
     module Data.Functor,
+    module Data.Int,
     module Data.List,
     module Data.List.NonEmpty,
     module Data.Maybe,
@@ -25,6 +26,7 @@ module DNS.Iterative.Imports (
     module Numeric,
     module DNS.Types.Time,
     unzipNE,
+    ednsHeaderCases,
 )
 where
 
@@ -41,6 +43,7 @@ import Data.Bool (bool)
 import Data.ByteString (ByteString)
 import Data.Function
 import Data.Functor hiding (unzip)
+import Data.Int
 import Data.List
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.Maybe
@@ -52,6 +55,7 @@ import Data.Word
 import Numeric
 
 -- dns packages
+import DNS.Types (EDNS (..), EDNSheader (..))
 import DNS.Types.Time (EpochTime, EpochTimeUsec)
 
 #if __GLASGOW_HASKELL__ >= 910
@@ -65,3 +69,12 @@ import qualified Data.List.NonEmpty as NE
 unzipNE :: NonEmpty (a, b) -> (NonEmpty a, NonEmpty b)
 unzipNE = NE.unzip
 #endif
+
+{- FOURMOLU_DISABLE -}
+-- fold EDNS
+ednsHeaderCases :: (EDNS -> a) -> a -> a -> EDNSheader -> a
+ednsHeaderCases heh noh inv eh = case eh of
+    EDNSheader edns  -> heh edns
+    NoEDNS           -> noh
+    InvalidEDNS      -> inv
+{- FOURMOLU_ENABLE -}

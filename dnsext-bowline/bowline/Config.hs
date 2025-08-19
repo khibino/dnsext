@@ -21,7 +21,7 @@ import Data.List.Split (splitOn)
 import Data.String (fromString)
 import Network.Socket (PortNumber)
 import Network.TLS (Credentials (..), credentialLoadX509)
-import System.IO.Error (ioeSetErrorString, tryIOError)
+import System.IO.Error (ioeGetErrorString, ioeSetErrorString, tryIOError)
 import System.Posix (GroupID, UserID, getGroupEntryForName, getUserEntryForName, groupID, userID)
 
 import DNS.Iterative.Internal (Address, LocalZoneType (..))
@@ -287,7 +287,12 @@ makeConfig def conf = do
     cnf_credentials <- getCreds
     pure Config{..}
   where
-    get k func = maybe (pure $ func def) fromConf $ lookup k conf
+    get k func = do
+        et <- tryIOError $ maybe (pure $ func def) fromConf $ lookup k conf
+        let left e = do
+                let e' = ioeSetErrorString e (k ++ ": " ++ ioeGetErrorString e)
+                ioError e'
+        either left pure et
     --
     localZones = unfoldrM getLocalZone conf >>= \zs -> case mapM parseLocalZone zs of
         Right zones -> pure zones
@@ -408,48 +413,51 @@ class FromConf a where
 
 instance FromConf Int where
     fromConf (CV_Int n) = pure n
-    fromConf _ = fail "fromConf int"
+    fromConf cv = failWith cv "fromConf int"
 
 instance FromConf PortNumber where
     fromConf (CV_Int n) = pure $ fromIntegral n
-    fromConf _ = fail "fromConf port"
+    fromConf cv = failWith cv "fromConf port"
 
 instance FromConf Bool where
     fromConf (CV_Bool b) = pure b
-    fromConf _ = fail "fromConf bool"
+    fromConf cv = failWith cv "fromConf bool"
 
 instance FromConf String where
     fromConf (CV_String s) = pure s
-    fromConf _ = fail "fromConf string"
+    fromConf cv = failWith cv "fromConf string"
 
 instance FromConf (Maybe String) where
     fromConf (CV_String "") = pure Nothing
     fromConf (CV_String s) = pure $ Just s
-    fromConf _ = fail "fromConf maybe string"
+    fromConf cv = failWith cv "fromConf maybe string"
 
 instance FromConf [String] where
     fromConf (CV_String s) = pure $ filter (/= "") $ splitOn "," s
     fromConf (CV_Strings ss) = pure ss
-    fromConf _ = fail "fromConf string list"
+    fromConf cv = failWith cv "fromConf string list"
 
 instance FromConf (Maybe OD_NSID) where
     fromConf (CV_String "") = pure Nothing
     fromConf (CV_String s) = Just <$> decodeNSID s
-    fromConf _ = fail "fromConf maybe NSID"
+    fromConf cv = failWith cv "fromConf maybe NSID"
 
 instance FromConf UserID where
     fromConf (CV_String s) = uidForName s
     fromConf (CV_Int i) = pure $ fromIntegral i
-    fromConf _ = fail "fromConf user-ID"
+    fromConf cv = failWith cv "fromConf user-ID"
 
 instance FromConf GroupID where
     fromConf (CV_String s) = gidForName s
     fromConf (CV_Int i) = pure $ fromIntegral i
-    fromConf _ = fail "fromConf group-ID"
+    fromConf cv = failWith cv "fromConf group-ID"
 
 instance FromConf Log.Level where
     fromConf (CV_String s) = logLevel s
-    fromConf _ = fail "fromConf log level"
+    fromConf cv = failWith cv "fromConf log level"
+
+failWith :: Show a => a -> String -> IO b
+failWith x s = fail (s ++ ": " ++ show x)
 
 decodeNSID :: String -> IO OD_NSID
 decodeNSID s =
