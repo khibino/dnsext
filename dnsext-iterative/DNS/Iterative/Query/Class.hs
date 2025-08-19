@@ -106,6 +106,7 @@ data Env = Env
     , negativeTrustAnchors_ :: NegTrustAnchors
     , maxNegativeTTL_ :: TTL
     , failureRcodeTTL_ :: TTL
+    , udpLimit_ :: Word16
     , insert_ :: Question -> TTL -> Cache.Hit -> Ranking -> IO ()
     , getCache_ :: IO Cache
     , expireCache_ :: EpochTime -> IO ()
