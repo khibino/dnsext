@@ -14,6 +14,7 @@ module DNS.Iterative.Imports (
     module Data.Bool,
     module Data.Function,
     module Data.Functor,
+    module Data.Int,
     module Data.List,
     module Data.List.NonEmpty,
     module Data.Maybe,
@@ -42,6 +43,7 @@ import Data.Bool (bool)
 import Data.ByteString (ByteString)
 import Data.Function
 import Data.Functor hiding (unzip)
+import Data.Int
 import Data.List
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.Maybe
