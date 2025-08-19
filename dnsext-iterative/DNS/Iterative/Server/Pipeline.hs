@@ -49,7 +49,7 @@ import qualified DNS.Log as Log
 import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 import qualified DNS.TAP.Schema as DNSTAP
 import qualified DNS.ThreadStats as TStat
-import DNS.Types (DNSError (..), DNSFlags (..), DNSMessage (..), EDNS (..), EDNSheader (..), Question (..), RCODE (..))
+import DNS.Types
 import qualified DNS.Types.Decode as DNS
 import qualified DNS.Types.Encode as DNS
 import DNS.Types.Time
@@ -133,7 +133,7 @@ cacherLogic env fromReceiver toWorker = handledLoop env "cacher" $ do
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
-                    let bs = DNS.encode replyMsg
+                    let bs = encodeWithTC env inputPeerInfo (ednsHeader queryMsg) replyMsg
                     record env inp replyMsg bs
                     inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
@@ -162,10 +162,50 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     case ex of
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
-            let bs = DNS.encode replyMsg
+            let bs = encodeWithTC env inputPeerInfo (ednsHeader inputQuery) replyMsg
             record env inp replyMsg bs
             inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
+
+----------------------------------------------------------------
+
+encodeWithTC :: Env -> Peer -> EDNSheader -> DNSMessage -> BS
+encodeWithTC env peer reqEH res = handleUdpLimit (udpLimit_ env) reqEH res (handleTC peer $ \_ bs -> bs)
+
+{- FOURMOLU_DISABLE -}
+{- https://datatracker.ietf.org/doc/html/rfc2181#section-9
+   The TC (truncated) header bit
+     "
+      The TC bit should not be set merely because some extra information
+      could have been included, but there was insufficient room.  This
+      includes the results of additional section processing.  In such cases
+      the entire RRSet that will not fit in the response should be omitted,
+      and the reply sent as is, with the TC bit clear.  If the recipient of
+      the reply needs the omitted data, it can construct a query for that
+      data and send that separately.
+     " -}
+handleTC :: Peer -> (DNSMessage -> BS -> a) -> Word16 -> DNSMessage -> a
+handleTC (PeerInfoUDP {}) h lim' r0
+    | lim < BS.length bs1            = h tc (DNS.encode tc)  {- case: lim < len r1                               -}
+    | BS.length bs0 < lim            = h r0 bs0              {- case:                              len r0 <= lim -}
+    | otherwise                      = h r1 bs1              {- case:       len r1 <= lim && lim < len r0        -}
+  where
+    ~bs0 = DNS.encode r0
+    ~bs1 = DNS.encode r1
+    ~r1 = r0{additional = []}
+    ~tc = r0{flags = (flags r0){trunCation = True}, answer = [], authority = [], additional = []}
+    lim = fromIntegral lim'
+handleTC _peer            h _lim r0  = h r0 (DNS.encode r0)
+{- FOURMOLU_ENABLE -}
+
+handleUdpLimit :: Word16 -> EDNSheader -> DNSMessage -> (Word16 -> DNSMessage -> a) -> a
+handleUdpLimit srvLimit reqEH res h = h udpLimit res{ednsHeader = respEH}
+  where
+    respEH = ednsHeaderCases setRespUdp NoEDNS InvalidEDNS (ednsHeader res)
+    setRespUdp redns = EDNSheader redns{ednsUdpSize = udpLimit}
+    udpLimit = ednsHeaderCases limitEDNS 512 512 reqEH
+    -- apply the smaller of client-request and server-conf
+    limitEDNS qedns = (minUdpSize `max` (ednsUdpSize qedns `min` maxUdpSize)) `min` srvLimit
 
 ----------------------------------------------------------------
 

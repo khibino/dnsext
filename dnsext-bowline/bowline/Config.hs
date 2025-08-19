@@ -27,7 +27,7 @@ import System.Posix (GroupID, UserID, getGroupEntryForName, getUserEntryForName,
 import DNS.Iterative.Internal (Address, LocalZoneType (..))
 import qualified DNS.Log as Log
 import DNS.Parser hiding (Parser)
-import DNS.Types (DNSError, Domain, OD_NSID (..), ResourceRecord (..), isSubDomainOf)
+import DNS.Types (DNSError, Domain, OD_NSID (..), ResourceRecord (..), isSubDomainOf, minUdpSize, maxUdpSize)
 import qualified DNS.Types.Opaque as Opaque
 import DNS.ZoneFile (Context (cx_name, cx_zone), defaultContext, parseLineRR)
 
@@ -63,6 +63,7 @@ data Config = Config
     , cnf_resolve_timeout :: Int
     , cnf_cachers :: Int
     , cnf_workers :: Int
+    , cnf_udp_limit_size :: Int
     , cnf_udp :: Bool
     , cnf_udp_port :: PortNumber
     , cnf_vc_query_max_size :: Int
@@ -131,6 +132,12 @@ defaultConfig =
         , cnf_resolve_timeout = 10000000
         , cnf_cachers = 4
         , cnf_workers = 128
+        , {- https://datatracker.ietf.org/doc/html/rfc9000#section-8.1
+             Address Validation during Connection Establishment
+               "Clients MUST ensure that UDP datagrams containing
+                Initial packets have UDP payloads of at least 1200 bytes,
+                adding PADDING frames as necessary." -}
+          cnf_udp_limit_size = 1200
         , cnf_udp = True
         , cnf_udp_port = 53
         , cnf_vc_query_max_size = 2048
@@ -248,6 +255,8 @@ makeConfig def conf = do
     cnf_resolve_timeout <- get "resolve-timeout" cnf_resolve_timeout
     cnf_cachers <- get "cachers" cnf_cachers
     cnf_workers <- get "workers" cnf_workers
+    let udpRange v = (fromIntegral minUdpSize) `max` (v `min` (fromIntegral maxUdpSize))
+    cnf_udp_limit_size <- udpRange <$> get "udp-limit-size" cnf_udp_limit_size
     cnf_udp <- get "udp" cnf_udp
     cnf_udp_port <- get "udp-port" cnf_udp_port
     cnf_vc_query_max_size <- get "vc-query-max-size" cnf_vc_query_max_size
