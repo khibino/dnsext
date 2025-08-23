@@ -111,6 +111,7 @@ newEmptyEnv = do
         , negativeTrustAnchors_ = mempty
         , maxNegativeTTL_ = 3600
         , failureRcodeTTL_ = 180
+        , maxQueryCount_ = 64
         , udpLimit_ = 1200
         , insert_ = \_ _ _ _ -> pure ()
         , getCache_ = pure $ Cache.empty 0
