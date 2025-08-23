@@ -120,6 +120,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
                         , negativeTrustAnchors_ = getNegTrustAnchors cnf_domain_insecures
                         , maxNegativeTTL_ = cropMaxNegativeTTL cnf_cache_max_negative_ttl
                         , failureRcodeTTL_ = cropFailureRcodeTTL cnf_cache_failure_rcode_ttl
+                        , maxQueryCount_ = cnf_max_global_quota
                         , udpLimit_ = fromIntegral cnf_udp_limit_size
                         , putSSLKeyLog_ = putSSLKeyLog
                         , reloadInfo_ = reloadInfo
