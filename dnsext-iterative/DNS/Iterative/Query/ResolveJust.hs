@@ -572,9 +572,6 @@ resolveNS zone disableV6NS dc ns = do
 
 ---
 
-maxQueryCount :: Int
-maxQueryCount = 64
-
 findNegativeTrustAnchor :: MonadQuery m => Domain -> m (Maybe Domain)
 findNegativeTrustAnchor qn = asksEnv negativeTrustAnchors_ <&> \na -> ZMap.lookupApexOn id na qn
 
@@ -589,10 +586,11 @@ norec dnssecOK aservers name typ = do
     setQS aservMessage_ $ Just m
     pure m
   where
-    dispatch qcount orig
-        | qcount > maxQueryCount = logLn Log.WARN (exceeded orig) >> left ServerFailure
-        | otherwise = Norec.norec' dnssecOK aservers name typ >>= either left handleResponse
-    exceeded orig = "max-query-count (==" ++ show maxQueryCount ++ ") exceeded: " ++ showQ' "query" name typ ++ ", " ++ orig
+    dispatch qcount orig = do
+        maxQueryCount <- asksEnv maxQueryCount_
+        let ~exceeded = "max-query-count (==" ++ show maxQueryCount ++ ") exceeded: " ++ showQ' "query" name typ ++ ", " ++ orig
+        when (qcount > maxQueryCount) $ logLn Log.WARN exceeded >> left ServerFailure
+        Norec.norec' dnssecOK aservers name typ >>= either left handleResponse
     handleResponse = handleResponseError (NE.toList aservers) throwQuery pure
     left e = cacheDNSError name typ Cache.RankAnswer e >> dnsError e
     dnsError e = throwQuery $ uncurry DnsError $ unwrapDNSErrorInfo e

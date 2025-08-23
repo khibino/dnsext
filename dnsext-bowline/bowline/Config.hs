@@ -63,6 +63,7 @@ data Config = Config
     , cnf_resolve_timeout :: Int
     , cnf_cachers :: Int
     , cnf_workers :: Int
+    , cnf_max_global_quota :: Int
     , cnf_udp_limit_size :: Int
     , cnf_udp :: Bool
     , cnf_udp_port :: PortNumber
@@ -132,6 +133,7 @@ defaultConfig =
         , cnf_resolve_timeout = 10000000
         , cnf_cachers = 4
         , cnf_workers = 128
+        , cnf_max_global_quota = 64
         , {- https://datatracker.ietf.org/doc/html/rfc9000#section-8.1
              Address Validation during Connection Establishment
                "Clients MUST ensure that UDP datagrams containing
@@ -255,6 +257,7 @@ makeConfig def conf = do
     cnf_resolve_timeout <- get "resolve-timeout" cnf_resolve_timeout
     cnf_cachers <- get "cachers" cnf_cachers
     cnf_workers <- get "workers" cnf_workers
+    cnf_max_global_quota <- get "max-global-quota" cnf_max_global_quota
     let udpRange v = (fromIntegral minUdpSize) `max` (v `min` (fromIntegral maxUdpSize))
     cnf_udp_limit_size <- udpRange <$> get "udp-limit-size" cnf_udp_limit_size
     cnf_udp <- get "udp" cnf_udp
