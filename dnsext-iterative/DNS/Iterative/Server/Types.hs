@@ -19,6 +19,7 @@ module DNS.Iterative.Server.Types (
     Socket,
     SockAddr (..),
     withFdSocket,
+    loggingTimeout,
     pprDoX,
     socketName,
     SuperStream (..),
@@ -27,6 +28,7 @@ module DNS.Iterative.Server.Types (
 -- GHC
 import Data.ByteString (ByteString)
 import System.IO.Error (ioeSetLocation, tryIOError)
+import System.Timeout
 
 -- libs
 import Data.IP (fromSockAddr)
@@ -130,3 +132,7 @@ pprDoX DOH  HTTP3      = "H3"
 pprDoX DOQ  _          = "DoQ"
 pprDoX _    _          = "Crypt"
 {- FOURMOLU_ENABLE -}
+
+loggingTimeout :: IO () -> Int -> IO () -> IO ()
+loggingTimeout logging intv x =
+    maybe logging pure =<< timeout intv x
