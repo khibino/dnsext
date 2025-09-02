@@ -19,6 +19,7 @@ module DNS.Iterative.Server.Types (
     Socket,
     SockAddr (..),
     withFdSocket,
+    pprDoX,
     socketName,
     SuperStream (..),
 ) where
@@ -35,7 +36,7 @@ import Network.Socket
 import Network.TLS (Credentials (..), SessionManager)
 
 -- dnsext
-import DNS.TAP.Schema (HttpProtocol, SocketProtocol)
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 import DNS.Types (DNSMessage)
 import DNS.Types.Time (EpochTimeUsec)
 
@@ -116,3 +117,16 @@ socketName s = do
     return $ case fromSockAddr sa of
         Nothing -> "(no name)"
         Just (ip, pn) -> show ip ++ "#" ++ show pn
+
+{- FOURMOLU_DISABLE -}
+pprDoX :: SocketProtocol -> HttpProtocol -> String
+pprDoX UDP  _          = "UDP"
+pprDoX TCP  _          = "TCP"
+pprDoX DOT  _          = "DoT"
+pprDoX DOH  HTTP_NONE  = "Hx"
+pprDoX DOH  HTTP1      = "H1"
+pprDoX DOH  HTTP2      = "H2"
+pprDoX DOH  HTTP3      = "H3"
+pprDoX DOQ  _          = "DoQ"
+pprDoX _    _          = "Crypt"
+{- FOURMOLU_ENABLE -}

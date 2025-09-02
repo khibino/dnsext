@@ -4,6 +4,7 @@ module DNS.Iterative.Server.WorkerStats where
 
 -- GHC packages
 import Data.IORef
+import Data.Maybe
 import Data.List (sortBy)
 import Data.Ord (comparing)
 
@@ -16,15 +17,19 @@ pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
     let isStat p = p . fst . snd
-        qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> (/= WWaitEnqueue))) stats
+        isEnqueue (WWaitEnqueue _)  = True
+        isEnqueue  _                = False
+        qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        enqs = filter (isStat (== WWaitEnqueue)) stats
+        getEnq (wn, (WWaitEnqueue enote, ds))  = Just (wn, enote, ds)
+        getEnq  _                              = Nothing
+        enqs = mapMaybe getEnq stats
 
         pprq (wn, st) = showDec3 wn ++ ": " ++ pprWorkerStat st
         workers []      = "no workers"
-        workers triples = unwords (map (\(wn, (_st, ds)) -> show wn ++ ":" ++ showDiffSec1 ds) triples)
+        workers triples = unwords (map (\(wn, enote, ds) -> show wn ++ ":" ++ enote ++ ":" ++ showDiffSec1 ds) triples)
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
         pprenq = " waiting enqueues: " ++ workers enqs
 
@@ -49,13 +54,13 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 data WorkerStat
     = WWaitDequeue
     | WRun DNS.Question
-    | WWaitEnqueue
+    | WWaitEnqueue String
     deriving Eq
 
 instance Show WorkerStat where
-    show  WWaitDequeue                = "waiting Dequeue"
+    show  WWaitDequeue                = "waiting dequeue"
     show (WRun (DNS.Question n t _))  = "quering " ++ show n ++ " " ++ show t
-    show  WWaitEnqueue                = "waiting Enqueue"
+    show (WWaitEnqueue s)             = "waiting enqueue " ++ s
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
