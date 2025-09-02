@@ -54,6 +54,19 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 ------------------------------------------------------------
 
 {- FOURMOLU_DISABLE -}
+data EnqueueTarget
+    = EnBegin
+    | EnTap
+    | EnSend
+    | EnEnd
+    deriving Eq
+
+instance Show EnqueueTarget where
+    show EnBegin  = "Bgn"
+    show EnTap    = "Tap"
+    show EnSend   = "Send"
+    show EnEnd    = "End"
+
 data WorkerStat
     = WWaitDequeue
     | WRun DNS.Question
