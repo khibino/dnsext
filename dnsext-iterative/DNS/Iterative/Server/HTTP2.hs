@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -114,7 +115,8 @@ doHTTP name sbracket incQuery env toCacher httpProto ServerIO{..} = do
             Output bs' _ (PeerInfoStream _ sprstrm) <- fromX
             let header = mkHeader bs'
                 response = H2.responseBuilder HT.ok200 header $ byteString bs'
-            sioWriteResponse (fromSuperStream sprstrm) response
+            let timeoutLog = logLn env Log.DEMO $ name ++ "-send: send action timeout: " ++ show sioPeerSockAddr
+            loggingTimeout timeoutLog 5_000_000 $ sioWriteResponse (fromSuperStream sprstrm) response
     return $ sbracket $ TStat.concurrently_ ("bw." ++ name ++ "-send") sender ("bw." ++ name ++ "-recv") receiver
   where
     mkHeader bs =
