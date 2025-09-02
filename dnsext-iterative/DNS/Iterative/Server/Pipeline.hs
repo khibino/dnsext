@@ -276,8 +276,20 @@ type BS = ByteString
 
 type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteString
 
+{- FOURMOLU_DISABLE -}
 mkInput :: SockAddr -> (ToSender -> IO ()) -> SocketProtocol -> MkInput
-mkInput mysa toSender proto bs peerInfo pendingOp = Input bs pendingOp mysa peerInfo proto toSender HTTP_NONE
+mkInput mysa toSender proto bs peerInfo pendingOp ts =
+    Input
+    { inputQuery      = bs
+    , inputPendingOp  = pendingOp
+    , inputMysa       = mysa
+    , inputPeerInfo   = peerInfo
+    , inputProto      = proto
+    , inputToSender   = toSender
+    , inputHttpProto  = HTTP_NONE
+    , inputRecvTime   = ts
+    }
+{- FOURMOLU_ENABLE -}
 
 checkReceived :: Int -> VcTimer -> ByteString -> IO ()
 checkReceived slsize timer bs = do
