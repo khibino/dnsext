@@ -4,6 +4,7 @@ module DNS.Iterative.Server.WorkerStats where
 
 -- GHC packages
 import Data.IORef
+import Data.Maybe
 import Data.List (sortBy)
 import Data.Ord (comparing)
 
@@ -22,11 +23,13 @@ pprWorkerStats pn ops = do
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        enqs = filter (isStat  isEnqueue) stats
+        getEnq (wn, (WWaitEnqueue enote, ds))  = Just (wn, enote, ds)
+        getEnq  _                              = Nothing
+        enqs = mapMaybe getEnq stats
 
         pprq (wn, st) = showDec3 wn ++ ": " ++ pprWorkerStat st
         workers []      = "no workers"
-        workers triples = unwords (map (\(wn, (_st, ds)) -> show wn ++ ":" ++ showDiffSec1 ds) triples)
+        workers triples = unwords (map (\(wn, enote, ds) -> show wn ++ ":" ++ enote ++ ":" ++ showDiffSec1 ds) triples)
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
         pprenq = " waiting enqueues: " ++ workers enqs
 
