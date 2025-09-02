@@ -16,11 +16,13 @@ pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
     let isStat p = p . fst . snd
-        qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> (/= WWaitEnqueue))) stats
+        isEnqueue (WWaitEnqueue _)  = True
+        isEnqueue  _                = False
+        qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        enqs = filter (isStat (== WWaitEnqueue)) stats
+        enqs = filter (isStat  isEnqueue) stats
 
         pprq (wn, st) = showDec3 wn ++ ": " ++ pprWorkerStat st
         workers []      = "no workers"
@@ -49,13 +51,13 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 data WorkerStat
     = WWaitDequeue
     | WRun DNS.Question
-    | WWaitEnqueue
+    | WWaitEnqueue String
     deriving Eq
 
 instance Show WorkerStat where
     show  WWaitDequeue                = "waiting dequeue"
     show (WRun (DNS.Question n t _))  = "quering " ++ show n ++ " " ++ show t
-    show  WWaitEnqueue                = "waiting enqueue"
+    show (WWaitEnqueue s)             = "waiting enqueue " ++ s
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
