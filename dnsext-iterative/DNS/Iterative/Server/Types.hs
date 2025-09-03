@@ -10,7 +10,6 @@ module DNS.Iterative.Server.Types (
     FromX,
     ReqNum,
     VcPendingOp (..),
-    DoX (..),
     Input (..),
     Output (..),
     Peer (..),
@@ -85,6 +84,7 @@ data Input a = Input
     , inputPendingOp :: VcPendingOp
     , inputMysa :: SockAddr
     , inputPeerInfo :: Peer
+    , inputDoX :: DoX
     , inputProto :: SocketProtocol
     , inputToSender :: ToSender -> IO ()
     , inputHttpProto :: HttpProtocol

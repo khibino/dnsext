@@ -284,6 +284,7 @@ mkInput mysa toSender proto bs peerInfo pendingOp ts =
     , inputPendingOp  = pendingOp
     , inputMysa       = mysa
     , inputPeerInfo   = peerInfo
+    , inputDoX        = toDoX proto HTTP_NONE
     , inputProto      = proto
     , inputToSender   = toSender
     , inputHttpProto  = HTTP_NONE
@@ -399,7 +400,7 @@ receiverLogic' env mysa recv toCacher toSender proto = do
     if bs == ""
         then return False
         else do
-            toCacher $ Input bs noPendingOp mysa peerInfo proto toSender HTTP_NONE ts
+            toCacher $ mkInput mysa toSender proto bs peerInfo noPendingOp ts
             return True
 
 noPendingOp :: VcPendingOp
