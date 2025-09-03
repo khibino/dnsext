@@ -68,7 +68,8 @@ tlsServer VcServerConfig{..} env toCacher s = do
                     tlsSend bss = loggingTimeout timeoutLog 5_000_000 $ H2.sendMany backend bss
                 let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC tlsSend bs
                     receiver = receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DoT
-                    sender = senderVC "tls-send" env vcSess send fromX
+                    logExpSend = loggingException (logLn env Log.DEMO) "tls-send"
+                    sender = logExpSend $ senderVC "tls-send" env vcSess send fromX
                 TStat.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
             logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 

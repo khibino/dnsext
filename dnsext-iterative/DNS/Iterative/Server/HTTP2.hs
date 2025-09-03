@@ -110,7 +110,8 @@ doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
                     let inp = mkInput sioMySockAddr toSender dox bs peerInfo noPendingOp ts
                     incQuery sioPeerSockAddr
                     toCacher inp
-        sender = forever $ do
+        logExpSend = loggingException (logLn env Log.DEMO) (name ++ "-send")
+        sender = logExpSend $ forever $ do
             Output bs' _ (PeerInfoStream _ sprstrm) <- fromX
             let header = mkHeader bs'
                 response = H2.responseBuilder HT.ok200 header $ byteString bs'
