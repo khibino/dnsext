@@ -12,7 +12,7 @@ import qualified DNS.Types as DNS
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
 
 -- this package
-import DNS.Iterative.Server.Types (DoX)
+import DNS.Iterative.Server.Types (DoX (..))
 
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
@@ -25,12 +25,16 @@ pprWorkerStats pn ops = do
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        pprEnq (wn, (WWaitEnqueue dox tg, ds))  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
-        pprEnq  _                               = id
+        pprEnq  p (wn, (WWaitEnqueue dox tg, ds))
+            | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
+        pprEnq _p  _  = id
         pprEnqs
             | null pp    = "no workers"
             | otherwise  = pp
-          where pp = unwords (foldr pprEnq [] stats)
+          where h2  = foldr (pprEnq (== H2))  [] stats
+                dot = foldr (pprEnq (== DoT)) [] stats
+                xs  = foldr (pprEnq (\x -> x /= H2 && x /= DoT)) [] stats
+                pp = unwords (h2 ++ dot ++ xs)
 
         pprq (wn, st) = showDec3 wn ++ ": " ++ pprWorkerStat st
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
