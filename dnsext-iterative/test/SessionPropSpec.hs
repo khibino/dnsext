@@ -25,7 +25,6 @@ import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 
 --
-import qualified DNS.TAP.Schema as TAP
 import qualified DNS.ThreadStats as TStat
 
 --
@@ -142,7 +141,7 @@ runWithEvent = do
         let enableTimeout = atomically (enableVcTimeout vcTimeout_ {- enable timeout with pushed events -})
         (loop, pushEvent, waitRecv, recv) <- eventsRunner show kickSender enableTimeout
         writeIORef refWait waitRecv {- fill action to ref, to avoid mutual reference of withVcSession and eventsRunner -}
-        let receiver = receiverVC "test-recv" env vcSess recv toCacher (mkInput myaddr toSender TAP.UDP)
+        let receiver = receiverVC "test-recv" env vcSess recv toCacher (mkInput myaddr toSender UDP)
             sender = senderVC "test-send" env vcSess send fromX
             run = TStat.concurrently "test-send" sender "test-recv" receiver
             getResult = sort <$> getResult0

@@ -20,7 +20,6 @@ import Data.Functor
 -- dnsext-* packages
 import qualified DNS.Do53.Internal as DNS
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (SocketProtocol (..))
 import qualified DNS.ThreadStats as TStat
 
 -- other packages
@@ -68,7 +67,7 @@ tlsServer VcServerConfig{..} env toCacher s = do
                 let timeoutLog = logLn env Log.DEMO $ "tls-send: send action timeout: " ++ show peersa
                     tlsSend bss = loggingTimeout timeoutLog 5_000_000 $ H2.sendMany backend bss
                 let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC tlsSend bs
-                    receiver = receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DOT
+                    receiver = receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DoT
                     sender = senderVC "tls-send" env vcSess send fromX
                 TStat.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
             logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa

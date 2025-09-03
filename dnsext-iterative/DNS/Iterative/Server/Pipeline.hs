@@ -289,17 +289,18 @@ type BS = ByteString
 type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteString
 
 {- FOURMOLU_DISABLE -}
-mkInput :: SockAddr -> (ToSender -> IO ()) -> SocketProtocol -> MkInput
-mkInput mysa toSender proto bs peerInfo pendingOp ts =
+mkInput :: SockAddr -> (ToSender -> IO ()) -> DoX -> MkInput
+mkInput mysa toSender dox bs peerInfo pendingOp ts =
+    applyProtoDNSTAP dox $ \proto httpProto ->
     Input
     { inputQuery      = bs
     , inputPendingOp  = pendingOp
     , inputMysa       = mysa
     , inputPeerInfo   = peerInfo
-    , inputDoX        = toDoX proto HTTP_NONE
+    , inputDoX        = dox
     , inputProto      = proto
     , inputToSender   = toSender
-    , inputHttpProto  = HTTP_NONE
+    , inputHttpProto  = httpProto
     , inputRecvTime   = ts
     }
 {- FOURMOLU_ENABLE -}
@@ -400,19 +401,19 @@ receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCac
             toCacher $ mkInput_ bs peerInfo (VcPendingOp{vpReqNum = i, vpDelete = delPending}) ts
 
 receiverLogic
-    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> SocketProtocol -> IO ()
-receiverLogic env mysa recv toCacher toSender proto =
-    handledLoop env "receiverUDP" $ void $ receiverLogic' env mysa recv toCacher toSender proto
+    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO ()
+receiverLogic env mysa recv toCacher toSender dox =
+    handledLoop env "receiverUDP" $ void $ receiverLogic' env mysa recv toCacher toSender dox
 
 receiverLogic'
-    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> SocketProtocol -> IO Bool
-receiverLogic' env mysa recv toCacher toSender proto = do
+    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO Bool
+receiverLogic' env mysa recv toCacher toSender dox = do
     (bs, peerInfo) <- recv
     ts <- currentTimeUsec_ env
     if bs == ""
         then return False
         else do
-            toCacher $ mkInput mysa toSender proto bs peerInfo noPendingOp ts
+            toCacher $ mkInput mysa toSender dox bs peerInfo noPendingOp ts
             return True
 
 noPendingOp :: VcPendingOp
