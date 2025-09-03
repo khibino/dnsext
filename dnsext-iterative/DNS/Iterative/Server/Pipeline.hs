@@ -88,14 +88,11 @@ getWorkerStats workersN = replicateM workersN getWorkerStatOP
 -- @
 mkPipeline
     :: Env
-    -> Int
-    -- ^ The number of cashers
-    -> Int
-    -- ^ The number of workers
+    -> [WorkerStatOP]
     -> [WorkerStatOP]
     -> IO ([IO ()], [IO ()], ToCacher -> IO ())
     -- ^ (worker actions, cacher actions, input to cacher)
-mkPipeline env cachersN _workersN workerStats = do
+mkPipeline env cacherStats workerStats = do
     {- limit waiting area on server to constant size -}
     let queueBound = 64
     qr <- newTBQueueIO queueBound
@@ -104,7 +101,7 @@ mkPipeline env cachersN _workersN workerStats = do
     qw <- newTBQueueIO queueBound
     let toWorker = atomically . writeTBQueue qw
         fromCacher = atomically $ readTBQueue qw
-    let cachers = replicate cachersN $ cacherLogic env fromReceiver toWorker
+    let cachers = [cacherLogic env cstat fromReceiver toWorker | cstat <- cacherStats]
     let workers = [workerLogic env wstat fromCacher | wstat <- workerStats]
     return (cachers, workers, toCacher)
 
@@ -118,8 +115,8 @@ data CacheResult
 inputAddr :: Input a -> String
 inputAddr Input{..} = show inputPeerInfo ++ " -> " ++ show inputMysa
 
-cacherLogic :: Env -> IO FromReceiver -> (ToWorker -> IO ()) -> IO ()
-cacherLogic env fromReceiver toWorker = handledLoop env "cacher" $ do
+cacherLogic :: Env -> WorkerStatOP -> IO FromReceiver -> (ToWorker -> IO ()) -> IO ()
+cacherLogic env WorkerStatOP{} fromReceiver toWorker = handledLoop env "cacher" $ do
     inpBS@Input{..} <- fromReceiver
     case DNS.decode inputQuery of
         Left e -> logLn env Log.WARN $ "cacher.decode-error: " ++ inputAddr inpBS ++ " : " ++ show e

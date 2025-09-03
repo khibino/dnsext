@@ -44,8 +44,9 @@ benchServer bench_pipelines env _ = do
 
     let pipelines_per_socket = bench_pipelines
         workers_per_pipeline = 8 {- only used initial setup, benchmark runs on cached state -}
+    cacherStats <- getWorkerStats pipelines_per_socket
     workerStats <- getWorkerStats workers_per_pipeline
-    (cachers, workers, toCacher) <- mkPipeline env pipelines_per_socket workers_per_pipeline workerStats
+    (cachers, workers, toCacher) <- mkPipeline env cacherStats workerStats
 
     resQ <- newChan
 
