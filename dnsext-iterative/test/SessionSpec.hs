@@ -21,7 +21,7 @@ import System.Timeout (timeout)
 import Text.Read (readMaybe)
 
 --
-import DNS.TAP.Schema (SocketProtocol (..))
+import qualified DNS.TAP.Schema as TAP
 import qualified DNS.ThreadStats as TStat
 
 --
@@ -130,7 +130,7 @@ runSession factor recv0 waitRead tmicro = withVc waitRead tmicro $ \(vcSess, toS
             checkReceived 0 timer bs
             return bp
         send = getSendVC timer send0
-        receiver = receiverVC "test-recv" env vcSess recv toCacher (mkInput myaddr toSender UDP)
+        receiver = receiverVC "test-recv" env vcSess recv toCacher (mkInput myaddr toSender TAP.UDP)
         sender = senderVC "test-send" env vcSess send fromX
     when debug $ void $ forkIO $ replicateM_ 10 $ do
         {- dumper to debug -}

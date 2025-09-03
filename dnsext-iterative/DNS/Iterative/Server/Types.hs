@@ -10,6 +10,7 @@ module DNS.Iterative.Server.Types (
     FromX,
     ReqNum,
     VcPendingOp (..),
+    DoX (..),
     Input (..),
     Output (..),
     Peer (..),

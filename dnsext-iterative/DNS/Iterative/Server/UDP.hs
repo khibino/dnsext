@@ -12,7 +12,7 @@ import Control.Concurrent.STM
 import Control.Monad (void, when)
 
 -- dnsext-* packages
-import DNS.TAP.Schema (SocketProtocol (..))
+import qualified DNS.TAP.Schema as TAP
 import qualified DNS.ThreadStats as TStat
 
 -- other packages
@@ -57,7 +57,7 @@ udpServer UdpServerConfig{..} env toCacher s = do
         send bs (PeerInfoUDP peersa cmsgs) =
             void $ NSB.sendMsg s peersa [bs] cmsgs 0
         send _ _ = return ()
-        receiver = receiverLogic env mysa recv toCacher toSender UDP
+        receiver = receiverLogic env mysa recv toCacher toSender TAP.UDP
         sender = senderLogic env send fromX
     return [TStat.concurrently_ "bw.udp-send" sender "bw.udp-recv" receiver]
 

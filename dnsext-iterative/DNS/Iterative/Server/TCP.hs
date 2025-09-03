@@ -14,7 +14,7 @@ import Data.Functor
 -- dnsext-* packages
 import qualified DNS.Do53.Internal as DNS
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (SocketProtocol (..))
+import qualified DNS.TAP.Schema as TAP
 import qualified DNS.ThreadStats as TStat
 
 -- other packages
@@ -60,7 +60,7 @@ tcpServer VcServerConfig{..} env toCacher s = do
                     checkReceived vc_slowloris_size vcTimer bs
                     incStatsTCP53 peersa (stats_ env)
             let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC (DNS.sendTCP sock) bs
-                receiver = receiverVCnonBlocking "tcp-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender TCP
+                receiver = receiverVCnonBlocking "tcp-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender TAP.TCP
                 sender = senderVC "tcp-send" env vcSess send fromX
             TStat.concurrently_ "bw.tcp-send" sender "bw.tcp-recv" receiver
         logLn env Log.DEBUG $ "tcp-srv: close: " ++ show peersa
