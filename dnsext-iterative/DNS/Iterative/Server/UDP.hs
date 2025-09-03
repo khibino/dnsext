@@ -12,7 +12,6 @@ import Control.Concurrent.STM
 import Control.Monad (void, when)
 
 -- dnsext-* packages
-import DNS.TAP.Schema (SocketProtocol (..))
 import qualified DNS.ThreadStats as TStat
 
 -- other packages

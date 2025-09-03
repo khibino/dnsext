@@ -9,7 +9,6 @@ import Control.Concurrent.STM (atomically, isEmptyTQueue)
 
 -- dnsext-* packages
 import qualified DNS.Do53.Internal as DNS
-import DNS.TAP.Schema (SocketProtocol (..))
 import qualified DNS.ThreadStats as TStat
 
 -- other packages
@@ -62,7 +61,7 @@ quicServers VcServerConfig{..} env toCacher ss = do
                         PeerInfoStream _ (StreamQUIC strm) -> DNS.sendVC (QUIC.sendStreamMany strm) bs >> QUIC.closeStream strm
                         _ -> return ()
                 -- FIXME
-                receiver = receiverVC "quic-recv" env vcSess recv toCacher $ mkInput mysa toSender DOQ
+                receiver = receiverVC "quic-recv" env vcSess recv toCacher $ mkInput mysa toSender DoQ
                 sender = senderVC "quic-send" env vcSess send fromX
             TStat.concurrently_ "bw.quic-send" sender "bw.quic-recv" receiver
 

@@ -17,7 +17,6 @@ import Data.Functor
 
 -- dnsext-* packages
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 import qualified DNS.ThreadStats as TStat
 
 -- other packages
@@ -41,7 +40,7 @@ http2Servers conf env toCacher ss =
 http2Server :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
 http2Server VcServerConfig{..} env toCacher s = do
     name <- socketName s <&> (++ "/h2")
-    let http2server = withLocationIOE name $ H2TLS.runIO settings vc_credentials s $ doHTTP "h2" sbracket incQuery env toCacher HTTP2
+    let http2server = withLocationIOE name $ H2TLS.runIO settings vc_credentials s $ doHTTP "h2" sbracket incQuery env toCacher H2
     return [http2server]
   where
     sbracket = sessionStatsDoH2 (stats_ env)
@@ -62,7 +61,7 @@ http2cServers conf env toCacher ss =
 http2cServer :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
 http2cServer VcServerConfig{..} env toCacher s = do
     name <- socketName s <&> (++ "/h2c")
-    let http2server = withLocationIOE name $ H2TLS.runIOH2C settings s $ doHTTP "h2c" sbracket incQuery env toCacher HTTP2
+    let http2server = withLocationIOE name $ H2TLS.runIOH2C settings s $ doHTTP "h2c" sbracket incQuery env toCacher H2C
     return [http2server]
   where
     sbracket = sessionStatsDoH2C (stats_ env)
@@ -95,10 +94,10 @@ doHTTP
     -> (SockAddr -> IO ())
     -> Env
     -> (ToCacher -> IO ())
-    -> HttpProtocol
+    -> DoX
     -> ServerIO a
     -> IO (IO ())
-doHTTP name sbracket incQuery env toCacher httpProto ServerIO{..} = do
+doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
     (toSender, fromX, _, _) <- mkConnector
     let receiver = forever $ do
             (sprstrm, req) <- sioReadRequest
@@ -108,7 +107,7 @@ doHTTP name sbracket incQuery env toCacher httpProto ServerIO{..} = do
             case einp of
                 Left emsg -> logLn env Log.WARN $ "http.decode-error: " ++ name ++ ": " ++ emsg
                 Right bs -> do
-                    let inp = Input bs noPendingOp sioMySockAddr peerInfo DOH toSender httpProto ts
+                    let inp = mkInput sioMySockAddr toSender dox bs peerInfo noPendingOp ts
                     incQuery sioPeerSockAddr
                     toCacher inp
         sender = forever $ do

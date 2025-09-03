@@ -46,7 +46,7 @@ import Control.Concurrent.Async (AsyncCancelled)
 -- dnsext packages
 import DNS.Do53.Internal (VCLimit, decodeVCLength)
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOT, DOH, DOQ))
 import qualified DNS.TAP.Schema as DNSTAP
 import qualified DNS.ThreadStats as TStat
 import DNS.Types
@@ -158,7 +158,7 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
     whenQ1 (\q -> TStat.eventLog ("iter.end " ++ showQ q))
-    setWorkerStat $ WWaitEnqueue $ pprDoX inputProto inputHttpProto
+    setWorkerStat $ WWaitEnqueue inputDoX
     case ex of
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
@@ -234,6 +234,17 @@ statsIxOfVR VR_Bogus     = VResBogus
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+applyProtoDNSTAP :: DoX -> (SocketProtocol -> HttpProtocol -> a) -> a
+applyProtoDNSTAP UDP h = h DNSTAP.UDP HTTP_NONE
+applyProtoDNSTAP TCP h = h DNSTAP.TCP HTTP_NONE
+applyProtoDNSTAP DoT h = h        DOT HTTP_NONE
+applyProtoDNSTAP H2  h = h        DOH HTTP2
+applyProtoDNSTAP H2C h = h        DOH HTTP2
+applyProtoDNSTAP H3  h = h        DOH HTTP3
+applyProtoDNSTAP DoQ h = h        DOQ HTTP_NONE
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 record
     :: Env
     -> Input DNSMessage
@@ -243,7 +254,8 @@ record
 record env Input{..} reply rspWire = do
     let peersa = peerSockAddr inputPeerInfo
     logDNSTAP_ env $ runEpochTimeUsec inputRecvTime $
-        \s us -> DNSTAP.composeMessage inputProto inputMysa peersa s (fromIntegral us * 1000) rspWire inputHttpProto
+        \s us -> applyProtoDNSTAP inputDoX $ \proto httpProto ->
+            DNSTAP.composeMessage proto inputMysa peersa s (fromIntegral us * 1000) rspWire httpProto
     let st = stats_ env
         Question{..} = case question inputQuery of
           [] -> error "record"
@@ -276,8 +288,19 @@ type BS = ByteString
 
 type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteString
 
-mkInput :: SockAddr -> (ToSender -> IO ()) -> SocketProtocol -> MkInput
-mkInput mysa toSender proto bs peerInfo pendingOp = Input bs pendingOp mysa peerInfo proto toSender HTTP_NONE
+{- FOURMOLU_DISABLE -}
+mkInput :: SockAddr -> (ToSender -> IO ()) -> DoX -> MkInput
+mkInput mysa toSender dox bs peerInfo pendingOp ts =
+    Input
+    { inputQuery      = bs
+    , inputPendingOp  = pendingOp
+    , inputMysa       = mysa
+    , inputPeerInfo   = peerInfo
+    , inputDoX        = dox
+    , inputToSender   = toSender
+    , inputRecvTime   = ts
+    }
+{- FOURMOLU_ENABLE -}
 
 checkReceived :: Int -> VcTimer -> ByteString -> IO ()
 checkReceived slsize timer bs = do
@@ -375,19 +398,19 @@ receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCac
             toCacher $ mkInput_ bs peerInfo (VcPendingOp{vpReqNum = i, vpDelete = delPending}) ts
 
 receiverLogic
-    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> SocketProtocol -> IO ()
-receiverLogic env mysa recv toCacher toSender proto =
-    handledLoop env "receiverUDP" $ void $ receiverLogic' env mysa recv toCacher toSender proto
+    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO ()
+receiverLogic env mysa recv toCacher toSender dox =
+    handledLoop env "receiverUDP" $ void $ receiverLogic' env mysa recv toCacher toSender dox
 
 receiverLogic'
-    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> SocketProtocol -> IO Bool
-receiverLogic' env mysa recv toCacher toSender proto = do
+    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO Bool
+receiverLogic' env mysa recv toCacher toSender dox = do
     (bs, peerInfo) <- recv
     ts <- currentTimeUsec_ env
     if bs == ""
         then return False
         else do
-            toCacher $ Input bs noPendingOp mysa peerInfo proto toSender HTTP_NONE ts
+            toCacher $ mkInput mysa toSender dox bs peerInfo noPendingOp ts
             return True
 
 noPendingOp :: VcPendingOp

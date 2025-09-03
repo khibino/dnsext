@@ -12,6 +12,9 @@ import Data.Ord (comparing)
 import qualified DNS.Types as DNS
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
 
+-- this package
+import DNS.Iterative.Server.Types (DoX)
+
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats pn ops = do
@@ -23,13 +26,13 @@ pprWorkerStats pn ops = do
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        getEnq (wn, (WWaitEnqueue enote, ds))  = Just (wn, enote, ds)
-        getEnq  _                              = Nothing
+        getEnq (wn, (WWaitEnqueue dox, ds))  = Just (wn, dox, ds)
+        getEnq  _                            = Nothing
         enqs = mapMaybe getEnq stats
 
         pprq (wn, st) = showDec3 wn ++ ": " ++ pprWorkerStat st
         workers []      = "no workers"
-        workers triples = unwords (map (\(wn, enote, ds) -> show wn ++ ":" ++ enote ++ ":" ++ showDiffSec1 ds) triples)
+        workers triples = unwords (map (\(wn, dox, ds) -> show wn ++ ":" ++ show dox ++ ":" ++ showDiffSec1 ds) triples)
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
         pprenq = " waiting enqueues: " ++ workers enqs
 
@@ -54,13 +57,13 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 data WorkerStat
     = WWaitDequeue
     | WRun DNS.Question
-    | WWaitEnqueue String
+    | WWaitEnqueue DoX
     deriving Eq
 
 instance Show WorkerStat where
     show  WWaitDequeue                = "waiting dequeue"
     show (WRun (DNS.Question n t _))  = "quering " ++ show n ++ " " ++ show t
-    show (WWaitEnqueue s)             = "waiting enqueue " ++ s
+    show (WWaitEnqueue dox)           = "waiting enqueue " ++ show dox
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}

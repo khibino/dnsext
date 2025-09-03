@@ -14,7 +14,6 @@ import Data.Functor
 -- dnsext-* packages
 import qualified DNS.Do53.Internal as DNS
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (SocketProtocol (..))
 import qualified DNS.ThreadStats as TStat
 
 -- other packages

@@ -25,7 +25,6 @@ import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 
 --
-import DNS.TAP.Schema (SocketProtocol (..))
 import qualified DNS.ThreadStats as TStat
 
 --

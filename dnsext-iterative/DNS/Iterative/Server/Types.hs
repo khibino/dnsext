@@ -10,6 +10,7 @@ module DNS.Iterative.Server.Types (
     FromX,
     ReqNum,
     VcPendingOp (..),
+    DoX (..),
     Input (..),
     Output (..),
     Peer (..),
@@ -20,7 +21,6 @@ module DNS.Iterative.Server.Types (
     SockAddr (..),
     withFdSocket,
     loggingTimeout,
-    pprDoX,
     socketName,
     SuperStream (..),
 ) where
@@ -38,7 +38,6 @@ import Network.Socket
 import Network.TLS (Credentials (..), SessionManager)
 
 -- dnsext
-import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
 import DNS.Types (DNSMessage)
 import DNS.Types.Time (EpochTimeUsec)
 
@@ -67,14 +66,23 @@ data VcPendingOp
     , vpDelete :: IO ()
     }
 
+data DoX
+    = UDP
+    | TCP
+    | DoT
+    | H2
+    | H2C
+    | H3
+    | DoQ
+    deriving (Eq, Show)
+
 data Input a = Input
     { inputQuery :: a
     , inputPendingOp :: VcPendingOp
     , inputMysa :: SockAddr
     , inputPeerInfo :: Peer
-    , inputProto :: SocketProtocol
+    , inputDoX :: DoX
     , inputToSender :: ToSender -> IO ()
-    , inputHttpProto :: HttpProtocol
     , inputRecvTime :: EpochTimeUsec
     }
 
@@ -119,19 +127,6 @@ socketName s = do
     return $ case fromSockAddr sa of
         Nothing -> "(no name)"
         Just (ip, pn) -> show ip ++ "#" ++ show pn
-
-{- FOURMOLU_DISABLE -}
-pprDoX :: SocketProtocol -> HttpProtocol -> String
-pprDoX UDP  _          = "UDP"
-pprDoX TCP  _          = "TCP"
-pprDoX DOT  _          = "DoT"
-pprDoX DOH  HTTP_NONE  = "Hx"
-pprDoX DOH  HTTP1      = "H1"
-pprDoX DOH  HTTP2      = "H2"
-pprDoX DOH  HTTP3      = "H3"
-pprDoX DOQ  _          = "DoQ"
-pprDoX _    _          = "Crypt"
-{- FOURMOLU_ENABLE -}
 
 loggingTimeout :: IO () -> Int -> IO () -> IO ()
 loggingTimeout logging intv x =
