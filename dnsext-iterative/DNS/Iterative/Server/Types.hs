@@ -21,8 +21,6 @@ module DNS.Iterative.Server.Types (
     SockAddr (..),
     withFdSocket,
     loggingTimeout,
-    toDoX,
-    pprDoX,
     socketName,
     SuperStream (..),
 ) where
@@ -40,8 +38,6 @@ import Network.Socket
 import Network.TLS (Credentials (..), SessionManager)
 
 -- dnsext
-import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOT, DOH, DOQ))
-import qualified DNS.TAP.Schema as TAP
 import DNS.Types (DNSMessage)
 import DNS.Types.Time (EpochTimeUsec)
 
@@ -86,9 +82,7 @@ data Input a = Input
     , inputMysa :: SockAddr
     , inputPeerInfo :: Peer
     , inputDoX :: DoX
-    , inputProto :: SocketProtocol
     , inputToSender :: ToSender -> IO ()
-    , inputHttpProto :: HttpProtocol
     , inputRecvTime :: EpochTimeUsec
     }
 
@@ -133,30 +127,6 @@ socketName s = do
     return $ case fromSockAddr sa of
         Nothing -> "(no name)"
         Just (ip, pn) -> show ip ++ "#" ++ show pn
-
-{- FOURMOLU_DISABLE -}
-toDoX :: SocketProtocol -> HttpProtocol -> DoX
-toDoX TAP.UDP  _  = UDP
-toDoX TAP.TCP  _  = TCP
-toDoX DOT      _  = DoT
-toDoX DOH  HTTP2  = H2
-toDoX DOH  HTTP3  = H3
-toDoX DOQ      _  = DoQ
-toDoX _        _  = UDP {- temporary -}
-{- FOURMOLU_ENABLE -}
-
-{- FOURMOLU_DISABLE -}
-pprDoX :: SocketProtocol -> HttpProtocol -> String
-pprDoX TAP.UDP  _      = "UDP"
-pprDoX TAP.TCP  _      = "TCP"
-pprDoX DOT  _          = "DoT"
-pprDoX DOH  HTTP_NONE  = "Hx"
-pprDoX DOH  HTTP1      = "H1"
-pprDoX DOH  HTTP2      = "H2"
-pprDoX DOH  HTTP3      = "H3"
-pprDoX DOQ  _          = "DoQ"
-pprDoX _    _          = "Crypt"
-{- FOURMOLU_ENABLE -}
 
 loggingTimeout :: IO () -> Int -> IO () -> IO ()
 loggingTimeout logging intv x =

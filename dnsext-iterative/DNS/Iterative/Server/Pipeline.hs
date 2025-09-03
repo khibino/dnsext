@@ -291,16 +291,13 @@ type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteS
 {- FOURMOLU_DISABLE -}
 mkInput :: SockAddr -> (ToSender -> IO ()) -> DoX -> MkInput
 mkInput mysa toSender dox bs peerInfo pendingOp ts =
-    applyProtoDNSTAP dox $ \proto httpProto ->
     Input
     { inputQuery      = bs
     , inputPendingOp  = pendingOp
     , inputMysa       = mysa
     , inputPeerInfo   = peerInfo
     , inputDoX        = dox
-    , inputProto      = proto
     , inputToSender   = toSender
-    , inputHttpProto  = httpProto
     , inputRecvTime   = ts
     }
 {- FOURMOLU_ENABLE -}
