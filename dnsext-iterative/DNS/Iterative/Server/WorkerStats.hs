@@ -4,7 +4,6 @@ module DNS.Iterative.Server.WorkerStats where
 
 -- GHC packages
 import Data.IORef
-import Data.Maybe
 import Data.List (sortBy)
 import Data.Ord (comparing)
 
@@ -13,28 +12,33 @@ import qualified DNS.Types as DNS
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
 
 -- this package
-import DNS.Iterative.Server.Types (DoX)
+import DNS.Iterative.Server.Types (DoX (..))
 
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
     let isStat p = p . fst . snd
-        isEnqueue (WWaitEnqueue _)  = True
-        isEnqueue  _                = False
+        isEnqueue (WWaitEnqueue _dox _tg)  = True
+        isEnqueue  _                       = False
         qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        getEnq (wn, (WWaitEnqueue dox, ds))  = Just (wn, dox, ds)
-        getEnq  _                            = Nothing
-        enqs = mapMaybe getEnq stats
+        pprEnq  p (wn, (WWaitEnqueue dox tg, ds))
+            | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
+        pprEnq _p  _  = id
+        pprEnqs
+            | null pp    = "no workers"
+            | otherwise  = pp
+          where h2  = foldr (pprEnq (== H2))  [] stats
+                dot = foldr (pprEnq (== DoT)) [] stats
+                xs  = foldr (pprEnq (\x -> x /= H2 && x /= DoT)) [] stats
+                pp = unwords (h2 ++ dot ++ xs)
 
         pprq (wn, st) = showDec3 wn ++ ": " ++ pprWorkerStat st
-        workers []      = "no workers"
-        workers triples = unwords (map (\(wn, dox, ds) -> show wn ++ ":" ++ show dox ++ ":" ++ showDiffSec1 ds) triples)
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
-        pprenq = " waiting enqueues: " ++ workers enqs
+        pprenq = " waiting enqueues: " ++ pprEnqs
 
     return $ map (("  " ++ show pn ++ ":") ++) $ map pprq sorted ++ [pprdeq, pprenq]
   where
@@ -54,16 +58,29 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 ------------------------------------------------------------
 
 {- FOURMOLU_DISABLE -}
+data EnqueueTarget
+    = EnBegin
+    | EnTap
+    | EnSend
+    | EnEnd
+    deriving Eq
+
+instance Show EnqueueTarget where
+    show EnBegin  = "Bgn"
+    show EnTap    = "Tap"
+    show EnSend   = "Send"
+    show EnEnd    = "End"
+
 data WorkerStat
     = WWaitDequeue
     | WRun DNS.Question
-    | WWaitEnqueue DoX
+    | WWaitEnqueue DoX EnqueueTarget
     deriving Eq
 
 instance Show WorkerStat where
     show  WWaitDequeue                = "waiting dequeue"
     show (WRun (DNS.Question n t _))  = "quering " ++ show n ++ " " ++ show t
-    show (WWaitEnqueue dox)           = "waiting enqueue " ++ show dox
+    show (WWaitEnqueue dox tg)        = "waiting enqueue " ++ show dox ++ " " ++show tg
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
