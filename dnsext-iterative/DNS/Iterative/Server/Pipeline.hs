@@ -146,15 +146,11 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     setWorkerStat WWaitDequeue
     inp@Input{..} <- fromCacher
     let showQ q = show (qname q) ++ " " ++ show (qtype q)
-        whenQ1 f =
-            case question inputQuery of
-                q : _ -> f q
-                [] -> pure ()
-    whenQ1 (\q -> setWorkerStat (WRun q) >> TStat.eventLog ("iter.bgn " ++ showQ q))
+    whenQ1 inputQuery (\q -> setWorkerStat (WRun q) >> TStat.eventLog ("iter.bgn " ++ showQ q))
     ex <- foldResponseIterative Left (curry Right) env inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
-    whenQ1 (\q -> TStat.eventLog ("iter.end " ++ showQ q))
+    whenQ1 inputQuery (\q -> TStat.eventLog ("iter.end " ++ showQ q))
     setWorkerStat $ WWaitEnqueue inputDoX EnBegin
     case ex of
         Right (vr, replyMsg) -> do
@@ -166,6 +162,14 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
             inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
     setWorkerStat $ WWaitEnqueue inputDoX EnEnd
+
+----------------------------------------------------------------
+
+whenQ1 :: Applicative f => DNSMessage -> (Question -> f ()) -> f ()
+whenQ1 msg f =
+    case question msg of
+        q : _ -> f q
+        [] -> pure ()
 
 ----------------------------------------------------------------
 
