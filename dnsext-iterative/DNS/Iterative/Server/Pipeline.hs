@@ -116,12 +116,14 @@ inputAddr :: Input a -> String
 inputAddr Input{..} = show inputPeerInfo ++ " -> " ++ show inputMysa
 
 cacherLogic :: Env -> WorkerStatOP -> IO FromReceiver -> (ToWorker -> IO ()) -> IO ()
-cacherLogic env WorkerStatOP{} fromReceiver toWorker = handledLoop env "cacher" $ do
+cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher" $ do
+    setWorkerStat WWaitDequeue
     inpBS@Input{..} <- fromReceiver
     case DNS.decode inputQuery of
         Left e -> logLn env Log.WARN $ "cacher.decode-error: " ++ inputAddr inpBS ++ " : " ++ show e
         Right queryMsg -> do
             -- Input ByteString -> Input DNSMessage
+            whenQ1 queryMsg (\q -> setWorkerStat (WRun q))
             let inp = inpBS{inputQuery = queryMsg}
             cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
             case cres of
@@ -131,13 +133,16 @@ cacherLogic env WorkerStatOP{} fromReceiver toWorker = handledLoop env "cacher" 
                     updateHistogram_ env duration (stats_ env)
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
                     let bs = encodeWithTC env inputPeerInfo (ednsHeader queryMsg) replyMsg
+                    setWorkerStat $ WWaitEnqueue inputDoX EnTap
                     record env inp replyMsg bs
+                    setWorkerStat $ WWaitEnqueue inputDoX EnSend
                     inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     logicDenied env inp
                     vpDelete inputPendingOp
+    setWorkerStat $ WWaitEnqueue inputDoX EnEnd
 
 ----------------------------------------------------------------
 
