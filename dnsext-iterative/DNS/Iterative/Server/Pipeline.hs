@@ -46,7 +46,7 @@ import Control.Concurrent.Async (AsyncCancelled)
 -- dnsext packages
 import DNS.Do53.Internal (VCLimit, decodeVCLength)
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOT, DOH, DOQ))
 import qualified DNS.TAP.Schema as DNSTAP
 import qualified DNS.ThreadStats as TStat
 import DNS.Types
@@ -234,6 +234,17 @@ statsIxOfVR VR_Bogus     = VResBogus
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+applyProtoDNSTAP :: DoX -> (SocketProtocol -> HttpProtocol -> a) -> a
+applyProtoDNSTAP UDP h = h DNSTAP.UDP HTTP_NONE
+applyProtoDNSTAP TCP h = h DNSTAP.TCP HTTP_NONE
+applyProtoDNSTAP DoT h = h        DOT HTTP_NONE
+applyProtoDNSTAP H2  h = h        DOH HTTP2
+applyProtoDNSTAP H2C h = h        DOH HTTP2
+applyProtoDNSTAP H3  h = h        DOH HTTP3
+applyProtoDNSTAP DoQ h = h        DOQ HTTP_NONE
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 record
     :: Env
     -> Input DNSMessage
@@ -243,7 +254,8 @@ record
 record env Input{..} reply rspWire = do
     let peersa = peerSockAddr inputPeerInfo
     logDNSTAP_ env $ runEpochTimeUsec inputRecvTime $
-        \s us -> DNSTAP.composeMessage inputProto inputMysa peersa s (fromIntegral us * 1000) rspWire inputHttpProto
+        \s us -> applyProtoDNSTAP inputDoX $ \proto httpProto ->
+            DNSTAP.composeMessage proto inputMysa peersa s (fromIntegral us * 1000) rspWire httpProto
     let st = stats_ env
         Question{..} = case question inputQuery of
           [] -> error "record"
