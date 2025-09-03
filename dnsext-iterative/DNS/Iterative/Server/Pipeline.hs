@@ -163,8 +163,11 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
             let bs = encodeWithTC env inputPeerInfo (ednsHeader inputQuery) replyMsg
+            setWorkerStat $ WWaitEnqueue inputDoX EnTap
             record env inp replyMsg bs
+            setWorkerStat $ WWaitEnqueue inputDoX EnSend
             inputToSender $ Output bs inputPendingOp inputPeerInfo
+            setWorkerStat $ WWaitEnqueue inputDoX EnEnd
         Left _e -> logicDenied env inp
 
 ----------------------------------------------------------------
