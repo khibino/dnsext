@@ -158,7 +158,7 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
     whenQ1 (\q -> TStat.eventLog ("iter.end " ++ showQ q))
-    setWorkerStat $ WWaitEnqueue inputDoX
+    setWorkerStat $ WWaitEnqueue inputDoX EnBegin
     case ex of
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]

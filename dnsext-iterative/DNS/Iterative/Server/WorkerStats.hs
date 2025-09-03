@@ -19,14 +19,14 @@ pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
     let isStat p = p . fst . snd
-        isEnqueue (WWaitEnqueue _)  = True
-        isEnqueue  _                = False
+        isEnqueue (WWaitEnqueue _dox _tg)  = True
+        isEnqueue  _                       = False
         qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        pprEnq (wn, (WWaitEnqueue dox, ds))  = ((show wn ++ ":" ++ show dox ++ ":" ++ showDiffSec1 ds) :)
-        pprEnq  _                            = id
+        pprEnq (wn, (WWaitEnqueue dox tg, ds))  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
+        pprEnq  _                               = id
         pprEnqs
             | null pp    = "no workers"
             | otherwise  = pp
@@ -70,13 +70,13 @@ instance Show EnqueueTarget where
 data WorkerStat
     = WWaitDequeue
     | WRun DNS.Question
-    | WWaitEnqueue DoX
+    | WWaitEnqueue DoX EnqueueTarget
     deriving Eq
 
 instance Show WorkerStat where
     show  WWaitDequeue                = "waiting dequeue"
     show (WRun (DNS.Question n t _))  = "quering " ++ show n ++ " " ++ show t
-    show (WWaitEnqueue dox)           = "waiting enqueue " ++ show dox
+    show (WWaitEnqueue dox tg)        = "waiting enqueue " ++ show dox ++ " " ++show tg
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
