@@ -10,6 +10,7 @@ module DNS.Iterative.Server.Types (
     FromX,
     ReqNum,
     VcPendingOp (..),
+    DoX (..),
     Input (..),
     Output (..),
     Peer (..),
@@ -20,6 +21,7 @@ module DNS.Iterative.Server.Types (
     SockAddr (..),
     withFdSocket,
     loggingTimeout,
+    toDoX,
     pprDoX,
     socketName,
     SuperStream (..),
@@ -38,7 +40,8 @@ import Network.Socket
 import Network.TLS (Credentials (..), SessionManager)
 
 -- dnsext
-import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (..))
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOT, DOH, DOQ))
+import qualified DNS.TAP.Schema as TAP
 import DNS.Types (DNSMessage)
 import DNS.Types.Time (EpochTimeUsec)
 
@@ -66,6 +69,16 @@ data VcPendingOp
     { vpReqNum :: ReqNum
     , vpDelete :: IO ()
     }
+
+data DoX
+    = UDP
+    | TCP
+    | DoT
+    | H2
+    | H2C
+    | H3
+    | DoQ
+    deriving (Eq, Show)
 
 data Input a = Input
     { inputQuery :: a
@@ -121,9 +134,20 @@ socketName s = do
         Just (ip, pn) -> show ip ++ "#" ++ show pn
 
 {- FOURMOLU_DISABLE -}
+toDoX :: SocketProtocol -> HttpProtocol -> DoX
+toDoX TAP.UDP  _  = UDP
+toDoX TAP.TCP  _  = TCP
+toDoX DOT      _  = DoT
+toDoX DOH  HTTP2  = H2
+toDoX DOH  HTTP3  = H3
+toDoX DOQ      _  = DoQ
+toDoX _        _  = UDP {- temporary -}
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 pprDoX :: SocketProtocol -> HttpProtocol -> String
-pprDoX UDP  _          = "UDP"
-pprDoX TCP  _          = "TCP"
+pprDoX TAP.UDP  _      = "UDP"
+pprDoX TAP.TCP  _      = "TCP"
 pprDoX DOT  _          = "DoT"
 pprDoX DOH  HTTP_NONE  = "Hx"
 pprDoX DOH  HTTP1      = "H1"
