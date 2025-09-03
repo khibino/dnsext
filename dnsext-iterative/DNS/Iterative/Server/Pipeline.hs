@@ -167,8 +167,8 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
             record env inp replyMsg bs
             setWorkerStat $ WWaitEnqueue inputDoX EnSend
             inputToSender $ Output bs inputPendingOp inputPeerInfo
-            setWorkerStat $ WWaitEnqueue inputDoX EnEnd
         Left _e -> logicDenied env inp
+    setWorkerStat $ WWaitEnqueue inputDoX EnEnd
 
 ----------------------------------------------------------------
 
