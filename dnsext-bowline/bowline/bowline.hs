@@ -137,8 +137,9 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     -- recover root-privilege to bind network-port and to access private-key on reloading
     (runWriter, env, addrs, mas, monInfo, masock) <- withRoot ruid conf rootpriv
     -- actions list for threads
+    cacherStats <- Server.getWorkerStats cnf_cachers
     workerStats <- Server.getWorkerStats cnf_workers
-    (cachers, workers, toCacher) <- Server.mkPipeline env cnf_cachers cnf_workers workerStats
+    (cachers, workers, toCacher) <- Server.mkPipeline env cacherStats workerStats
     servers <- sequence [(n,sks,) <$> mkserv env toCacher sks | (n, mkserv, sks) <- addrs, not (null sks)]
     mng <- getControl env workerStats mng0{reopenLog = reopenLog0}
     let srvInfo1 name sas = unwords $ (name ++ ":") : map show sas
