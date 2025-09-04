@@ -9,7 +9,6 @@ module DNS.Iterative.Server.HTTP2 (
 ) where
 
 -- GHC packages
-import Control.Exception (bracket)
 import Control.Monad (forever)
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as C8
@@ -119,13 +118,11 @@ doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
             p <- showVcPendings pendings
             logLn env Log.DEMO (name ++ "-send: " ++ es ++ ": " ++p)
             dequeueVcPendings pendings senderQ
-        sfinalize (Output _ VcPendingOp{..} _) = vpDelete
-        sender = hsend $ forever $
-            bracket fromX sfinalize $ \(Output bs' _ peerInfo) -> do
-                let ~(PeerInfoStream _ sprstrm) = peerInfo
-                    header = mkHeader bs'
-                    response = H2.responseBuilder HT.ok200 header $ byteString bs'
-                sioWriteResponse (fromSuperStream sprstrm) response
+        sender = hsend $ forever $ do
+            Output bs' _ (PeerInfoStream _ sprstrm) <- fromX
+            let header = mkHeader bs'
+                response = H2.responseBuilder HT.ok200 header $ byteString bs'
+            sioWriteResponse (fromSuperStream sprstrm) response
     return $ sbracket $ TStat.concurrently_ ("bw." ++ name ++ "-send") sender ("bw." ++ name ++ "-recv") receiver
   where
     mkHeader bs =
