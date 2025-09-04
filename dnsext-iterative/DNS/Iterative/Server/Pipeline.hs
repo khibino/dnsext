@@ -4,8 +4,10 @@
 module DNS.Iterative.Server.Pipeline (
     mkPipeline,
     mkConnector,
+    mkConnector',
     mkInput,
     noPendingOp,
+    pendingOp,
     getWorkerStats,
     VcFinished (..),
     VcPendings,
@@ -13,12 +15,16 @@ module DNS.Iterative.Server.Pipeline (
     VcSession (..),
     withVcTimer,
     initVcSession,
+    initVcSession',
     waitVcInput,
     waitVcOutput,
     enableVcEof,
     enableVcTimeout,
     addVcPending,
     delVcPending,
+    showVcPendings,
+    nullVcPendings,
+    dequeueVcPendings,
     checkReceived,
     controlledRecvVC,
     receiverVC,
@@ -30,11 +36,12 @@ module DNS.Iterative.Server.Pipeline (
     receiverLogic',
     logLn,
     retryUntil,
+    exceptionCase,
 ) where
 
 -- GHC packages
 import Control.Concurrent.STM
-import Control.Exception (AsyncException, Exception (..), SomeException (..), bracket, handle, throwIO)
+import Control.Exception (AsyncException, Exception (..), SomeException (..), bracket, handle, throwIO, try)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.IntSet as Set
@@ -299,10 +306,10 @@ type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteS
 
 {- FOURMOLU_DISABLE -}
 mkInput :: SockAddr -> (ToSender -> IO ()) -> DoX -> MkInput
-mkInput mysa toSender dox bs peerInfo pendingOp ts =
+mkInput mysa toSender dox bs peerInfo pendingOp' ts =
     Input
     { inputQuery      = bs
-    , inputPendingOp  = pendingOp
+    , inputPendingOp  = pendingOp'
     , inputMysa       = mysa
     , inputPeerInfo   = peerInfo
     , inputDoX        = dox
@@ -425,6 +432,13 @@ receiverLogic' env mysa recv toCacher toSender dox = do
 noPendingOp :: VcPendingOp
 noPendingOp = VcPendingOp{vpReqNum = 0, vpDelete = pure ()}
 
+pendingOp :: TVar VcPendings -> Int -> (IO (), VcPendingOp)
+pendingOp pendings i = (addPending, pop)
+  where
+    addPending = atomically $ addVcPending pendings i
+    delPending = atomically $ delVcPending pendings i
+    pop = VcPendingOp{vpReqNum = i, vpDelete = delPending}
+
 getSendVC :: VcTimer -> (BS -> Peer -> IO ()) -> BS -> Peer -> IO ()
 getSendVC timer send bs peerInfo = resetVcTimer timer >> send bs peerInfo
 
@@ -524,11 +538,18 @@ withVcTimer
     -> IO a
 withVcTimer micro actionTO = bracket (initVcTimer micro actionTO) finalizeVcTimer
 
-{- FOURMOLU_DISABLE -}
 initVcSession
     :: IO (STM VcWaitRead)
     -> IO (VcSession, ToSender -> IO (), IO FromX)
-initVcSession getWaitIn = do
+initVcSession  getWaitIn = do
+    (a, b, c, _) <- initVcSession' getWaitIn
+    pure (a, b, c)
+
+{- FOURMOLU_DISABLE -}
+initVcSession'
+    :: IO (STM VcWaitRead)
+    -> IO (VcSession, ToSender -> IO (), IO FromX, TBQueue ToSender)
+initVcSession' getWaitIn = do
     vcEof       <- newTVarIO False
     vcTimeout   <- newTVarIO False
     vcPendings  <- newTVarIO Set.empty
@@ -548,7 +569,7 @@ initVcSession getWaitIn = do
             , vcAllowInput_     = allowInput
             , vcWaitRead_       = getWaitIn
             }
-    pure (result, toSender, fromX)
+    pure (result, toSender, fromX, senderQ)
 {- FOURMOLU_ENABLE -}
 
 enableVcEof :: TVar VcEof -> STM ()
@@ -563,8 +584,24 @@ addVcPending pendings i = modifyTVar' pendings (Set.insert i)
 delVcPending :: TVar VcPendings -> Int -> STM ()
 delVcPending pendings i = modifyTVar' pendings (Set.delete i)
 
+showVcPendings :: TVar VcPendings -> IO String
+showVcPendings pendings = show <$> atomically (readTVar pendings)
+
+nullVcPendings :: TVar VcPendings -> IO Bool
+nullVcPendings pendings = Set.null <$> atomically (readTVar pendings)
+
 resetVcTimer :: VcTimer -> IO ()
 resetVcTimer VcTimer{..} = updateTimeout vtManager_ vtKey_ vtMicrosec_
+
+dequeueVcPendings :: TVar VcPendings -> TBQueue ToSender -> IO ()
+dequeueVcPendings pendings senderQ = loop
+  where
+    loop = do
+        nn <- not . Set.null <$> atomically (readTVar pendings)
+        when nn $ do
+            Output _ VcPendingOp{..} _ <- atomically (readTBQueue senderQ)
+            vpDelete
+            when nn loop
 
 waitVcInput :: VcSession -> IO Bool
 waitVcInput VcSession{..} = do
@@ -628,12 +665,18 @@ retryUntil = guard
 
 mkConnector :: IO (ToSender -> IO (), IO FromX, STM VcRespAvail, STM VcAllowInput)
 mkConnector = do
+    (a, b, c, d, _, _) <- mkConnector'
+    pure (a, b, c, d)
+
+mkConnector' :: IO (ToSender -> IO (), IO FromX, STM VcRespAvail, STM VcAllowInput, TBQueue ToSender, TVar VcPendings)
+mkConnector' = do
     let queueBound = 8 {- limit waiting area per session to constant size -}
         inputThreshold = succ queueBound `quot` 2
     qs <- newTBQueueIO queueBound
     let toSender = atomically . writeTBQueue qs
         fromX = atomically $ readTBQueue qs
-    return (toSender, fromX, not <$> isEmptyTBQueue qs, (<= inputThreshold) <$> lengthTBQueue qs)
+    vcPendings  <- newTVarIO Set.empty
+    return (toSender, fromX, not <$> isEmptyTBQueue qs, (<= inputThreshold) <$> lengthTBQueue qs, qs, vcPendings)
 
 ----------------------------------------------------------------
 
@@ -653,6 +696,19 @@ warnOnError env tag e = loggingExp env Log.WARN tag e
 
 loggingExp :: Env -> Log.Level -> String -> SomeException -> IO ()
 loggingExp env lv tag (SomeException e) = logLn env lv (tag ++ ": exception: " ++ show e)
+
+
+exceptionCase :: (String -> IO ()) -> IO a -> IO a
+exceptionCase logLn' body = do
+    e <- try body
+    either handler pure e
+  where
+    logging e = logLn' $ "received exception: " ++ (show e)
+    handler :: SomeException -> IO a
+    handler e
+        | Just ae <- fromException e :: Maybe AsyncCancelled  = logging ae >> throwIO ae
+        | Just ae <- fromException e :: Maybe AsyncException  = logging ae >> throwIO ae
+        | otherwise                                           = logging e  >> throwIO e
 
 ----------------------------------------------------------------
 

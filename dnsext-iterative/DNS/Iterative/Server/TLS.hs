@@ -57,7 +57,7 @@ tlsServer VcServerConfig{..} env toCacher s = do
             peerInfo = PeerInfoVC peersa
         logLn env Log.DEBUG $ "tls-srv: accept: " ++ show peersa
         inpq <- newTQueueIO
-        (vcSess, toSender, fromX) <- initVcSession (return $ checkInp inpq)
+        (vcSess, toSender, fromX, senderQ) <- initVcSession' (return $ checkInp inpq)
         E.bracket (TStat.forkIO "bw.tls-reader" $ reader backend inpq) killThread $ \_ -> do
             withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) $ \vcTimer -> do
                 let recv = getInp inpq
@@ -65,9 +65,14 @@ tlsServer VcServerConfig{..} env toCacher s = do
                         checkReceived vc_slowloris_size vcTimer bs
                         incStatsDoT peersa (stats_ env)
                 let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC (H2.sendMany backend) bs
-                    receiver = receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DoT
-                    logExpSend = loggingException (logLn env Log.DEMO) "tls-send"
-                    sender = logExpSend $ senderVC "tls-send" env vcSess send fromX
+                    hrecv = exceptionCase $ \es -> logLn env Log.DEMO ("tls-recv: " ++ es)
+                    receiver = hrecv $ receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DoT
+                    hsend = exceptionCase $ \es -> do
+                        let pendings = vcPendings_ vcSess
+                        p <- showVcPendings pendings
+                        logLn env Log.DEMO ("tls-send: " ++ es ++ ": " ++ p)
+                        dequeueVcPendings pendings senderQ
+                    sender = hsend $ senderVC "tls-send" env vcSess send fromX
                 TStat.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
             logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 
