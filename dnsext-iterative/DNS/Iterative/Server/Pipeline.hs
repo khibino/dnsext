@@ -19,6 +19,7 @@ module DNS.Iterative.Server.Pipeline (
     enableVcTimeout,
     addVcPending,
     delVcPending,
+    showVcPendings,
     checkReceived,
     controlledRecvVC,
     receiverVC,
@@ -563,6 +564,9 @@ addVcPending pendings i = modifyTVar' pendings (Set.insert i)
 
 delVcPending :: TVar VcPendings -> Int -> STM ()
 delVcPending pendings i = modifyTVar' pendings (Set.delete i)
+
+showVcPendings :: TVar VcPendings -> IO String
+showVcPendings pendings = show <$> atomically (readTVar pendings)
 
 resetVcTimer :: VcTimer -> IO ()
 resetVcTimer VcTimer{..} = updateTimeout vtManager_ vtKey_ vtMicrosec_
