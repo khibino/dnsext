@@ -4,8 +4,10 @@
 module DNS.Iterative.Server.Pipeline (
     mkPipeline,
     mkConnector,
+    mkConnector',
     mkInput,
     noPendingOp,
+    pendingOp,
     getWorkerStats,
     VcFinished (..),
     VcPendings,
@@ -304,10 +306,10 @@ type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteS
 
 {- FOURMOLU_DISABLE -}
 mkInput :: SockAddr -> (ToSender -> IO ()) -> DoX -> MkInput
-mkInput mysa toSender dox bs peerInfo pendingOp ts =
+mkInput mysa toSender dox bs peerInfo pendingOp' ts =
     Input
     { inputQuery      = bs
-    , inputPendingOp  = pendingOp
+    , inputPendingOp  = pendingOp'
     , inputMysa       = mysa
     , inputPeerInfo   = peerInfo
     , inputDoX        = dox
@@ -429,6 +431,13 @@ receiverLogic' env mysa recv toCacher toSender dox = do
 
 noPendingOp :: VcPendingOp
 noPendingOp = VcPendingOp{vpReqNum = 0, vpDelete = pure ()}
+
+pendingOp :: TVar VcPendings -> Int -> (IO (), VcPendingOp)
+pendingOp pendings i = (addPending, pop)
+  where
+    addPending = atomically $ addVcPending pendings i
+    delPending = atomically $ delVcPending pendings i
+    pop = VcPendingOp{vpReqNum = i, vpDelete = delPending}
 
 getSendVC :: VcTimer -> (BS -> Peer -> IO ()) -> BS -> Peer -> IO ()
 getSendVC timer send bs peerInfo = resetVcTimer timer >> send bs peerInfo
@@ -656,12 +665,18 @@ retryUntil = guard
 
 mkConnector :: IO (ToSender -> IO (), IO FromX, STM VcRespAvail, STM VcAllowInput)
 mkConnector = do
+    (a, b, c, d, _, _) <- mkConnector'
+    pure (a, b, c, d)
+
+mkConnector' :: IO (ToSender -> IO (), IO FromX, STM VcRespAvail, STM VcAllowInput, TBQueue ToSender, TVar VcPendings)
+mkConnector' = do
     let queueBound = 8 {- limit waiting area per session to constant size -}
         inputThreshold = succ queueBound `quot` 2
     qs <- newTBQueueIO queueBound
     let toSender = atomically . writeTBQueue qs
         fromX = atomically $ readTBQueue qs
-    return (toSender, fromX, not <$> isEmptyTBQueue qs, (<= inputThreshold) <$> lengthTBQueue qs)
+    vcPendings  <- newTVarIO Set.empty
+    return (toSender, fromX, not <$> isEmptyTBQueue qs, (<= inputThreshold) <$> lengthTBQueue qs, qs, vcPendings)
 
 ----------------------------------------------------------------
 
