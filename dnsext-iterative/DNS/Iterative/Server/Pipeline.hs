@@ -13,6 +13,7 @@ module DNS.Iterative.Server.Pipeline (
     VcSession (..),
     withVcTimer,
     initVcSession,
+    initVcSession',
     waitVcInput,
     waitVcOutput,
     enableVcEof,
@@ -20,6 +21,8 @@ module DNS.Iterative.Server.Pipeline (
     addVcPending,
     delVcPending,
     showVcPendings,
+    nullVcPendings,
+    dequeueVcPendings,
     checkReceived,
     controlledRecvVC,
     receiverVC,
@@ -526,11 +529,18 @@ withVcTimer
     -> IO a
 withVcTimer micro actionTO = bracket (initVcTimer micro actionTO) finalizeVcTimer
 
-{- FOURMOLU_DISABLE -}
 initVcSession
     :: IO (STM VcWaitRead)
     -> IO (VcSession, ToSender -> IO (), IO FromX)
-initVcSession getWaitIn = do
+initVcSession  getWaitIn = do
+    (a, b, c, _) <- initVcSession' getWaitIn
+    pure (a, b, c)
+
+{- FOURMOLU_DISABLE -}
+initVcSession'
+    :: IO (STM VcWaitRead)
+    -> IO (VcSession, ToSender -> IO (), IO FromX, TBQueue ToSender)
+initVcSession' getWaitIn = do
     vcEof       <- newTVarIO False
     vcTimeout   <- newTVarIO False
     vcPendings  <- newTVarIO Set.empty
@@ -550,7 +560,7 @@ initVcSession getWaitIn = do
             , vcAllowInput_     = allowInput
             , vcWaitRead_       = getWaitIn
             }
-    pure (result, toSender, fromX)
+    pure (result, toSender, fromX, senderQ)
 {- FOURMOLU_ENABLE -}
 
 enableVcEof :: TVar VcEof -> STM ()
@@ -568,8 +578,21 @@ delVcPending pendings i = modifyTVar' pendings (Set.delete i)
 showVcPendings :: TVar VcPendings -> IO String
 showVcPendings pendings = show <$> atomically (readTVar pendings)
 
+nullVcPendings :: TVar VcPendings -> IO Bool
+nullVcPendings pendings = Set.null <$> atomically (readTVar pendings)
+
 resetVcTimer :: VcTimer -> IO ()
 resetVcTimer VcTimer{..} = updateTimeout vtManager_ vtKey_ vtMicrosec_
+
+dequeueVcPendings :: TVar VcPendings -> TBQueue ToSender -> IO ()
+dequeueVcPendings pendings senderQ = loop
+  where
+    loop = do
+        nn <- not . Set.null <$> atomically (readTVar pendings)
+        when nn $ do
+            Output _ VcPendingOp{..} _ <- atomically (readTBQueue senderQ)
+            vpDelete
+            when nn loop
 
 waitVcInput :: VcSession -> IO Bool
 waitVcInput VcSession{..} = do
