@@ -98,7 +98,8 @@ doHTTP
     -> IO (IO ())
 doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
     (toSender, fromX, _, _) <- mkConnector
-    let receiver = forever $ do
+    let hrecv = exceptionCase $ \es -> logLn env Log.DEMO (name ++ "-recv: " ++ es)
+        receiver = hrecv $ forever $ do
             (sprstrm, req) <- sioReadRequest
             ts <- currentTimeUsec_ env
             let peerInfo = PeerInfoStream sioPeerSockAddr (toSuperStream sprstrm)
@@ -109,8 +110,8 @@ doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
                     let inp = mkInput sioMySockAddr toSender dox bs peerInfo noPendingOp ts
                     incQuery sioPeerSockAddr
                     toCacher inp
-        logExpSend = loggingException (logLn env Log.DEMO) (name ++ "-send")
-        sender = logExpSend $ forever $ do
+        hsend = exceptionCase $ \es -> logLn env Log.DEMO (name ++ "-send: " ++ es)
+        sender = hsend $ forever $ do
             Output bs' _ (PeerInfoStream _ sprstrm) <- fromX
             let header = mkHeader bs'
                 response = H2.responseBuilder HT.ok200 header $ byteString bs'

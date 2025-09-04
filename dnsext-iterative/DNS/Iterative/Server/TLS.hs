@@ -65,9 +65,12 @@ tlsServer VcServerConfig{..} env toCacher s = do
                         checkReceived vc_slowloris_size vcTimer bs
                         incStatsDoT peersa (stats_ env)
                 let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC (H2.sendMany backend) bs
-                    receiver = receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DoT
-                    logExpSend = loggingException (logLn env Log.DEMO) "tls-send"
-                    sender = logExpSend $ senderVC "tls-send" env vcSess send fromX
+                    hrecv = exceptionCase $ \es -> logLn env Log.DEMO ("tls-recv: " ++ es)
+                    receiver = hrecv $ receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DoT
+                    hsend = exceptionCase $ \es -> do
+                        p <- showVcPendings (vcPendings_ vcSess)
+                        logLn env Log.DEMO ("tls-send: " ++ es ++ ": " ++ p)
+                    sender = hsend $ senderVC "tls-send" env vcSess send fromX
                 TStat.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
             logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 
