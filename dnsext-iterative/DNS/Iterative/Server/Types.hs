@@ -21,7 +21,6 @@ module DNS.Iterative.Server.Types (
     SockAddr (..),
     withFdSocket,
     loggingException,
-    loggingTimeout,
     socketName,
     SuperStream (..),
 ) where
@@ -30,7 +29,6 @@ module DNS.Iterative.Server.Types (
 import Control.Exception (AsyncException, Exception (..), SomeException, throwIO, try)
 import Data.ByteString (ByteString)
 import System.IO.Error (ioeSetLocation, tryIOError)
-import System.Timeout
 
 -- libs
 import Control.Concurrent.Async (AsyncCancelled)
@@ -142,7 +140,3 @@ loggingException logLn prefix body = do
         | Just ae <- fromException e :: Maybe AsyncCancelled  = logging ae >> throwIO ae
         | Just ae <- fromException e :: Maybe AsyncException  = logging ae >> throwIO ae
         | otherwise                                           = logging e  >> throwIO e
-
-loggingTimeout :: IO () -> Int -> IO () -> IO ()
-loggingTimeout logging intv x =
-    maybe logging pure =<< timeout intv x
