@@ -30,11 +30,12 @@ module DNS.Iterative.Server.Pipeline (
     receiverLogic',
     logLn,
     retryUntil,
+    exceptionCase,
 ) where
 
 -- GHC packages
 import Control.Concurrent.STM
-import Control.Exception (AsyncException, Exception (..), SomeException (..), bracket, handle, throwIO)
+import Control.Exception (AsyncException, Exception (..), SomeException (..), bracket, handle, throwIO, try)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.IntSet as Set
@@ -653,6 +654,19 @@ warnOnError env tag e = loggingExp env Log.WARN tag e
 
 loggingExp :: Env -> Log.Level -> String -> SomeException -> IO ()
 loggingExp env lv tag (SomeException e) = logLn env lv (tag ++ ": exception: " ++ show e)
+
+
+exceptionCase :: (String -> IO ()) -> IO a -> IO a
+exceptionCase logLn' body = do
+    e <- try body
+    either handler pure e
+  where
+    logging e = logLn' $ "received exception: " ++ (show e)
+    handler :: SomeException -> IO a
+    handler e
+        | Just ae <- fromException e :: Maybe AsyncCancelled  = logging ae >> throwIO ae
+        | Just ae <- fromException e :: Maybe AsyncException  = logging ae >> throwIO ae
+        | otherwise                                           = logging e  >> throwIO e
 
 ----------------------------------------------------------------
 
