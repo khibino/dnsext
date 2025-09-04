@@ -115,7 +115,8 @@ doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
             rloop (i+1)
         receiver = hrecv $ rloop 1
         hsend = exceptionCase $ \es -> do
-            logLn env Log.DEMO (name ++ "-send: " ++ es)
+            p <- showVcPendings pendings
+            logLn env Log.DEMO (name ++ "-send: " ++ es ++ ": " ++p)
             dequeueVcPendings pendings senderQ
         sender = hsend $ forever $ do
             Output bs' _ (PeerInfoStream _ sprstrm) <- fromX
