@@ -44,7 +44,16 @@ resultShort :: Printer DNSMessage
 resultShort DNSMessage{..} = rrsShort answer
 
 rrsShort :: Printer [ResourceRecord]
-rrsShort rs = mapM_ rrShort rs
+rrsShort [] = return ()
+rrsShort (r0 : rs0) = do
+    rrShort r0
+    loop rs0
+  where
+    loop [] = return ()
+    loop (r : rs) = do
+        nl
+        rrShort r
+        loop rs
 
 rrShort :: Printer ResourceRecord
 rrShort ResourceRecord{..} = do
@@ -52,7 +61,6 @@ rrShort ResourceRecord{..} = do
     string . prettyRData =<< getFlags
     let keyTag dnskey = string (" (key_tag: " ++ show (Verify.keyTag dnskey) ++ ")")
     maybe (pure ()) keyTag $ fromRData rdata
-    nl
 
 ----------------------------------------------------------------
 
