@@ -125,13 +125,13 @@ lookupAAAA = lookupX AAAA
 --   posted on the internet).
 --
 --   >>> withLookupConf defaultLookupConf $ \env -> lookupMX env "example.com"
---   Right [RD_MX {mx_preference = 0, mx_exchange = "."}]
+--   Right [0 .]
 --
 --
 --   The domain \"mew.org\" does however have a single MX:
 --
 --   >>> withLookupConf defaultLookupConf $ \env -> lookupMX env "mew.org"
---   Right [RD_MX {mx_preference = 10, mx_exchange = "mail.mew.org."}]
+--   Right [10 mail.mew.org.]
 --
 --   Also note that all hostnames are returned with a trailing dot to
 --   indicate the DNS root.

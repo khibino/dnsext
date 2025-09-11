@@ -276,8 +276,11 @@ data RD_MX = RD_MX
     , mx_exchange   :: Domain
     -- ^ Setter/getter for 'Domain'
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 {- FOURMOLU_ENABLE -}
+
+instance Show RD_MX where
+    show RD_MX{..} = show mx_preference ++ " " ++ toRepresentation mx_exchange
 
 {- FOURMOLU_DISABLE -}
 instance ResourceData RD_MX where
