@@ -153,7 +153,7 @@ main = do
         putStr $ usageInfo msg options
         putStr "\n"
         putStrLn "  <proto>     = auto | tcp | dot | doq | h2 | h2c | h3"
-        putStrLn "  <format>    = multi | json"
+        putStrLn "  <format>    = multi | json | short"
         putStrLn "  <verbosity> = 0 | 1 | 2 | 3"
         exitSuccess
     ------------------------
@@ -179,7 +179,7 @@ main = do
             opts <- checkFallbackV4 opts1 [(ip, 53) | (ip, _) <- ips]
             recursiveQuery ips port putLnSTM putLinesSTM qs opts tq
     ------------------------
-    when (optFormat /= JSONstyle) $ putTime t0 putLines
+    when (optFormat `notElem` [Short, JSONstyle]) $ putTime t0 putLines
     killLogger
     sentinel tq
     deprecated
@@ -296,6 +296,7 @@ mkPutline format putLinesSTM msg = putLinesSTM Log.WARN Nothing [res msg]
     res = case format of
         JSONstyle -> showJSON
         Singleline -> pprResult []
+        Short -> pprResult [Short]
         Multiline -> pprResult [Multiline]
 
 ----------------------------------------------------------------
@@ -389,6 +390,7 @@ convDoX dox = case dox' of
 convOutputFlag :: String -> OutputFlag
 convOutputFlag "json"  = JSONstyle
 convOutputFlag "multi" = Multiline
+convOutputFlag "short" = Short
 convOutputFlag _       = Singleline
 
 ----------------------------------------------------------------
