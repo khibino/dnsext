@@ -153,7 +153,7 @@ main = do
         putStr $ usageInfo msg options
         putStr "\n"
         putStrLn "  <proto>     = auto | tcp | dot | doq | h2 | h2c | h3"
-        putStrLn "  <format>    = multi | json"
+        putStrLn "  <format>    = multi | json | short"
         putStrLn "  <verbosity> = 0 | 1 | 2 | 3"
         exitSuccess
     ------------------------
