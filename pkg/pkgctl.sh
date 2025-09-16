@@ -55,7 +55,7 @@ build_conf() {
         -e 's@^cache-size: .*$@cache-size: 2097152@' \
         -e 's@^cert-file: .*$@cert-file: etc/fullchain.pem@' \
         -e 's@^key-file: .*$@key-file: etc/privkey.pem@' \
-        -e 's@^cachers: .*$@cacher: 1@' \
+        -e 's@^cachers: .*$@cachers: 1@' \
         -e 's@^workers: .*$@workers: 256@' \
         -e 's@^h2c: .*@h2c: no@' \
         -e 's@^monitor-stdio: .*@monitor-stdio: no@' \
