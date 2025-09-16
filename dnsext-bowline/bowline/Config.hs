@@ -13,7 +13,6 @@ module Config (
 import Control.Applicative
 import qualified Control.Exception as E
 import Control.Monad.Trans.State (StateT (..), evalStateT)
-import qualified Data.ByteString.Base16 as B16
 import Data.Char (toUpper)
 import Data.Functor
 import Data.List
@@ -476,7 +475,7 @@ decodeNSID s =
     maybe (fail "nsid: NSID must be hex-string or ascii-string with ascii_ prefix") (pure . OD_NSID) $ decodeAscii <|> decodeB16
   where
     decodeAscii = fromString <$> stripPrefix "ascii_" s
-    decodeB16 = either (\_ -> Nothing) (Just . Opaque.fromByteString) $ B16.decode $ fromString s
+    decodeB16 = either (\_ -> Nothing) Just $ Opaque.fromBase16 $ fromString s
 
 {- FOURMOLU_DISABLE -}
 uidForName :: String -> IO UserID
