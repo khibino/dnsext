@@ -54,7 +54,6 @@ executable bowline
         dnsext-utils,
         -- other packages
         async,
-        base16-bytestring,
         http-types,
         iproute,
         network >= 3.2.3 && < 3.3,
