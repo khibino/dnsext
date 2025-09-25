@@ -10,12 +10,12 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (when)
+import qualified DNS.Log as Log
 import qualified DNS.TAP.FastStream as FSTRM
 import DNS.TAP.Schema
 import qualified DNS.ThreadStats as TStat
 import Data.IORef
 import Network.Socket
-import qualified DNS.Log as Log
 
 import Config
 
@@ -70,11 +70,11 @@ exec Config{..} q ref logP = E.bracket setup teardown $ \sock -> do
         open = socket AF_UNIX Stream defaultProtocol
         conn sock = do
             connect sock $ SockAddrUnix cnf_dnstap_socket_path
-            logLn Log.INFO ("DNSTAP connected: " ++  cnf_dnstap_socket_path)
+            logLn Log.INFO ("DNSTAP connected: " ++ cnf_dnstap_socket_path)
             return sock
     teardown s = do
         writeIORef ref False
-        logLn Log.INFO ("DNSTAP disconnected: " ++  cnf_dnstap_socket_path)
+        logLn Log.INFO ("DNSTAP disconnected: " ++ cnf_dnstap_socket_path)
         close s
 
 control :: Config -> IO () -> IO ()

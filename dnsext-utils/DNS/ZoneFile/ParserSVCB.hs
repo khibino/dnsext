@@ -5,25 +5,26 @@ module DNS.ZoneFile.ParserSVCB where
 -- GHC
 import Control.Applicative
 import Control.Monad
+import qualified Data.ByteString.Short as Short
 import Data.Char (chr)
 import Data.Functor
 import Data.List
 import Data.String (fromString)
 import Data.Word
-import qualified Data.ByteString.Short as Short
 import qualified Data.Word8 as W8
 import Text.Read (readMaybe)
 
 -- dnsext-*
-import DNS.Types (Domain, RData, TYPE)
-import qualified DNS.Types.Opaque as Opaque
+
 import DNS.SVCB hiding (TYPE)
 import DNS.SVCB.Internal
+import DNS.Types (Domain, RData, TYPE)
+import qualified DNS.Types.Opaque as Opaque
 
 -- this package
 import DNS.Parser
-import DNS.ZoneFile.Types
 import DNS.ZoneFile.ParserBase
+import DNS.ZoneFile.Types
 
 rdatasSVCB :: MonadParser Token s m => m Domain -> [(TYPE, m RData)]
 rdatasSVCB dom =

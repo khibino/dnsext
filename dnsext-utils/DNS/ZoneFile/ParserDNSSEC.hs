@@ -9,13 +9,13 @@ import Data.Word
 
 -- dnsext-* packages
 import DNS.SEC
-import DNS.Types (RData, Opaque)
+import DNS.Types (Opaque, RData)
 import qualified DNS.Types.Opaque as Opaque
 
 -- this package
 import DNS.Parser
-import DNS.ZoneFile.Types
 import DNS.ZoneFile.ParserBase
+import DNS.ZoneFile.Types
 
 {- FOURMOLU_DISABLE -}
 rdatasDNSSEC :: MonadParser Token s m => [(TYPE, m RData)]

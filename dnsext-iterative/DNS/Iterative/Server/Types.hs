@@ -137,6 +137,6 @@ loggingException logLn prefix body = do
     logging e = logLn $ prefix ++ ": received exception: " ++ (show e)
     handler :: SomeException -> IO a
     handler e
-        | Just ae <- fromException e :: Maybe AsyncCancelled  = logging ae >> throwIO ae
-        | Just ae <- fromException e :: Maybe AsyncException  = logging ae >> throwIO ae
-        | otherwise                                           = logging e  >> throwIO e
+        | Just ae <- fromException e :: Maybe AsyncCancelled = logging ae >> throwIO ae
+        | Just ae <- fromException e :: Maybe AsyncException = logging ae >> throwIO ae
+        | otherwise = logging e >> throwIO e

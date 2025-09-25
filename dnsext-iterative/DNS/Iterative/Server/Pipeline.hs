@@ -53,7 +53,7 @@ import Control.Concurrent.Async (AsyncCancelled)
 -- dnsext packages
 import DNS.Do53.Internal (VCLimit, decodeVCLength)
 import qualified DNS.Log as Log
-import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOT, DOH, DOQ))
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOH, DOQ, DOT))
 import qualified DNS.TAP.Schema as DNSTAP
 import qualified DNS.ThreadStats as TStat
 import DNS.Types
@@ -541,7 +541,7 @@ withVcTimer micro actionTO = bracket (initVcTimer micro actionTO) finalizeVcTime
 initVcSession
     :: IO (STM VcWaitRead)
     -> IO (VcSession, ToSender -> IO (), IO FromX)
-initVcSession  getWaitIn = do
+initVcSession getWaitIn = do
     (a, b, c, _) <- initVcSession' getWaitIn
     pure (a, b, c)
 
@@ -675,7 +675,7 @@ mkConnector' = do
     qs <- newTBQueueIO queueBound
     let toSender = atomically . writeTBQueue qs
         fromX = atomically $ readTBQueue qs
-    vcPendings  <- newTVarIO Set.empty
+    vcPendings <- newTVarIO Set.empty
     return (toSender, fromX, not <$> isEmptyTBQueue qs, (<= inputThreshold) <$> lengthTBQueue qs, qs, vcPendings)
 
 ----------------------------------------------------------------
@@ -697,7 +697,6 @@ warnOnError env tag e = loggingExp env Log.WARN tag e
 loggingExp :: Env -> Log.Level -> String -> SomeException -> IO ()
 loggingExp env lv tag (SomeException e) = logLn env lv (tag ++ ": exception: " ++ show e)
 
-
 exceptionCase :: (String -> IO ()) -> IO a -> IO a
 exceptionCase logLn' body = do
     e <- try body
@@ -706,9 +705,9 @@ exceptionCase logLn' body = do
     logging e = logLn' $ "received exception: " ++ (show e)
     handler :: SomeException -> IO a
     handler e
-        | Just ae <- fromException e :: Maybe AsyncCancelled  = logging ae >> throwIO ae
-        | Just ae <- fromException e :: Maybe AsyncException  = logging ae >> throwIO ae
-        | otherwise                                           = logging e  >> throwIO e
+        | Just ae <- fromException e :: Maybe AsyncCancelled = logging ae >> throwIO ae
+        | Just ae <- fromException e :: Maybe AsyncException = logging ae >> throwIO ae
+        | otherwise = logging e >> throwIO e
 
 ----------------------------------------------------------------
 
