@@ -3577,7 +3577,7 @@ See 'config.log' for more details" "$LINENO" 5; } ;; #(
 esac
 
 ac_fn_check_decl "$LINENO" "IPPROTO_TCP" "ac_cv_have_decl_IPPROTO_TCP" "$ac_includes_default
-#ifdef HAVE_NETINET_TCP_H
+#ifdef HAVE_NETINET_IN_H
 # include <netinet/in.h>
 #endif
 
