@@ -13,7 +13,7 @@ AC_CHECK_HEADERS([netinet/in.h netinet/tcp.h])
 
 AC_CHECK_DECLS([IPPROTO_TCP], [], [],
 [AC_INCLUDES_DEFAULT[
-#ifdef HAVE_NETINET_TCP_H
+#ifdef HAVE_NETINET_IN_H
 # include <netinet/in.h>
 #endif
 ]])

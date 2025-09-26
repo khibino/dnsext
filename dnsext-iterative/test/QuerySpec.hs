@@ -260,9 +260,13 @@ querySpec disableV6NS putLines = describe "query" $ do
         printQueryError result
         checkVResult result `shouldBe` VEmpty DNS.NoErr
 
-    it "get-reply - nx via cname" $ do
-        result <- getReply "media.yahoo.com." A 0
-        either (const Failed) checkAnswer result `shouldBe` NotEmpty DNS.NameErr
+    let cnamePointNX = "cnnx.ts.reasonings.cc."
+    it "get-reply - nx via cname - cname" $ do
+        rcname <- getReply cnamePointNX CNAME 0
+        either (const Failed) checkAnswer rcname `shouldBe` NotEmpty DNS.NoErr
+    it "get-reply - nx via cname - nx" $ do
+        result <- getReply cnamePointNX A 0
+        either (const DNS.ServFail) DNS.rcode result `shouldBe` DNS.NameErr
 
     it "get-reply - a accumulated via cname" $ do
         result <- getReply "media-router-aol1.prod.media.yahoo.com." A 0
