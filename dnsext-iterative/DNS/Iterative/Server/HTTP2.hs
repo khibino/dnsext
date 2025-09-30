@@ -154,7 +154,5 @@ recvHTTP2 req = go id
     go build = do
         bs <- H2.getRequestBodyChunk req
         if C8.null bs
-            then
-                return $ C8.concat $ build []
-            else
-                go (build . (bs :))
+            then return $ C8.concat $ build []
+            else go (build . (bs :))
