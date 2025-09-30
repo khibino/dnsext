@@ -15,7 +15,6 @@ import qualified Data.Word8 as W8
 import Text.Read (readMaybe)
 
 -- dnsext-*
-
 import DNS.SVCB hiding (TYPE)
 import DNS.SVCB.Internal
 import DNS.Types (Domain, RData, TYPE)
