@@ -115,18 +115,20 @@ doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
                     toCacher inp
             rloop (i + 1)
         receiver = hrecv $ rloop 1
+        --
         hsend = exceptionCase $ \es -> do
             p <- showVcPendings pendings
             logLn env Log.DEMO (name ++ "-send: " ++ es ++ ": " ++ p)
             dequeueVcPendings pendings senderQ
         sfinalize (Output _ VcPendingOp{..} _) = vpDelete
-        sender = hsend $
+        sloop =
             forever $
                 bracket fromX sfinalize $ \(Output bs' _ peerInfo) -> do
                     let ~(PeerInfoStream _ sprstrm) = peerInfo
                         header = mkHeader bs'
                         response = H2.responseBuilder HT.ok200 header $ byteString bs'
                     sioWriteResponse (fromSuperStream sprstrm) response
+        sender = hsend sloop
     return $ sbracket $ TStat.concurrently_ ("bw." ++ name ++ "-send") sender ("bw." ++ name ++ "-recv") receiver
   where
     mkHeader bs =
@@ -152,7 +154,5 @@ recvHTTP2 req = go id
     go build = do
         bs <- H2.getRequestBodyChunk req
         if C8.null bs
-            then
-                return $ C8.concat $ build []
-            else
-                go (build . (bs :))
+            then return $ C8.concat $ build []
+            else go (build . (bs :))

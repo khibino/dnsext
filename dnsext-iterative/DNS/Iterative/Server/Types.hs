@@ -20,18 +20,15 @@ module DNS.Iterative.Server.Types (
     Socket,
     SockAddr (..),
     withFdSocket,
-    loggingException,
     socketName,
     SuperStream (..),
 ) where
 
 -- GHC
-import Control.Exception (AsyncException, Exception (..), SomeException, throwIO, try)
 import Data.ByteString (ByteString)
 import System.IO.Error (ioeSetLocation, tryIOError)
 
 -- libs
-import Control.Concurrent.Async (AsyncCancelled)
 import Data.IP (fromSockAddr)
 import qualified Network.HTTP2.Server.Internal as H2I
 import qualified Network.QUIC as QUIC
@@ -128,15 +125,3 @@ socketName s = do
     return $ case fromSockAddr sa of
         Nothing -> "(no name)"
         Just (ip, pn) -> show ip ++ "#" ++ show pn
-
-loggingException :: (String -> IO ()) -> String -> IO a -> IO a
-loggingException logLn prefix body = do
-    e <- try body
-    either handler pure e
-  where
-    logging e = logLn $ prefix ++ ": received exception: " ++ (show e)
-    handler :: SomeException -> IO a
-    handler e
-        | Just ae <- fromException e :: Maybe AsyncCancelled = logging ae >> throwIO ae
-        | Just ae <- fromException e :: Maybe AsyncException = logging ae >> throwIO ae
-        | otherwise = logging e >> throwIO e
