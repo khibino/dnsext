@@ -697,6 +697,7 @@ warnOnError env tag e = loggingExp env Log.WARN tag e
 loggingExp :: Env -> Log.Level -> String -> SomeException -> IO ()
 loggingExp env lv tag (SomeException e) = logLn env lv (tag ++ ": exception: " ++ show e)
 
+{- FOURMOLU_DISABLE -}
 exceptionCase :: (String -> IO ()) -> IO a -> IO a
 exceptionCase logLn' body = do
     e <- try body
@@ -705,9 +706,10 @@ exceptionCase logLn' body = do
     logging e = logLn' $ "received exception: " ++ (show e)
     handler :: SomeException -> IO a
     handler e
-        | Just ae <- fromException e :: Maybe AsyncCancelled = logging ae >> throwIO ae
-        | Just ae <- fromException e :: Maybe AsyncException = logging ae >> throwIO ae
-        | otherwise = logging e >> throwIO e
+        | Just ae <- fromException e :: Maybe AsyncCancelled  = logging ae >> throwIO ae
+        | Just ae <- fromException e :: Maybe AsyncException  = logging ae >> throwIO ae
+        | otherwise                                           = logging e  >> throwIO e
+{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
