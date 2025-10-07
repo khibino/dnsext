@@ -27,9 +27,6 @@ import DNS.Types
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
 
-norec' :: MonadEnv m => Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
-norec' dnssecOK aservers name typ = asksEnv id >>= \env -> norec env dnssecOK aservers name typ
-
 {- FOURMOLU_DISABLE -}
 {- Get the answer DNSMessage from the authoritative server.
    Note about flags in request to an authoritative server.
