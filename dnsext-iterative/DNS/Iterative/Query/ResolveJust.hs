@@ -47,7 +47,6 @@ import DNS.Iterative.Query.Cache
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Delegation
 import DNS.Iterative.Query.Helpers
-import qualified DNS.Iterative.Query.Norec as Norec
 import DNS.Iterative.Query.Random
 import qualified DNS.Iterative.Query.StubZone as Stub
 import DNS.Iterative.Query.Types
@@ -590,7 +589,7 @@ norec dnssecOK aservers name typ = do
         maxQueryCount <- asksEnv maxQueryCount_
         let ~exceeded = "max-query-count (==" ++ show maxQueryCount ++ ") exceeded: " ++ showQ' "query" name typ ++ ", " ++ orig
         when (qcount > maxQueryCount) $ logLn Log.WARN exceeded >> left ServerFailure
-        Norec.norec' dnssecOK aservers name typ >>= either left handleResponse
+        queryNorec dnssecOK aservers name typ >>= either left handleResponse
     handleResponse = handleResponseError (NE.toList aservers) throwQuery pure
     left e = cacheDNSError name typ Cache.RankAnswer e >> dnsError e
     dnsError e = throwQuery $ uncurry DnsError $ unwrapDNSErrorInfo e
