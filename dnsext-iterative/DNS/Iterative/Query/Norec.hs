@@ -1,7 +1,7 @@
 {-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE NumericUnderscores #-}
 
-module DNS.Iterative.Query.Norec (norec') where
+module DNS.Iterative.Query.Norec where
 
 -- GHC packages
 
@@ -27,14 +27,16 @@ import DNS.Types
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
 
+norec' :: MonadEnv m => Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
+norec' dnssecOK aservers name typ = asksEnv id >>= \env -> norec env dnssecOK aservers name typ
+
 {- FOURMOLU_DISABLE -}
 {- Get the answer DNSMessage from the authoritative server.
    Note about flags in request to an authoritative server.
   * RD (Recursion Desired) must be 0 for request to authoritative server
   * EDNS must be enable for DNSSEC OK request -}
-norec' :: MonadEnv m => Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
-norec' dnssecOK aservers name typ = do
-    cxt <- asksEnv id
+norec :: MonadIO m => Env -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
+norec cxt dnssecOK aservers name typ = do
     let riActions =
             defaultResolveActions
                 { ractionGenId        = idGen_ cxt
