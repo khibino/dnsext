@@ -58,6 +58,8 @@ import qualified DNS.Iterative.Query.ZoneMap as ZMap
 import DNS.Iterative.Query.TestEnv
 
 -- $setup
+-- >>> :seti -XMonadComprehensions
+-- >>> :seti -XOverloadedLists
 -- >>> :seti -XOverloadedStrings
 -- >>> :seti -Wno-incomplete-uni-patterns
 -- >>> import System.IO
@@ -496,6 +498,19 @@ delegationFallbacks dc dnssecOK ah d0 name typ = do
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+-- |
+--
+-- >>> putNSlist = mapM_ $ \(n, as) -> putStrLn $ "NS: " ++ n ++ " " ++ show as
+-- >>> putNorec as = putStrLn $ "norec.addrs: " ++ show as
+-- >>> fallbacks = delegationFallbacks_ (liftIO . putStrLn) (liftIO . putNSlist) 2 True 0 True (liftIO . putNorec)
+-- >>> mkNSlist nss = [de | (ns, axs) <- nss, let de = case axs of { [] -> DEonlyNS ns; a:as -> DEwithA4 ns (a:|as)}]
+-- >>> delegation zone nss = Delegation{delegationZone=zone, delegationNS=mkNSlist nss, delegationDS=FilledDS [], delegationDNSKEY=[], delegationFresh=CachedD}
+-- >>> env <- _newTestEnv $ \_ -> pure ()
+-- >>> queryParam' dom typ = queryParamIN dom typ mempty
+-- >>> runF zone nss dom typ = runDNSQuery (fallbacks (delegation zone nss) dom typ) env (queryParam' dom typ)
+-- >>> -- runF "example.com." [("ns.example.com.", ["192.0.2.17", "198.51.100.33", "203.0.113.49"])] "x.example.com." A
+-- >>> runF "reasonings.cc." [("ns.reasonings.cc.", ["192.0.2.17"]), ("adam.ns.cloudflare.com.", [])] "test.ns.reasonings.cc." A
+--
 delegationFallbacks_
     :: MonadQuery m
     => (String -> m c)
