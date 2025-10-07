@@ -76,6 +76,7 @@ class MonadEnv m => MonadQuery m where
     asksQS :: (QueryState -> a) -> m a
     throwQuery :: QueryError -> m a
     catchQuery :: m a -> (QueryError -> m a) -> m a
+    queryNorec :: Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
 
 setQS :: MonadQuery m => (QueryState -> StateVal a n) -> a -> m ()
 setQS f x = do

@@ -27,6 +27,7 @@ import qualified DNS.Types as DNS
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
+import DNS.Iterative.Query.Norec (norec)
 
 ----------
 
@@ -60,6 +61,8 @@ instance MonadIO m => MonadQuery (QueryT m) where
     {-# INLINEABLE throwQuery #-}
     catchQuery = catchE
     {-# INLINEABLE catchQuery #-}
+    queryNorec dnssecOK aservers name typ = asksEnv id >>= \env -> norec env dnssecOK aservers name typ
+    {-# INLINEABLE queryNorec #-}
 
 runDNSQuery' :: DNSQuery a -> Env -> QueryParam -> IO (Either QueryError a, QueryState)
 runDNSQuery' q e p = do
