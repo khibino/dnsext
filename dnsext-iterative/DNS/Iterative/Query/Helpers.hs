@@ -161,7 +161,7 @@ foldDNSErrorToRCODE n j e = case e of
     IllegalDomain           -> j ServFail
     FormatError             -> j FormatErr
     ServerFailure           -> j ServFail
-    NameError               -> j NameErr
+    NameError               -> j NXDomain
     NotImplemented          -> j NotImpl
     OperationRefused        -> j Refused
     BadOptRecord            -> j BadVers

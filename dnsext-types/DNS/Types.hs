@@ -226,7 +226,7 @@ module DNS.Types (
         NoErr,
         FormatErr,
         ServFail,
-        NameErr,
+        NXDomain,
         NotImpl,
         Refused,
         YXDomain,
@@ -286,7 +286,7 @@ fromDNSMessage ans conv = case rcode ans of
     NoErr -> Right $ conv ans
     FormatErr -> Left FormatError
     ServFail -> Left ServerFailure
-    NameErr -> Left NameError
+    NXDomain -> Left NameError
     NotImpl -> Left NotImplemented
     Refused -> Left OperationRefused
     BadVers -> Left BadOptRecord

@@ -121,7 +121,7 @@ lookupRR dom typ = lookupWithHandler h ((": " ++) . show . snd) "" dom typ
 lookupErrorRCODE :: MonadEnv m => Domain -> m (Maybe (RCODE, Ranking))
 lookupErrorRCODE dom = lookupWithHandler h ((": " ++) . show . snd) "" dom Cache.ERR
   where
-    h _ _ = handleHits1 (negativeCases (\_ _ _ -> Just . (,) NameErr) (\rc _ -> Just . (,) rc)) (\_ _ _ -> Nothing)
+    h _ _ = handleHits1 (negativeCases (\_ _ _ -> Just . (,) NXDomain) (\rc _ -> Just . (,) rc)) (\_ _ _ -> Nothing)
 
 {- FOURMOLU_DISABLE -}
 -- | looking up NO Data or Valid RRset from cache
@@ -354,7 +354,7 @@ cacheAnswer d@Delegation{..} dom typ msg = do
     doCacheEmpty = case rcode of
         {- authority sections for null answer -}
         DNS.NoErr      -> cacheSectionNegative zone dnskeys dom typ       rankedAnswer msg =<< witnessNoDatas
-        DNS.NameErr    -> cacheSectionNegative zone dnskeys dom Cache.ERR rankedAnswer msg =<< witnessNameErr
+        DNS.NXDomain   -> cacheSectionNegative zone dnskeys dom Cache.ERR rankedAnswer msg =<< witnessNameErr
         _ | crc rcode  -> cacheSectionNegative zone dnskeys dom typ       rankedAnswer msg []
           | otherwise  -> pure []
       where
@@ -375,7 +375,7 @@ cacheAnswer d@Delegation{..} dom typ msg = do
 cacheNoDelegation :: MonadQuery m => Delegation -> Domain -> [RD_DNSKEY] -> Domain -> DNSMessage -> m ()
 cacheNoDelegation d zone dnskeys dom msg
     | rcode == DNS.NoErr = cacheNoDataNS $> ()
-    | rcode == DNS.NameErr = nameErrors $> ()
+    | rcode == DNS.NXDomain = nameErrors $> ()
     | otherwise = pure ()
   where
     nameErrors = asksQP requestCD_ >>=

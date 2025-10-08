@@ -106,7 +106,7 @@ lookupCacheSection env@LookupEnv{..} q@Question{..} = do
         Just (_, Negative (NegNoSOA rc)) -> return $ Left $ case rc of
             FormatErr -> FormatError
             ServFail -> ServerFailure
-            NameErr -> NameError
+            NXDomain -> NameError
             Refused -> OperationRefused
             _ -> UnknownDNSError
         Just (_, _) -> return $ Left UnknownDNSError {- cache is inconsistent -}

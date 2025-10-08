@@ -496,13 +496,13 @@ pattern FormatErr = RCODE 1
 pattern ServFail :: RCODE
 pattern ServFail = RCODE 2
 
--- | Name Error - Meaningful only for
+-- | Non Existent Domain - Meaningful only for
 --   responses from an authoritative name
 --   server, this code signifies that the
 --   domain name referenced in the query does
 --   not exist.
-pattern NameErr :: RCODE
-pattern NameErr = RCODE 3
+pattern NXDomain :: RCODE
+pattern NXDomain = RCODE 3
 
 -- | Not Implemented - The name server does
 --   not support the requested kind of query.
@@ -590,7 +590,7 @@ instance Show RCODE where
     show NoErr = "NoError"
     show FormatErr = "FormErr"
     show ServFail = "ServFail"
-    show NameErr = "NXDomain"
+    show NXDomain = "NXDomain"
     show NotImpl = "NotImp"
     show Refused = "Refused"
     show YXDomain = "YXDomain"

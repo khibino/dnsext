@@ -128,7 +128,7 @@ resolveLogic logMark left right cnameHandler typeHandler (Question n0 typ cls) =
             =<< lookupType name Cache.ERR
       where
         {- authority section is cached as RankAdditional, so not applying guardReply -}
-        soah soa nsecs _rank = pure $ Just (NameErr, soa : nsecs)
+        soah soa nsecs _rank = pure $ Just (NXDomain, soa : nsecs)
         inconsistent rrs = do
             logLn_ Log.WARN $ "inconsistent ERR cache found: dom=" ++ show name ++ ", " ++ show rrs
             return Nothing

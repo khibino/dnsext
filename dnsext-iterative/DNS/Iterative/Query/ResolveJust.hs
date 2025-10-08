@@ -203,7 +203,7 @@ iterative dc nss0 (x : xs)  = do
     lookupERR = fmap fst <$> lookupErrorRCODE name
     withoutMsg md = pure (Nothing, md)
     withERRC rc = case rc of
-        NameErr    -> withoutMsg noDelegation
+        NXDomain   -> withoutMsg noDelegation
         ServFail   -> throw' ServerFailure
         FormatErr  -> throw' FormatError
         Refused    -> throw' OperationRefused
