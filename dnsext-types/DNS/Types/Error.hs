@@ -32,7 +32,7 @@ data DNSError
       ServerFailure
     | -- | This code signifies that the domain name referenced in the
       --   query does not exist.
-      NameError
+      NonExistentDomain
     | -- | The name server does not support the requested kind of query.
       NotImplemented
     | -- | The name server refuses to perform the specified operation for
@@ -70,7 +70,7 @@ instance Eq DNSError where
     IllegalDomain          == IllegalDomain          = True
     FormatError            == FormatError            = True
     ServerFailure          == ServerFailure          = True
-    NameError              == NameError              = True
+    NonExistentDomain      == NonExistentDomain      = True
     NotImplemented         == NotImplemented         = True
     OperationRefused       == OperationRefused       = True
     BadOptRecord           == BadOptRecord           = True
