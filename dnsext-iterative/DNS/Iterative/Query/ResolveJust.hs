@@ -551,7 +551,7 @@ resolveNS zone disableV6NS dc ns = do
         q64 = AAAA +!? A
         tx +!? ty = do
             x@(rc, xs) <- querySection tx
-            {- not fallback for NameErr case -}
+            {- not fallback for NXDomain case -}
             if rc == NoErr && null xs then querySection ty else pure x
         querySection typ = do
             logLn Log.DEMO $ unwords ["resolveNS:", show (ns, typ), "dc:" ++ show dc, "->", show (succ dc)]

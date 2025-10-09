@@ -359,7 +359,7 @@ cacheAnswer d@Delegation{..} dom typ msg = do
           | otherwise  -> pure []
       where
         crc rc = rc `elem` [DNS.FormatErr, DNS.ServFail, DNS.Refused]
-        nullK = nsecFailed $ "no NSEC/NSEC3 for NameErr/NoData: " ++ show dom ++ " " ++ show typ
+        nullK = nsecFailed $ "no NSEC/NSEC3 for NXDomain/NoData: " ++ show dom ++ " " ++ show typ
         (witnessNoDatas, witnessNameErr) = negativeWitnessActions nullK d dom typ msg
     ncX _ncLog = pure ([], [])
     withX = Verify.withResult typ (\vmsg -> vmsg ++ ": " ++ show dom) $ \_xs xRRset _cacheX -> do
@@ -434,7 +434,7 @@ negativeWitnessActions nullK Delegation{..} qname qtype msg =
         | otherwise  = Verify.getNameError zone dnskeys rankedAuthority msg qname
                        nullK invalidK (noWitnessK "NameError")
                        resultK resultK3
-    invalidK s = failed $ "NSEC/NSEC3 NameErr/NoData: " ++ qinfo ++ " :\n" ++ s
+    invalidK s = failed $ "NSEC/NSEC3 NXDomain/NoData: " ++ qinfo ++ " :\n" ++ s
     noWitnessK wn s = failed $ "cannot find " ++ wn ++ " witness: " ++ qinfo ++ " : " ++ s
     resultK  w rrsets _ = success w *> winfo witnessInfoNSEC  w $> rrsets
     resultK3 w rrsets _ = success w *> winfo witnessInfoNSEC3 w $> rrsets
