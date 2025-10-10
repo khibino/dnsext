@@ -70,12 +70,12 @@ queryTag :: Question -> NameTag -> String
 queryTag Question{..} tag = tag'
   where
     ~tag' =
-        "    query "
+        "    query @"
+            ++ fromNameTag tag
+            ++ " "
             ++ show qname
             ++ " "
             ++ show qtype
-            ++ " to "
-            ++ fromNameTag tag
 
 analyzeReply :: Reply -> QueryControls -> Maybe QueryControls
 analyzeReply rply qctl0
