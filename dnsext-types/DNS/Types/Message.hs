@@ -496,7 +496,7 @@ pattern FormatErr = RCODE 1
 pattern ServFail :: RCODE
 pattern ServFail = RCODE 2
 
--- | Non Existent Domain - Meaningful only for
+-- | Non-Existent Domain - Meaningful only for
 --   responses from an authoritative name
 --   server, this code signifies that the
 --   domain name referenced in the query does
