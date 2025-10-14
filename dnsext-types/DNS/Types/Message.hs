@@ -504,6 +504,14 @@ pattern ServFail = RCODE 2
 pattern NXDomain :: RCODE
 pattern NXDomain = RCODE 3
 
+-- | Name Error
+--   NXDOMAIN was introduced in RFC 2308 as an alternative expression
+--   for 'Name Error' defined in RFC 1035.
+--   Since many RFCs still use the 'Name Error' expression in their
+--   descriptions,  we'll keep the alias for clarity.
+pattern NameErr :: RCODE
+pattern NameErr = NXDomain
+
 -- | Not Implemented - The name server does
 --   not support the requested kind of query.
 pattern NotImpl :: RCODE

@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module DNS.Types.Error where
 
 import Control.Exception (Exception, SomeException)
@@ -57,6 +59,12 @@ data DNSError
     | -- | Error is unknown
       UnknownDNSError
     deriving (Show)
+
+-- |
+--   Since many RFCs still use the 'Name Error' expression in their
+--   descriptions,  we'll keep the alias for clarity.
+pattern NameError :: DNSError
+pattern NameError = NonExistentDomain
 
 {- FOURMOLU_DISABLE -}
 -- SomeException is not an instance of Eq.
