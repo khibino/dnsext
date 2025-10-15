@@ -203,7 +203,7 @@ iterative dc nss0 (x : xs)  = do
     lookupERR = fmap fst <$> lookupErrorRCODE name
     withoutMsg md = pure (Nothing, md)
     withERRC rc = case rc of
-        NameErr    -> withoutMsg noDelegation
+        NXDomain   -> withoutMsg noDelegation
         ServFail   -> throw' ServerFailure
         FormatErr  -> throw' FormatError
         Refused    -> throw' OperationRefused
@@ -551,7 +551,7 @@ resolveNS zone disableV6NS dc ns = do
         q64 = AAAA +!? A
         tx +!? ty = do
             x@(rc, xs) <- querySection tx
-            {- not fallback for NameErr case -}
+            {- not fallback for NXDomain case -}
             if rc == NoErr && null xs then querySection ty else pure x
         querySection typ = do
             logLn Log.DEMO $ unwords ["resolveNS:", show (ns, typ), "dc:" ++ show dc, "->", show (succ dc)]

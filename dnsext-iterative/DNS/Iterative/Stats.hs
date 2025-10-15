@@ -354,7 +354,7 @@ fromRcode :: Map RCODE StatsIx
 fromRcode = Map.fromList [
     (FormatErr, RcodeFormErr)
   , (NotImpl,   RcodeNotImpl)
-  , (NameErr,   RcodeNXDomain)
+  , (NXDomain,  RcodeNXDomain)
   , (Refused,   RcodeRefused)
   , (ServFail,  RcodeServFail)
   ]

@@ -121,7 +121,7 @@ lookupRR dom typ = lookupWithHandler h ((": " ++) . show . snd) "" dom typ
 lookupErrorRCODE :: MonadEnv m => Domain -> m (Maybe (RCODE, Ranking))
 lookupErrorRCODE dom = lookupWithHandler h ((": " ++) . show . snd) "" dom Cache.ERR
   where
-    h _ _ = handleHits1 (negativeCases (\_ _ _ -> Just . (,) NameErr) (\rc _ -> Just . (,) rc)) (\_ _ _ -> Nothing)
+    h _ _ = handleHits1 (negativeCases (\_ _ _ -> Just . (,) NXDomain) (\rc _ -> Just . (,) rc)) (\_ _ _ -> Nothing)
 
 {- FOURMOLU_DISABLE -}
 -- | looking up NO Data or Valid RRset from cache
@@ -354,12 +354,12 @@ cacheAnswer d@Delegation{..} dom typ msg = do
     doCacheEmpty = case rcode of
         {- authority sections for null answer -}
         DNS.NoErr      -> cacheSectionNegative zone dnskeys dom typ       rankedAnswer msg =<< witnessNoDatas
-        DNS.NameErr    -> cacheSectionNegative zone dnskeys dom Cache.ERR rankedAnswer msg =<< witnessNameErr
+        DNS.NXDomain   -> cacheSectionNegative zone dnskeys dom Cache.ERR rankedAnswer msg =<< witnessNameErr
         _ | crc rcode  -> cacheSectionNegative zone dnskeys dom typ       rankedAnswer msg []
           | otherwise  -> pure []
       where
         crc rc = rc `elem` [DNS.FormatErr, DNS.ServFail, DNS.Refused]
-        nullK = nsecFailed $ "no NSEC/NSEC3 for NameErr/NoData: " ++ show dom ++ " " ++ show typ
+        nullK = nsecFailed $ "no NSEC/NSEC3 for NXDomain/NoData: " ++ show dom ++ " " ++ show typ
         (witnessNoDatas, witnessNameErr) = negativeWitnessActions nullK d dom typ msg
     ncX _ncLog = pure ([], [])
     withX = Verify.withResult typ (\vmsg -> vmsg ++ ": " ++ show dom) $ \_xs xRRset _cacheX -> do
@@ -375,7 +375,7 @@ cacheAnswer d@Delegation{..} dom typ msg = do
 cacheNoDelegation :: MonadQuery m => Delegation -> Domain -> [RD_DNSKEY] -> Domain -> DNSMessage -> m ()
 cacheNoDelegation d zone dnskeys dom msg
     | rcode == DNS.NoErr = cacheNoDataNS $> ()
-    | rcode == DNS.NameErr = nameErrors $> ()
+    | rcode == DNS.NXDomain = nameErrors $> ()
     | otherwise = pure ()
   where
     nameErrors = asksQP requestCD_ >>=
@@ -434,7 +434,7 @@ negativeWitnessActions nullK Delegation{..} qname qtype msg =
         | otherwise  = Verify.getNameError zone dnskeys rankedAuthority msg qname
                        nullK invalidK (noWitnessK "NameError")
                        resultK resultK3
-    invalidK s = failed $ "NSEC/NSEC3 NameErr/NoData: " ++ qinfo ++ " :\n" ++ s
+    invalidK s = failed $ "NSEC/NSEC3 NXDomain/NoData: " ++ qinfo ++ " :\n" ++ s
     noWitnessK wn s = failed $ "cannot find " ++ wn ++ " witness: " ++ qinfo ++ " : " ++ s
     resultK  w rrsets _ = success w *> winfo witnessInfoNSEC  w $> rrsets
     resultK3 w rrsets _ = success w *> winfo witnessInfoNSEC3 w $> rrsets

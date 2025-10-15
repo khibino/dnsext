@@ -77,10 +77,10 @@ handleResponseError :: [Address] -> (QueryError -> p) -> (DNSMessage -> p) -> DN
 handleResponseError addrs e f msg = exerror $ \ee -> e $ ExtraError ee addrs $ Just msg
   where
     exerror eh
-        | not (DNS.isResponse $ DNS.flags msg)              = eh   ErrorNotResp
-        | InvalidEDNS <- DNS.ednsHeader msg                 = eh $ ErrorEDNS $ DNS.ednsHeader msg
-        | DNS.rcode msg `notElem` [DNS.NoErr, DNS.NameErr]  = eh $ ErrorRCODE $ DNS.rcode msg
-        | otherwise                                         = f msg
+        | not (DNS.isResponse $ DNS.flags msg)               = eh   ErrorNotResp
+        | InvalidEDNS <- DNS.ednsHeader msg                  = eh $ ErrorEDNS $ DNS.ednsHeader msg
+        | DNS.rcode msg `notElem` [DNS.NoErr, DNS.NXDomain]  = eh $ ErrorRCODE $ DNS.rcode msg
+        | otherwise                                          = f msg
 {- FOURMOLU_ENABLE -}
 
 ----------

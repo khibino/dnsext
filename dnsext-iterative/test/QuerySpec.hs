@@ -210,7 +210,7 @@ querySpec disableV6NS putLines = describe "query" $ do
 
     it "resolve-just - nx NSEC" $ do
         result <- runJust "does-not-exist.dns-oarc.net." A
-        checkResult result `shouldBe` Empty DNS.NameErr
+        checkResult result `shouldBe` Empty DNS.NXDomain
 
     it "resolve-just - nodata NSEC" $ do
         result <- runJust "mail.dns-oarc.net." NS
@@ -218,7 +218,7 @@ querySpec disableV6NS putLines = describe "query" $ do
 
     it "resolve-just - nx NSEC3" $ do
         result <- runJust "does-not-exist.iij.ad.jp." A
-        checkResult result `shouldBe` Empty DNS.NameErr
+        checkResult result `shouldBe` Empty DNS.NXDomain
 
     it "resolve-just - nodata NSEC3" $ do
         result <- runJust "www.iij.ad.jp." NS
@@ -266,7 +266,7 @@ querySpec disableV6NS putLines = describe "query" $ do
         either (const Failed) checkAnswer rcname `shouldBe` NotEmpty DNS.NoErr
     it "get-reply - nx via cname - nx" $ do
         result <- getReply cnamePointNX A 0
-        either (const DNS.ServFail) DNS.rcode result `shouldBe` DNS.NameErr
+        either (const DNS.ServFail) DNS.rcode result `shouldBe` DNS.NXDomain
 
     it "get-reply - a accumulated via cname" $ do
         result <- getReply "media-router-aol1.prod.media.yahoo.com." A 0

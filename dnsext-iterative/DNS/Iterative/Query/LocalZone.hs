@@ -76,7 +76,7 @@ lookupApex = lookupApexOn lzDomain
 -- True
 -- >>> lk [kvp1 "a.example." A [rd_a "203.0.113.7"]] ("example.", LZ_Static, [soa]) "a.example." TXT == Just (NoErr,   [], [soa])
 -- True
--- >>> lk [kvp1 "a.example." A [rd_a "203.0.113.7"]] ("example.", LZ_Static, [soa]) "x.example." A   == Just (NameErr, [], [soa])
+-- >>> lk [kvp1 "a.example." A [rd_a "203.0.113.7"]] ("example.", LZ_Static, [soa]) "x.example." A   == Just (NXDomain, [], [soa])
 -- True
 -- >>> lk [kvp1 "example." A [rd_a "203.0.113.7"]] ("example.", LZ_Redirect, [soa]) "a.example." A   == Just (NoErr, [rrset "a.example." A [rd_a "203.0.113.7"]], [])
 -- True
@@ -85,7 +85,7 @@ lookupName nMap (apex, zt, soa) q = result zt
   where
     result LZ_Deny      =        lookup' Nothing             deny
     result LZ_Refuse    = Just $ lookup' (Refused, [], soa)  refuse
-    result LZ_Static    = Just $ lookup' (NameErr, [], soa)  static
+    result LZ_Static    = Just $ lookup' (NXDomain, [], soa)  static
     result LZ_Redirect  = Just $ lookupName' nMap q{qname = apex} (NoErr, [], soa) redirect
     lookup' = lookupName' nMap q
     deny rrss
