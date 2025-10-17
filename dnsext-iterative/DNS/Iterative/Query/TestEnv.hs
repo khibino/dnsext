@@ -11,7 +11,10 @@ import DNS.Types
 import DNS.Types.Time
 
 -- this package
+import DNS.Iterative.Imports hiding (insert)
+import DNS.Iterative.Query.Class (Address)
 import DNS.Iterative.Query.Env (Env (..), newEmptyEnv)
+import DNS.Iterative.Query.Norec (norec)
 
 newTestEnvNoCache :: ([String] -> IO ()) -> Bool -> IO Env
 newTestEnvNoCache putLines disableV6NS = (\env -> env{logLines_ = \_ _ -> putLines, disableV6NS_ = disableV6NS}) <$> newEmptyEnv
@@ -33,3 +36,6 @@ newTestEnv putLines disableV6NS cacheSize = do
     env0@Env{..} <- newEmptyEnv
     (getCache, insert) <- newTestCache currentSeconds_ cacheSize
     pure $ env0{logLines_ = \_ _ -> putLines, disableV6NS_ = disableV6NS, insert_ = insert, getCache_ = getCache}
+
+testNorec :: MonadIO m => Env -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
+testNorec = norec
