@@ -9,6 +9,8 @@ module DNS.Iterative.Query.Types (
     ContextT,
     chainedStateDS,
     QueryT,
+    runQueryT,
+    evalQueryT,
     DNSQuery,
     runDNSQuery,
     handleResponseError,
@@ -66,13 +68,16 @@ instance MonadQuery DNSQuery where
     queryNorec dnssecOK aservers name typ = asksEnv id >>= \env -> norec env dnssecOK aservers name typ
     {-# INLINEABLE queryNorec #-}
 
-runDNSQuery' :: DNSQuery a -> Env -> QueryParam -> IO (Either QueryError a, QueryState)
-runDNSQuery' q e p = do
-    s <- newQueryState
+runQueryT :: MonadIO m => QueryT m a -> Env -> QueryParam -> m (Either QueryError a, QueryState)
+runQueryT q e p = do
+    s <- liftIO newQueryState
     (,) <$> runReaderT (runReaderT (runReaderT (runExceptT q) e) p) s <*> pure s
 
+evalQueryT :: MonadIO m => QueryT m a -> Env -> QueryParam -> m (Either QueryError a)
+evalQueryT q e p = fst <$> runQueryT q e p
+
 runDNSQuery :: DNSQuery a -> Env -> QueryParam -> IO (Either QueryError a)
-runDNSQuery q e p = fst <$> runDNSQuery' q e p
+runDNSQuery = evalQueryT
 
 {- FOURMOLU_DISABLE -}
 -- example instances
