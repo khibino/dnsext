@@ -58,9 +58,15 @@ import qualified DNS.Iterative.Query.ZoneMap as ZMap
 import DNS.Iterative.Query.TestEnv
 
 -- $setup
+-- >>> :seti -XFlexibleContexts
+-- >>> :seti -XFlexibleInstances
+-- >>> :seti -XMonadComprehensions
 -- >>> :seti -XOverloadedStrings
 -- >>> :seti -Wno-incomplete-uni-patterns
+-- >>> :seti -Wno-name-shadowing
+-- >>> :seti -Wno-orphans
 -- >>> import System.IO
+-- >>> import Data.IP (IP (..))
 -- >>> import qualified DNS.Types.Opaque as Opaque
 -- >>> import DNS.SEC
 -- >>> DNS.runInitIO addResourceDataForDNSSEC
@@ -69,6 +75,10 @@ import DNS.Iterative.Query.TestEnv
 -- test env use from doctest
 _newTestEnv :: ([String] -> IO ()) -> IO Env
 _newTestEnv putLines = newTestEnvNoCache putLines True
+
+-- norec query use from doctest
+_testNorec :: MonadIO m => Env -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
+_testNorec = testNorec
 
 _findConsumed :: [String] -> IO ()
 _findConsumed ss
@@ -496,6 +506,47 @@ delegationFallbacks dc dnssecOK ah d0 name typ = do
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+-- |
+--
+-- >>> fallbacks = delegationFallbacks_ (const $ pure ()) (const $ pure ()) 2 True 0 True (const $ pure ())
+-- >>> --
+-- >>> foldIP0 ns = foldIPList' (DEonlyNS ns:|[]) (\v4 -> DEwithA4 ns v4:|[]) (\v6 -> DEwithA6 ns v6:|[]) (\v4 v6 -> DEwithAx ns v4 v6:|[])
+-- >>> foldIP ns ips = foldIP0 ns [i | IPv4 i <- ips] [i | IPv6 i <- ips]
+-- >>> nsList nss = [de | (ns, axs) <- nss, de <- foldIP ns axs]
+-- >>> delegation zone nss = Delegation{delegationZone=zone, delegationNS=nsList nss, delegationDS=FilledDS [], delegationDNSKEY=[], delegationFresh=CachedD}
+-- >>> --
+-- >>> env <- _newTestEnv $ \_ -> pure ()
+-- >>> qparam dom typ = queryParamIN dom typ mempty
+-- >>> --
+-- >>> type Case = (IP, Domain, TYPE, Either DNSError [RData])
+-- >>> type TestIO = QueryT (ReaderT [Case] IO)
+-- >>> qnorec dok as name typ = do { env <- asksEnv id ; _testNorec env dok as name typ }
+-- >>> rdRRs name typ rds = [ResourceRecord{rrname = name, rrtype = typ, rrclass = IN, rrttl = 600, rdata = rd} | rd <- rds]
+-- >>> dnsMsg name typ rds = defaultResponse{answer = rdRRs name typ rds}
+-- >>> lkCase0    aas name typ cs = [r | (ip, nm, ty, r) <- cs, let a:|as = aas, (ia, _) <- a:as, nm == name, ty == typ, ip == ia]
+-- >>> lkCase dok as  name typ cs = case [r | r@Right{} <- xs] ++ [l | l@Left{} <- xs] of { [] -> qnorec dok as name typ; x:_ -> pure $ dnsMsg name typ <$> x } where xs = lkCase0 as name typ cs
+-- >>> qlookup dok as name typ = do { cs <- lift $ lift $ lift $ lift ask ; lkCase dok as name typ cs }
+-- >>> instance MonadQuery TestIO where { queryNorec = qlookup }
+-- >>> --
+-- >>> runF0 zone nss dom typ cs = runReaderT (evalQueryT (fallbacks (delegation zone nss) dom typ) env (qparam dom typ)) (cs :: [Case])
+-- >>> runF  zone nss dom typ cs = fmap (map rdata . answer . fst) <$> runF0 zone nss dom typ cs
+-- >>> nssG2 = ("ns1.example.", ["192.0.2.17"]) :| [("ns2.example.", ["192.0.2.33"])]
+-- >>> casesG2 = [("192.0.2.17", "a.ts.reasonings.cc.", A, Left RetryLimitExceeded), ("192.0.2.33", "a.ts.reasonings.cc.", A, Right [rd_a "198.51.100.33"])]
+-- >>> runF "reasonings.cc." nssG2 "a.ts.reasonings.cc." A casesG2
+-- Right [198.51.100.33]
+-- >>> runF "reasonings.cc." (("nx.reasonings.cc.", []) :| []) "a.ts.reasonings.cc." A []
+-- Left (DnsError ServerFailure [])
+-- >>> runF "reasonings.cc." (("nx.reasonings.cc.", []) :| [("adam.ns.cloudflare.com.", [])]) "a.ts.reasonings.cc." A []
+-- Right [198.51.100.17]
+-- >>> nssG4 = ("ns3.example.", ["192.0.2.18"]) :| [("ns4.example.", ["192.0.2.19"]), ("ns1.example.", ["192.0.2.17"]), ("ns2.example.", ["192.0.2.33"])]
+-- >>> casesG4 = [(a, "a.ts.reasonings.cc.", A, Left RetryLimitExceeded) | a <- ["192.0.2.17", "192.0.2.18", "192.0.2.19"]] ++ [("192.0.2.33", "a.ts.reasonings.cc.", A, Right [rd_a "198.51.100.33"])]
+-- >>> runF "reasonings.cc." nssG4 "a.ts.reasonings.cc." A casesG4
+-- Right [198.51.100.33]
+-- >>> nssNS2 = ("ns3.example.", ["192.0.2.18"]) :| [("ns4.example.", ["192.0.2.19"]), ("ns1.example.", ["192.0.2.17"]), ("nx.reasonings.cc.", []), ("adam.ns.cloudflare.com.", [])]
+-- >>> casesNS2 = [(a, "a.ts.reasonings.cc.", A, Left RetryLimitExceeded) | a <- ["192.0.2.17", "192.0.2.18", "192.0.2.19"]]
+-- >>> runF "reasonings.cc." nssNS2 "a.ts.reasonings.cc." A casesNS2
+-- Right [198.51.100.17]
+--
 delegationFallbacks_
     :: MonadQuery m
     => (String -> m c)
