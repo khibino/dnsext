@@ -586,6 +586,31 @@ delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+resolveNStoAx :: MonadQuery m => Domain -> Bool -> Int -> Domain -> TYPE -> m (Either (RCODE, String) (NonEmpty (IP, RR)))
+resolveNStoAx zone disableV6NS dc ns typ = do
+    (rc, axs) <- querySection
+    list (failEmptyAx rc) (\a as -> pure $ Right $ a :| as) axs
+  where
+    axPairs = axList disableV6NS (== ns) (,)
+
+    querySection = do
+        logLn Log.DEMO $ unwords ["resolveNS:", show (ns, typ), "dc:" ++ show dc, "->", show (succ dc)]
+        {- resolve for not sub-level delegation. increase dc (delegation count) -}
+        recursiveCD <- maybe NoCheckDisabled (\_ -> CheckDisabled) <$> findNegativeTrustAnchor ns
+        {- negative-trust-anchor: <not found>: do DNSSEC checks, <found>: do not DNSSEC checks -}
+        localQP (\qp -> qp{requestCD_ = recursiveCD}) $ cacheAnswerAx =<< resolveExactDC (succ dc) ns typ
+    cacheAnswerAx (msg, d) = do
+        cacheAnswer d ns typ msg $> ()
+        pure (rcode msg, withSection rankedAnswer msg $ \rrs _rank -> axPairs rrs)
+
+    failEmptyAx rc = do
+        let emptyInfo = "empty " ++ show typ ++ if disableV6NS then " (disable-v6ns)" else ""
+        orig <- showQ "orig-query:" <$> asksQP origQuestion_
+        let errorInfo = (if rc == NoErr then emptyInfo else show rc) ++ " for NS,"
+        pure $ Left (rc, unwords $ errorInfo : ["ns: " ++ show ns ++ ",", "zone: " ++ show zone ++ ",", orig])
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 resolveNS :: MonadQuery m => Domain -> Bool -> Int -> Domain -> m (Either (RCODE, String) (NonEmpty (IP, RR)))
 resolveNS zone disableV6NS dc ns = do
     (rc, axs) <- query1Ax
