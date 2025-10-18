@@ -316,6 +316,7 @@ list nil _     []    =  nil
 list _   cons (x:xs) =  cons x xs
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 -- |
 -- >>> chunksOfNE 1 $ 'a' :| "b"
 -- ('a' :| "") :| ['b' :| ""]
@@ -324,20 +325,38 @@ list _   cons (x:xs) =  cons x xs
 -- >>> chunksOfNE 3 $ 'a' :| "bcdefgh"
 -- ('a' :| "bc") :| ['d' :| "ef",'g' :| "h"]
 chunksOfNE :: Int -> NonEmpty a -> NonEmpty (NonEmpty a)
-chunksOfNE n (x :| xs) = cpsChunksOfNE n x xs (:|)
+chunksOfNE n (x :| xs) = cpsChunksOf n x xs (:|)
 
-{- FOURMOLU_DISABLE -}
-cpsChunksOfNE :: Int -> a -> [a] -> (NonEmpty a -> [NonEmpty a] -> b) -> b
-cpsChunksOfNE n
-    | n < 1      = cpsChunksOfNE 1
+chunksOf' :: Int -> [a] -> [NonEmpty a]
+chunksOf' = cchunksOf
+
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf = cchunksOf
+
+class ConsList c where
+    ccons :: a -> [a] -> c a
+
+instance ConsList NonEmpty where
+    ccons = (:|)
+
+instance ConsList [] where
+    ccons = (:)
+
+cchunksOf :: ConsList c => Int -> [a] -> [c a]
+cchunksOf _  []      = []
+cchunksOf n (x : xs) = cpsChunksOf n x xs (:)
+
+cpsChunksOf :: ConsList c => Int -> a -> [a] -> (c a -> [c a] -> b) -> b
+cpsChunksOf n
+    | n < 1      = cpsChunksOf 1
     | otherwise  = go
   where
-    go :: a -> [a] -> (NonEmpty a -> [NonEmpty a] -> b) -> b
+    go :: ConsList c => a -> [a] -> (c a -> [c a] -> b) -> b
     go x xs k = case tl of
         []    -> k e1 []
         y:ys  -> k e1 (go y ys (:))
       where
-        e1 = x:|hd
+        e1 = x `ccons` hd
         (hd, tl) = splitAt (n - 1) xs
 {- FOURMOLU_ENABLE -}
 
