@@ -554,35 +554,34 @@ delegationFallbacks_
     -> Int -> Bool -> Int -> Bool -> ([Address] -> m b)
     -> Delegation -> Domain -> TYPE -> m (DNSMessage, Delegation)
 delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..} name typ = do
-    paxs1  <- dentryToPermAx disableV6NS dentry
-    pnss   <- dentryToPermNS zone dentry
-    fallbacks id d0 ("<cached>", \d n j -> list (n d) (\a as -> j d $ a :| as) paxs1) [(show ns, resolveNS' ns) | ns <- pnss]
+    paxs  <- dentryToPermAx disableV6NS dentry
+    pnss  <- dentryToPermNS zone dentry
+    fallbacksAx d0 paxs $ fallbacksNS (("<cached>", paxs) :) pnss
   where
-    dentry = NE.toList delegationNS
-    fallbacks aa d (tag, runAxs) runsAxs = runAxs d emp ne
-      where
-        emp d' = list (fh (aa []) >> throwDnsError ServerFailure) (fallbacks (aa . ((tag, []):)) d') runsAxs
-        ne d' paxs = list step (\g gs -> step `catchQuery` \e -> hlog e >> fallbacks (aa . ((tag, paxs'):)) d' g gs) runsAxs
-          where
-            step = case [ah (NE.toList axc) >> norec dnssecOK axc name typ | axc <- chunksOfNE qparallel paxs] of
-                f:|fs -> (,) <$> catches f fs <*> pure d'
-            paxs' = NE.toList paxs
-            hlog e = eh' $ unwords $ show e : "for" : map show paxs'
-    catches x  []     = x
-    catches x (y:xs)  = x `catchQuery` \_e -> catches y xs
-
-    resolveNS' ns d emp ne = do
-        {- tryError idiom, before mtl 2.3 -}
-        e <- (Right <$> resolveNS zone disableV6NS dc ns) `catchQuery` (pure . Left)
-        d' <- fillCachedDelegation d
-        either left (either rleft rright) e d'
-      where
-        left e d' = eh' (show e ++ " for resolving " ++ show ns) >> emp d'
-        rleft (_rc, ei) d' = eh' ei >> emp d'
-        rright axs d' = ne d' =<< randomizedPermN [(ip, 53) | (ip, _) <- axs]
     eh' = eh . ("delegationFallbacks: " ++)
-
+    dentry = NE.toList delegationNS
     zone = delegationZone
+
+    stepAx d axc nexts ea = ah (NE.toList axc) >> norec' `catchQuery` \ex -> nexts (ea . ((ex, NE.toList axc) :))
+      where norec' = (,) <$> norec dnssecOK axc name typ <*> pure d
+    fallbacksAx d axs fbs = foldr (stepAx d) (\ea -> emsg (ea []) >> fbs) (chunksOf' qparallel axs) id
+      where emsg es = unless (null es) (void $ eh' $ unlines $ unwords [show name, show typ, "failed:"] : map (("  " ++) . show) es)
+    resolveNS' ns tyAx = ( resolveNStoAx zone disableV6NS dc ns tyAx <&> \et -> case et of
+                             Left (rc, ei)  ->         Left $ show rc ++ " " ++ ei
+                             Right x        ->         Right x                     ) `catchQuery`
+                           \ex              ->  pure $ Left $ show ex
+    stepNS (ns, tyAx) fbs dP aa = do
+        res  <- resolveNS' ns tyAx
+        dN   <- fillCachedDelegation dP
+        let fallbacks' as = fbs dN $ aa . ((show ns, as) :)
+            left  e    = eh' (unwords [e, "for resolving", show ns, show tyAx]) >> fallbacks' []
+            right axs  = randomizedPermN [(ip, 53) | (ip, _) <- axs] <&> NE.toList >>= \ps -> fallbacksAx dN ps $ fallbacks' ps
+        either left right res
+    zero _d aa = fh (aa []) >> throwDnsError ServerFailure
+    randomizedAxs
+        | disableV6NS  = pure $ cycle [[A]]
+        | otherwise    = icycleM $ randomizedPerm [A, AAAA]
+    fallbacksNS aa nss = randomizedAxs >>= \axps -> foldr stepNS zero [(ns, ax) | (ns, axp) <- zip nss axps, ax <- axp] d0 aa
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
