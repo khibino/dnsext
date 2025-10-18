@@ -566,7 +566,7 @@ delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..
       where norec' = (,) <$> norec dnssecOK axc name typ <*> pure d
     fallbacksAx d axs fbs = foldr (stepAx d) (\ea -> emsg (ea []) >> fbs) (chunksOf' qparallel axs) id
       where emsg es = unless (null es) (void $ eh' $ unlines $ unwords [show name, show typ, "failed:"] : map (("  " ++) . show) es)
-    resolveNS' ns tyAx = ( resolveNStoAx zone disableV6NS dc ns tyAx <&> \et -> case et of
+    resolveNS' ns tyAx = ( resolveNS zone disableV6NS dc ns tyAx <&> \et -> case et of
                              Left (rc, ei)  ->         Left $ show rc ++ " " ++ ei
                              Right x        ->         Right x                     ) `catchQuery`
                            \ex              ->  pure $ Left $ show ex
@@ -585,8 +585,8 @@ delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-resolveNStoAx :: MonadQuery m => Domain -> Bool -> Int -> Domain -> TYPE -> m (Either (RCODE, String) (NonEmpty (IP, RR)))
-resolveNStoAx zone disableV6NS dc ns typ = do
+resolveNS :: MonadQuery m => Domain -> Bool -> Int -> Domain -> TYPE -> m (Either (RCODE, String) (NonEmpty (IP, RR)))
+resolveNS zone disableV6NS dc ns typ = do
     (rc, axs) <- querySection
     list (failEmptyAx rc) (\a as -> pure $ Right $ a :| as) axs
   where
@@ -604,41 +604,6 @@ resolveNStoAx zone disableV6NS dc ns typ = do
 
     failEmptyAx rc = do
         let emptyInfo = "empty " ++ show typ ++ if disableV6NS then " (disable-v6ns)" else ""
-        orig <- showQ "orig-query:" <$> asksQP origQuestion_
-        let errorInfo = (if rc == NoErr then emptyInfo else show rc) ++ " for NS,"
-        pure $ Left (rc, unwords $ errorInfo : ["ns: " ++ show ns ++ ",", "zone: " ++ show zone ++ ",", orig])
-{- FOURMOLU_ENABLE -}
-
-{- FOURMOLU_DISABLE -}
-resolveNS :: MonadQuery m => Domain -> Bool -> Int -> Domain -> m (Either (RCODE, String) (NonEmpty (IP, RR)))
-resolveNS zone disableV6NS dc ns = do
-    (rc, axs) <- query1Ax
-    list (failEmptyAx rc) (\a as -> pure $ Right $ a :| as) axs
-  where
-    axPairs = axList disableV6NS (== ns) (,)
-
-    query1Ax
-        | disableV6NS = querySection A
-        | otherwise = join $ randomizedChoice q46 q64
-      where
-        q46 = A +!? AAAA
-        q64 = AAAA +!? A
-        tx +!? ty = do
-            x@(rc, xs) <- querySection tx
-            {- not fallback for NXDomain case -}
-            if rc == NoErr && null xs then querySection ty else pure x
-        querySection typ = do
-            logLn Log.DEMO $ unwords ["resolveNS:", show (ns, typ), "dc:" ++ show dc, "->", show (succ dc)]
-            {- resolve for not sub-level delegation. increase dc (delegation count) -}
-            recursiveCD <- maybe NoCheckDisabled (\_ -> CheckDisabled) <$> findNegativeTrustAnchor ns
-            {- negative-trust-anchor: <not found>: do DNSSEC checks, <found>: do not DNSSEC checks -}
-            localQP (\qp -> qp{requestCD_ = recursiveCD}) $ cacheAnswerAx typ =<< resolveExactDC (succ dc) ns typ
-        cacheAnswerAx typ (msg, d) = do
-            cacheAnswer d ns typ msg $> ()
-            pure (rcode msg, withSection rankedAnswer msg $ \rrs _rank -> axPairs rrs)
-
-    failEmptyAx rc = do
-        let emptyInfo = if disableV6NS then "empty A (disable-v6ns)" else "empty A|AAAA"
         orig <- showQ "orig-query:" <$> asksQP origQuestion_
         let errorInfo = (if rc == NoErr then emptyInfo else show rc) ++ " for NS,"
         pure $ Left (rc, unwords $ errorInfo : ["ns: " ++ show ns ++ ",", "zone: " ++ show zone ++ ",", orig])
