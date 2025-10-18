@@ -5,6 +5,9 @@ module DNS.Iterative.Query.Random (
     randomizedSelects,
     randomizedPerm,
     randomizedPermN,
+    --
+    ireplicateM,
+    icycleM,
 ) where
 
 -- GHC packages
@@ -110,3 +113,12 @@ permStep nsz ss = do
     v <- readArray ss ix
     when (ix /= nsz) $ writeArray ss ix =<< readArray ss nsz
     pure v
+
+ireplicateM :: MonadIO m => Int -> IO a -> m [a]
+ireplicateM n action = liftIO $ take n <$> icycleIO action
+
+icycleM :: MonadIO m => IO a -> m [a]
+icycleM action = liftIO $ icycleIO action
+
+icycleIO :: IO a -> IO [a]
+icycleIO action = unsafeInterleaveIO $ (:) <$> action <*> icycleIO action
