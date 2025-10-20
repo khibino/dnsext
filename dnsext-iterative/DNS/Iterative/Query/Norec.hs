@@ -48,7 +48,7 @@ norec' dnssecOK aservers name typ = do
                 { rinfoIP        = aserver
                 , rinfoPort      = port
                 , rinfoActions   = riActions
-                , rinfoUDPRetry  = 1
+                , rinfoUDPRetry  = if length aservers == 1 then 2 else 1
                 , rinfoVCLimit   = 8 * 1024
                 }
             | (aserver, port) <- aservers
