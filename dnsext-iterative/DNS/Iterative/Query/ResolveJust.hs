@@ -554,67 +554,56 @@ delegationFallbacks_
     -> Int -> Bool -> Int -> Bool -> ([Address] -> m b)
     -> Delegation -> Domain -> TYPE -> m (DNSMessage, Delegation)
 delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..} name typ = do
-    paxs1  <- dentryToPermAx disableV6NS dentry
-    pnss   <- dentryToPermNS zone dentry
-    fallbacks id d0 ("<cached>", \d n j -> list (n d) (\a as -> j d $ a :| as) paxs1) [(show ns, resolveNS' ns) | ns <- pnss]
+    paxs  <- dentryToPermAx disableV6NS dentry
+    pnss  <- dentryToPermNS zone dentry
+    fallbacksAx d0 paxs $ fallbacksNS (("<cached>", paxs) :) pnss
   where
-    dentry = NE.toList delegationNS
-    fallbacks aa d (tag, runAxs) runsAxs = runAxs d emp ne
-      where
-        emp d' = list (fh (aa []) >> throwDnsError ServerFailure) (fallbacks (aa . ((tag, []):)) d') runsAxs
-        ne d' paxs = list step (\g gs -> step `catchQuery` \e -> hlog e >> fallbacks (aa . ((tag, paxs'):)) d' g gs) runsAxs
-          where
-            step = case [ah (NE.toList axc) >> norec dnssecOK axc name typ | axc <- chunksOfNE qparallel paxs] of
-                f:|fs -> (,) <$> catches f fs <*> pure d'
-            paxs' = NE.toList paxs
-            hlog e = eh' $ unwords $ show e : "for" : map show paxs'
-    catches x  []     = x
-    catches x (y:xs)  = x `catchQuery` \_e -> catches y xs
-
-    resolveNS' ns d emp ne = do
-        {- tryError idiom, before mtl 2.3 -}
-        e <- (Right <$> resolveNS zone disableV6NS dc ns) `catchQuery` (pure . Left)
-        d' <- fillCachedDelegation d
-        either left (either rleft rright) e d'
-      where
-        left e d' = eh' (show e ++ " for resolving " ++ show ns) >> emp d'
-        rleft (_rc, ei) d' = eh' ei >> emp d'
-        rright axs d' = ne d' =<< randomizedPermN [(ip, 53) | (ip, _) <- axs]
     eh' = eh . ("delegationFallbacks: " ++)
-
+    dentry = NE.toList delegationNS
     zone = delegationZone
+
+    stepAx d axc nexts ea = ah (NE.toList axc) >> norec' `catchQuery` \ex -> nexts (ea . ((ex, NE.toList axc) :))
+      where norec' = (,) <$> norec dnssecOK axc name typ <*> pure d
+    fallbacksAx d axs fbs = foldr (stepAx d) (\ea -> emsg (ea []) >> fbs) (chunksOf' qparallel axs) id
+      where emsg es = unless (null es) (void $ eh' $ unlines $ unwords [show name, show typ, "failed:"] : map (("  " ++) . show) es)
+    resolveNS' ns tyAx = ( resolveNS zone disableV6NS dc ns tyAx <&> \et -> case et of
+                             Left (rc, ei)  ->         Left $ show rc ++ " " ++ ei
+                             Right x        ->         Right x                     ) `catchQuery`
+                           \ex              ->  pure $ Left $ show ex
+    stepNS (ns, tyAx) fbs dP aa = do
+        res  <- resolveNS' ns tyAx
+        dN   <- fillCachedDelegation dP
+        let fallbacks' as = fbs dN $ aa . ((show ns, as) :)
+            left  e    = eh' (unwords [e, "for resolving", show ns, show tyAx]) >> fallbacks' []
+            right axs  = randomizedPermN [(ip, 53) | (ip, _) <- axs] <&> NE.toList >>= \ps -> fallbacksAx dN ps $ fallbacks' ps
+        either left right res
+    zero _d aa = fh (aa []) >> throwDnsError ServerFailure
+    randomizedAxs
+        | disableV6NS  = pure $ cycle [[A]]
+        | otherwise    = icycleM $ randomizedPerm [A, AAAA]
+    fallbacksNS aa nss = randomizedAxs >>= \axps -> foldr stepNS zero [(ns, ax) | (ns, axp) <- zip nss axps, ax <- axp] d0 aa
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-resolveNS :: MonadQuery m => Domain -> Bool -> Int -> Domain -> m (Either (RCODE, String) (NonEmpty (IP, RR)))
-resolveNS zone disableV6NS dc ns = do
-    (rc, axs) <- query1Ax
+resolveNS :: MonadQuery m => Domain -> Bool -> Int -> Domain -> TYPE -> m (Either (RCODE, String) (NonEmpty (IP, RR)))
+resolveNS zone disableV6NS dc ns typ = do
+    (rc, axs) <- querySection
     list (failEmptyAx rc) (\a as -> pure $ Right $ a :| as) axs
   where
     axPairs = axList disableV6NS (== ns) (,)
 
-    query1Ax
-        | disableV6NS = querySection A
-        | otherwise = join $ randomizedChoice q46 q64
-      where
-        q46 = A +!? AAAA
-        q64 = AAAA +!? A
-        tx +!? ty = do
-            x@(rc, xs) <- querySection tx
-            {- not fallback for NXDomain case -}
-            if rc == NoErr && null xs then querySection ty else pure x
-        querySection typ = do
-            logLn Log.DEMO $ unwords ["resolveNS:", show (ns, typ), "dc:" ++ show dc, "->", show (succ dc)]
-            {- resolve for not sub-level delegation. increase dc (delegation count) -}
-            recursiveCD <- maybe NoCheckDisabled (\_ -> CheckDisabled) <$> findNegativeTrustAnchor ns
-            {- negative-trust-anchor: <not found>: do DNSSEC checks, <found>: do not DNSSEC checks -}
-            localQP (\qp -> qp{requestCD_ = recursiveCD}) $ cacheAnswerAx typ =<< resolveExactDC (succ dc) ns typ
-        cacheAnswerAx typ (msg, d) = do
-            cacheAnswer d ns typ msg $> ()
-            pure (rcode msg, withSection rankedAnswer msg $ \rrs _rank -> axPairs rrs)
+    querySection = do
+        logLn Log.DEMO $ unwords ["resolveNS:", show (ns, typ), "dc:" ++ show dc, "->", show (succ dc)]
+        {- resolve for not sub-level delegation. increase dc (delegation count) -}
+        recursiveCD <- maybe NoCheckDisabled (\_ -> CheckDisabled) <$> findNegativeTrustAnchor ns
+        {- negative-trust-anchor: <not found>: do DNSSEC checks, <found>: do not DNSSEC checks -}
+        localQP (\qp -> qp{requestCD_ = recursiveCD}) $ cacheAnswerAx =<< resolveExactDC (succ dc) ns typ
+    cacheAnswerAx (msg, d) = do
+        cacheAnswer d ns typ msg $> ()
+        pure (rcode msg, withSection rankedAnswer msg $ \rrs _rank -> axPairs rrs)
 
     failEmptyAx rc = do
-        let emptyInfo = if disableV6NS then "empty A (disable-v6ns)" else "empty A|AAAA"
+        let emptyInfo = "empty " ++ show typ ++ if disableV6NS then " (disable-v6ns)" else ""
         orig <- showQ "orig-query:" <$> asksQP origQuestion_
         let errorInfo = (if rc == NoErr then emptyInfo else show rc) ++ " for NS,"
         pure $ Left (rc, unwords $ errorInfo : ["ns: " ++ show ns ++ ",", "zone: " ++ show zone ++ ",", orig])
