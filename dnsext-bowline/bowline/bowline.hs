@@ -359,8 +359,8 @@ getStats' env _ucacheQSize = do
 getWStats' :: [WorkerStatOP] -> [WorkerStatOP] -> IO Builder
 getWStats' cstats wstats =
     format
-    <$> Server.pprWorkerStats 0 cstats
-    <*> Server.pprWorkerStats 1 wstats
+    <$> (map ("cachers:" ++) <$> Server.pprWorkerStats 0 cstats)
+    <*> (map ("workers:" ++) <$> Server.pprWorkerStats 1 wstats)
  where
    format x y = fromString . unlines $ x ++ y
 {- FOURMOLU_ENABLE -}
