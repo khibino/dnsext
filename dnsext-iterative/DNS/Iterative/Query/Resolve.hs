@@ -37,7 +37,7 @@ runResolve
     -> IO (Either QueryError (([RRset], Domain), Either ResultRRS (ResultRRS' DNSMessage)))
 runResolve cxt q qctl = runDNSQuery (resolve q) cxt $ queryParam q qctl
 
-resolveByCache :: MonadQuery m => Question -> m (([RRset], Domain), Maybe ResultRRS)
+resolveByCache :: MonadContext m => Question -> m (([RRset], Domain), Maybe ResultRRS)
 resolveByCache = resolveLogic "cache" Just (const Nothing) (\_ -> pure ((), [], [])) (\_ _ -> pure $ Right ((), [], []))
 
 {- 反復検索を使って最終的な権威サーバーからの DNSMessage を得る.
@@ -53,7 +53,7 @@ resolve = resolveLogic "query" Left Right resolveCNAME resolveTYPE
    * left   :: ResultRRS -> b       - cached result
    * right  :: ResultRRS' a -> b    - queried result like (ResultRRS' DNSMessage)   -}
 resolveLogic
-    :: MonadQuery m
+    :: MonadContext m
     => String
     -> (ResultRRS -> b) -> (ResultRRS' a -> b)
     -> (Domain -> m (ResultRRS' a))
@@ -186,7 +186,7 @@ resolveTYPE bn typ = do
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-withNegativeTrustAnchor :: MonadQuery m => Domain -> m a -> m a
+withNegativeTrustAnchor :: MonadContext m => Domain -> m a -> m a
 withNegativeTrustAnchor qn action = do
    let cases _       CheckDisabled    = CheckDisabled
        cases Just{}  NoCheckDisabled  = CheckDisabled  {- negative-trust-anchor found -}
