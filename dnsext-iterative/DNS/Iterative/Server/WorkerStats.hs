@@ -16,7 +16,7 @@ import DNS.Iterative.Server.Types (DoX (..))
 
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
-pprWorkerStats pn ops = do
+pprWorkerStats _pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
     let isStat p = p . fst . snd
         isEnqueue (WWaitEnqueue _dox _tg)  = True
@@ -40,7 +40,7 @@ pprWorkerStats pn ops = do
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
         pprenq = " waiting enqueues: " ++ pprEnqs
 
-    return $ map (("  " ++ show pn ++ ":") ++) $ map pprq sorted ++ [pprdeq, pprenq]
+    return $ map pprq sorted ++ [pprdeq, pprenq]
   where
     showDec3 n
         | 100 <= n   = show n
