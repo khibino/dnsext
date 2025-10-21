@@ -396,7 +396,7 @@ cacheNoDelegation d zone dnskeys dom msg
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-wildcardWitnessAction :: MonadQuery m => Delegation -> Domain -> TYPE -> DNSMessage -> m [RRset]
+wildcardWitnessAction :: MonadContext m => Delegation -> Domain -> TYPE -> DNSMessage -> m [RRset]
 wildcardWitnessAction Delegation{..} qname qtype msg = witnessWildcardExpansion =<< asksQP requestCD_
   where
     witnessWildcardExpansion reqCD
@@ -418,7 +418,7 @@ wildcardWitnessAction Delegation{..} qname qtype msg = witnessWildcardExpansion 
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-negativeWitnessActions :: MonadQuery m => m [RRset] -> Delegation -> Domain -> TYPE -> DNSMessage -> (m [RRset], m [RRset])
+negativeWitnessActions :: MonadContext m => m [RRset] -> Delegation -> Domain -> TYPE -> DNSMessage -> (m [RRset], m [RRset])
 negativeWitnessActions nullK Delegation{..} qname qtype msg =
     (witnessNoData =<< asksQP requestCD_, witnessNameError =<< asksQP requestCD_)
   where
