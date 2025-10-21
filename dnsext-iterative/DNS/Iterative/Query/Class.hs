@@ -81,17 +81,17 @@ class MonadEnv m => MonadContext m where
 class MonadContext m => MonadQuery m where
     queryNorec :: Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
 
-setQS :: MonadQuery m => (QueryState -> StateVal a n) -> a -> m ()
+setQS :: MonadContext m => (QueryState -> StateVal a n) -> a -> m ()
 setQS f x = do
     StateVal ref <- asksQS f
     liftIO $ atomicModifyIORef' ref (\_ -> (x, ()))
 
-getQS :: MonadQuery m => (QueryState -> StateVal a n) -> m a
+getQS :: MonadContext m => (QueryState -> StateVal a n) -> m a
 getQS f = do
     StateVal ref <- asksQS f
     liftIO $ readIORef ref
 
-throwDnsError :: MonadQuery m => DNSError -> m a
+throwDnsError :: MonadContext m => DNSError -> m a
 throwDnsError = throwQuery . (`DnsError` [])
 
 ----------
