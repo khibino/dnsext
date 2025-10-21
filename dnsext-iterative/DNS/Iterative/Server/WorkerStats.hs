@@ -60,16 +60,18 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 {- FOURMOLU_DISABLE -}
 data EnqueueTarget
     = EnBegin
+    | EnCCase String  -- for CacheResult cases
     | EnTap
     | EnSend
     | EnEnd
     deriving Eq
 
 instance Show EnqueueTarget where
-    show EnBegin  = "Bgn"
-    show EnTap    = "Tap"
-    show EnSend   = "Send"
-    show EnEnd    = "End"
+    show  EnBegin     = "Bgn"
+    show (EnCCase s)  = "CCase " ++ s
+    show  EnTap       = "Tap"
+    show  EnSend      = "Send"
+    show  EnEnd       = "End"
 
 data WorkerStat
     = WWaitDequeue
