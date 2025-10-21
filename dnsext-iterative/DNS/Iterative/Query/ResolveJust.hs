@@ -611,7 +611,7 @@ resolveNS zone disableV6NS dc ns typ = do
 
 ---
 
-findNegativeTrustAnchor :: MonadQuery m => Domain -> m (Maybe Domain)
+findNegativeTrustAnchor :: MonadEnv m => Domain -> m (Maybe Domain)
 findNegativeTrustAnchor qn = asksEnv negativeTrustAnchors_ <&> \na -> ZMap.lookupApexOn id na qn
 
 norec :: MonadQuery m => Bool -> NonEmpty Address -> Domain -> TYPE -> m DNSMessage
