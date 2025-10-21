@@ -298,13 +298,13 @@ cacheSectionNegative zone dnskeys dom typ getRanked msg nws = do
         answer = DNS.answer msg
         soas = filter ((== SOA) . rrtype) $ DNS.authority msg
 
-failWithCacheOrigName :: MonadQuery m => Ranking -> DNSError -> m a
+failWithCacheOrigName :: MonadContext m => Ranking -> DNSError -> m a
 failWithCacheOrigName rank e = do
     Question dom _typ cls <- asksQP origQuestion_
     failWithCache dom Cache.ERR cls rank e
 
 {- FOURMOLU_DISABLE -}
-failWithCache :: MonadQuery m => Domain -> TYPE -> CLASS -> Ranking -> DNSError -> m a
+failWithCache :: MonadContext m => Domain -> TYPE -> CLASS -> Ranking -> DNSError -> m a
 failWithCache dom typ cls rank e = do
     when (cls == IN) $ foldDNSErrorToRCODE (pure ()) (`cacheRCODE_` rank) e
     throwDnsError e
@@ -447,5 +447,5 @@ negativeWitnessActions nullK Delegation{..} qname qtype msg =
     dnskeys = delegationDNSKEY
 {- FOURMOLU_ENABLE -}
 
-nsecFailed :: MonadQuery m => String -> m a
+nsecFailed :: MonadContext m => String -> m a
 nsecFailed s = clogLn Log.DEMO (Just Red) ("nsec verification failed - " ++ s) *> throwDnsError DNS.ServerFailure
