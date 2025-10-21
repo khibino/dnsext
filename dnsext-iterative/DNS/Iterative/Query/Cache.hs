@@ -254,7 +254,7 @@ cacheSection rs rank = mapM_ (`cacheNoRRSIG` rank) $ rrsList rs
 --   The `getRanked` function returns the section with the empty information.
 {- FOURMOLU_DISABLE -}
 cacheSectionNegative
-    :: MonadQuery m
+    :: MonadContext m
     => Domain -> [RD_DNSKEY]
     -> Domain -> TYPE
     -> (DNSMessage -> ([RR], Ranking)) -> DNSMessage
@@ -344,7 +344,7 @@ cacheNegativeNoSOA rc dom typ ttl rank = do
     liftIO $ cpsInsertNegativeNoSOA rc dom typ ttl rank insertRRSet
 
 {- FOURMOLU_DISABLE -}
-cacheAnswer :: MonadQuery m => Delegation -> Domain -> TYPE -> DNSMessage -> m ([RRset], [RRset])
+cacheAnswer :: MonadContext m => Delegation -> Domain -> TYPE -> DNSMessage -> m ([RRset], [RRset])
 cacheAnswer d@Delegation{..} dom typ msg = do
     verify =<< asksQP requestCD_
   where
@@ -372,7 +372,7 @@ cacheAnswer d@Delegation{..} dom typ msg = do
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-cacheNoDelegation :: MonadQuery m => Delegation -> Domain -> [RD_DNSKEY] -> Domain -> DNSMessage -> m ()
+cacheNoDelegation :: MonadContext m => Delegation -> Domain -> [RD_DNSKEY] -> Domain -> DNSMessage -> m ()
 cacheNoDelegation d zone dnskeys dom msg
     | rcode == DNS.NoErr = cacheNoDataNS $> ()
     | rcode == DNS.NXDomain = nameErrors $> ()
