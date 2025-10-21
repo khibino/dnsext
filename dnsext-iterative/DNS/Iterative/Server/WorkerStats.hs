@@ -16,7 +16,7 @@ import DNS.Iterative.Server.Types (DoX (..))
 
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
-pprWorkerStats pn ops = do
+pprWorkerStats _pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
     let isStat p = p . fst . snd
         isEnqueue (WWaitEnqueue _dox _tg)  = True
@@ -40,7 +40,7 @@ pprWorkerStats pn ops = do
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
         pprenq = " waiting enqueues: " ++ pprEnqs
 
-    return $ map (("  " ++ show pn ++ ":") ++) $ map pprq sorted ++ [pprdeq, pprenq]
+    return $ map pprq sorted ++ [pprdeq, pprenq]
   where
     showDec3 n
         | 100 <= n   = show n
@@ -60,16 +60,18 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 {- FOURMOLU_DISABLE -}
 data EnqueueTarget
     = EnBegin
+    | EnCCase String  -- for CacheResult cases
     | EnTap
     | EnSend
     | EnEnd
     deriving Eq
 
 instance Show EnqueueTarget where
-    show EnBegin  = "Bgn"
-    show EnTap    = "Tap"
-    show EnSend   = "Send"
-    show EnEnd    = "End"
+    show  EnBegin     = "Bgn"
+    show (EnCCase s)  = "CCase " ++ s
+    show  EnTap       = "Tap"
+    show  EnSend      = "Send"
+    show  EnEnd       = "End"
 
 data WorkerStat
     = WWaitDequeue
@@ -78,9 +80,9 @@ data WorkerStat
     deriving Eq
 
 instance Show WorkerStat where
-    show  WWaitDequeue                = "waiting dequeue"
-    show (WRun (DNS.Question n t _))  = "quering " ++ show n ++ " " ++ show t
-    show (WWaitEnqueue dox tg)        = "waiting enqueue " ++ show dox ++ " " ++show tg
+    show  WWaitDequeue                = "waiting dequeue - WWaitDequeue"
+    show (WRun (DNS.Question n t c))  = "querying " ++ show n ++ " " ++ show t ++ " " ++ show c ++ " - WRun"
+    show (WWaitEnqueue dox tg)        = "waiting enqueue " ++ show dox ++ " " ++ show tg ++ " - WWaitEnqueue"
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}

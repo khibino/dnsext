@@ -133,9 +133,13 @@ cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher
             whenQ1 queryMsg (\q -> setWorkerStat (WRun q))
             let inp = inpBS{inputQuery = queryMsg}
             cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
+            setWorkerStat $ WWaitEnqueue inputDoX EnBegin
             case cres of
-                CResultMissHit -> toWorker inp
+                CResultMissHit -> do
+                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase "CResultMissHit")
+                    toWorker inp
                 CResultHit vr replyMsg -> do
+                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase $ "CResultHit" ++ show vr)
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
@@ -145,11 +149,12 @@ cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher
                     setWorkerStat $ WWaitEnqueue inputDoX EnSend
                     inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
+                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase "CResultDenied")
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     logicDenied env inp
                     vpDelete inputPendingOp
-    setWorkerStat $ WWaitEnqueue inputDoX EnEnd
+            setWorkerStat $ WWaitEnqueue inputDoX EnEnd
 
 ----------------------------------------------------------------
 
