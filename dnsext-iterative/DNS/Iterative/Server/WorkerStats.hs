@@ -78,9 +78,9 @@ data WorkerStat
     deriving Eq
 
 instance Show WorkerStat where
-    show  WWaitDequeue                = "waiting dequeue"
-    show (WRun (DNS.Question n t _))  = "querying " ++ show n ++ " " ++ show t
-    show (WWaitEnqueue dox tg)        = "waiting enqueue " ++ show dox ++ " " ++show tg
+    show  WWaitDequeue                = "waiting dequeue - WWaitDequeue"
+    show (WRun (DNS.Question n t c))  = "querying " ++ show n ++ " " ++ show t ++ " " ++ show c ++ " - WRun"
+    show (WWaitEnqueue dox tg)        = "waiting enqueue " ++ show dox ++ " " ++ show tg ++ " - WWaitEnqueue"
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
