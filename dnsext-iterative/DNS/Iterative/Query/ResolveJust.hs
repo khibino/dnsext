@@ -158,8 +158,20 @@ runIterative
 runIterative cxt sa n cd = runDNSQuery (snd <$> iterative 0 sa (DNS.superDomains n)) cxt $ queryParamIN n A cd
 
 {- FOURMOLU_DISABLE -}
--- | 反復検索
--- 繰り返し委任情報をたどって目的の答えを知るはずの権威サーバー群を見つける
+-- | iterative queries
+-- Follow the chain of delegation repeatedly to locate the set of authoritative servers that are expected to provide the final answer
+--
+-- ----------------------------------------------------------------------------------------------------
+-- To resolve a target domain, `A` queries are repeatedly issued to authoritative servers,
+-- starting from the top-level domain (TLD) and proceeding down toward the sub-domains.
+--
+-- The response message from an authoritative server to an `A` query typically includes:
+-- + Authority section  : the names (`NS` records) of the next set of authoritative servers.
+-- + Additional section : the corresponding addresses (`A` and `AAAA` records) for those names.
+--
+-- Using this information (delegation information), the resolver continues querying down the domain hierarchy.
+-- The initial search domain is the TLD, and the initial set of authoritative servers is the root-servers.
+-- ----------------------------------------------------------------------------------------------------
 --
 -- >>> testIterative dom = do { root <- refreshRoot; iterative 0 root (DNS.superDomains dom) }
 -- >>> env <- _newTestEnv _findConsumed
