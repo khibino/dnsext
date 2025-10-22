@@ -99,7 +99,7 @@ runResolveJust
     -> IO (Either QueryError (DNSMessage, Delegation))
 runResolveJust = runResolveExact
 
--- 権威サーバーからの解決結果を得る
+-- get the resolved info from the authoritative servers
 runResolveExact
     :: Env
     -> Domain
@@ -112,7 +112,10 @@ runResolveExact cxt n typ cd = runDNSQuery (resolveExact n typ) cxt $ queryParam
 resolveJust :: MonadQuery m => Domain -> TYPE -> m (DNSMessage, Delegation)
 resolveJust = resolveExact
 
--- 反復検索を使って最終的な権威サーバーからの DNSMessage とその委任情報を得る. CNAME は解決しない.
+-- |
+-- use iterative queries to get the final `DNSMessage` and its associated delegation information
+-- from the authoritative server.
+-- `CNAME`s are not resolved.
 resolveExact :: MonadQuery m => Domain -> TYPE -> m (DNSMessage, Delegation)
 resolveExact = resolveExactDC 0
 
@@ -148,7 +151,7 @@ resolveExactDC dc n typ
 maxNotSublevelDelegation :: Int
 maxNotSublevelDelegation = 16
 
--- 反復後の委任情報を得る
+-- get delegation information after iterative queries
 runIterative
     :: Env
     -> Delegation
