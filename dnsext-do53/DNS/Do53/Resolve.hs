@@ -13,6 +13,7 @@ import Control.Exception as E
 import Control.Monad (when)
 import DNS.Do53.Types
 import qualified DNS.Log as Log
+import qualified DNS.ThreadAsync as TAsync
 import qualified DNS.ThreadStats as TStat
 import DNS.Types
 import Data.List.NonEmpty (NonEmpty (..))
@@ -122,7 +123,7 @@ raceAny :: [IO a] -> IO a
 raceAny ios = raceAnyL (zip ["do53.raceAny." ++ show (i :: Int) | i <- [1..]] ios)
 
 raceAnyL :: [(String, IO a)] -> IO a
-raceAnyL ios = TStat.withAsyncs ios waitAnyRightCancel
+raceAnyL ios = TAsync.withAsyncs ios waitAnyRightCancel
 
 waitAnyRightCancel :: [Async a] -> IO a
 waitAnyRightCancel asyncs = atomically (waitAnyRightSTM asyncs)

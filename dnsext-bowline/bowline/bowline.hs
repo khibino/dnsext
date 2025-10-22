@@ -30,6 +30,7 @@ import qualified DNS.RRCache as Cache
 import qualified DNS.SEC as DNS
 import DNS.SVCB (TYPE (..))
 import qualified DNS.SVCB as DNS
+import qualified DNS.ThreadAsync as TAsync
 import qualified DNS.ThreadStats as TStat
 import qualified DNS.Types as DNS
 import DNS.Types.Internal (TYPE (..))
@@ -154,9 +155,9 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     let withNum name xs = zipWith (\i x -> (name ++ printf "%4d" i, x)) [1 :: Int ..] xs
     let concServer =
             conc
-                [ TStat.concurrentlyList_ (withNum "bw.cacher" cachers)
-                , TStat.concurrentlyList_ (withNum "bw.worker" workers)
-                , TStat.concurrentlyList_ [(n, as) | (n, _sks, ass) <- servers, as <- ass]
+                [ TAsync.concurrentlyList_ (withNum "bw.cacher" cachers)
+                , TAsync.concurrentlyList_ (withNum "bw.worker" workers)
+                , TAsync.concurrentlyList_ [(n, as) | (n, _sks, ass) <- servers, as <- ass]
                 ]
     {- Advisedly separating 'dumper' thread from Async thread-tree
        - Keep the 'dumper' thread alive until the end for debugging purposes

@@ -36,6 +36,7 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server (withLocationIOE)
 import qualified DNS.Log as Log
 import qualified DNS.RRCache as Cache
+import qualified DNS.ThreadAsync as TAsync
 import qualified DNS.ThreadStats as TStat
 import DNS.Types (Domain, Question (..), TYPE, toRepresentation)
 import qualified DNS.Types as DNS
@@ -283,7 +284,7 @@ console conf env ctl@Control{..} GlobalCache{gcacheControl=CacheControl{..}} srv
 
 withWait :: STM a -> IO b -> IO (Either a b)
 withWait qstm blockAct =
-    TStat.withAsync "bw.monitor" blockAct $ \a ->
+    TAsync.withAsync "bw.monitor" blockAct $ \a ->
         atomically $
             (Left <$> qstm)
                 <|> (Right <$> waitSTM a)

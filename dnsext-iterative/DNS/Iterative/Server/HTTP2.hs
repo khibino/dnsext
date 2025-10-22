@@ -17,7 +17,7 @@ import Data.Functor
 
 -- dnsext-* packages
 import qualified DNS.Log as Log
-import qualified DNS.ThreadStats as TStat
+import qualified DNS.ThreadAsync as TAsync
 
 -- other packages
 import Data.ByteString.Base64.URL
@@ -129,7 +129,7 @@ doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
                         response = H2.responseBuilder HT.ok200 header $ byteString bs'
                     sioWriteResponse (fromSuperStream sprstrm) response
         sender = hsend sloop
-    return $ sbracket $ TStat.concurrently_ ("bw." ++ name ++ "-send") sender ("bw." ++ name ++ "-recv") receiver
+    return $ sbracket $ TAsync.concurrently_ ("bw." ++ name ++ "-send") sender ("bw." ++ name ++ "-recv") receiver
   where
     mkHeader bs =
         [ (HT.hContentType, "application/dns-message")

@@ -12,7 +12,7 @@ import Control.Concurrent.STM
 import Control.Monad (void, when)
 
 -- dnsext-* packages
-import qualified DNS.ThreadStats as TStat
+import qualified DNS.ThreadAsync as TAsync
 
 -- other packages
 import Network.Socket (
@@ -58,7 +58,7 @@ udpServer UdpServerConfig{..} env toCacher s = do
         send _ _ = return ()
         receiver = receiverLogic env mysa recv toCacher toSender UDP
         sender = senderLogic env send fromX
-    return [TStat.concurrently_ "bw.udp-send" sender "bw.udp-recv" receiver]
+    return [TAsync.concurrently_ "bw.udp-send" sender "bw.udp-recv" receiver]
 
 setPktInfo :: Socket -> IO ()
 setPktInfo s = do
