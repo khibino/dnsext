@@ -14,7 +14,7 @@ import Data.Functor
 -- dnsext-* packages
 import qualified DNS.Do53.Internal as DNS
 import qualified DNS.Log as Log
-import qualified DNS.ThreadStats as TStat
+import qualified DNS.ThreadAsync as TAsync
 
 -- other packages
 import Network.Run.TCP
@@ -61,5 +61,5 @@ tcpServer VcServerConfig{..} env toCacher s = do
             let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC (DNS.sendTCP sock) bs
                 receiver = receiverVCnonBlocking "tcp-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender TCP
                 sender = senderVC "tcp-send" env vcSess send fromX
-            TStat.concurrently_ "bw.tcp-send" sender "bw.tcp-recv" receiver
+            TAsync.concurrently_ "bw.tcp-send" sender "bw.tcp-recv" receiver
         logLn env Log.DEBUG $ "tcp-srv: close: " ++ show peersa

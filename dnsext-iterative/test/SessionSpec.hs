@@ -21,7 +21,7 @@ import System.Timeout (timeout)
 import Text.Read (readMaybe)
 
 --
-import qualified DNS.ThreadStats as TStat
+import qualified DNS.ThreadAsync as TAsync
 
 --
 import DNS.Iterative.Server
@@ -136,7 +136,7 @@ runSession factor recv0 waitRead tmicro = withVc waitRead tmicro $ \(vcSess, toS
         dump vcSess
         threadDelay 500_000
 
-    fstate <- TStat.concurrently "test-send" sender "test-recv" receiver
+    fstate <- TAsync.concurrently "test-send" sender "test-recv" receiver
     result <- sort <$> getResult
     pure (fstate, result)
 

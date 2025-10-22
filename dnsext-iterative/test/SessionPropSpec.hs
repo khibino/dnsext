@@ -25,7 +25,7 @@ import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 
 --
-import qualified DNS.ThreadStats as TStat
+import qualified DNS.ThreadAsync as TAsync
 
 --
 import DNS.Iterative.Server
@@ -118,7 +118,7 @@ _run10ex = interactiveEvents _size10ex
 pushEvents :: Bool -> IO () -> [Event] -> IO ((VcFinished, VcFinished), [ByteString])
 pushEvents debug interval evs = do
     (push, dump, run, getResult) <- runWithEvent
-    rh <- TStat.async "test" run
+    rh <- TAsync.async "test" run
     let iloop [] = pure ()
         iloop (e : es) = do
             interval
@@ -143,7 +143,7 @@ runWithEvent = do
         writeIORef refWait waitRecv {- fill action to ref, to avoid mutual reference of withVcSession and eventsRunner -}
         let receiver = receiverVC "test-recv" env vcSess recv toCacher (mkInput myaddr toSender UDP)
             sender = senderVC "test-send" env vcSess send fromX
-            run = TStat.concurrently "test-send" sender "test-recv" receiver
+            run = TAsync.concurrently "test-send" sender "test-recv" receiver
             getResult = sort <$> getResult0
         _ <- forkIO loop
         pure (pushEvent, dumpSession vcSess, run, getResult)

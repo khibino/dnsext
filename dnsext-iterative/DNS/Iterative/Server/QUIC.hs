@@ -9,7 +9,7 @@ import Control.Concurrent.STM (atomically, isEmptyTQueue)
 
 -- dnsext-* packages
 import qualified DNS.Do53.Internal as DNS
-import qualified DNS.ThreadStats as TStat
+import qualified DNS.ThreadAsync as TAsync
 
 -- other packages
 import qualified Network.QUIC as QUIC
@@ -63,7 +63,7 @@ quicServers VcServerConfig{..} env toCacher ss = do
                 -- FIXME
                 receiver = receiverVC "quic-recv" env vcSess recv toCacher $ mkInput mysa toSender DoQ
                 sender = senderVC "quic-send" env vcSess send fromX
-            TStat.concurrently_ "bw.quic-send" sender "bw.quic-recv" receiver
+            TAsync.concurrently_ "bw.quic-send" sender "bw.quic-recv" receiver
 
 getServerConfig :: Credentials -> SessionManager -> ByteString -> Int -> Env -> ServerConfig
 getServerConfig creds sm alpn tmills env =

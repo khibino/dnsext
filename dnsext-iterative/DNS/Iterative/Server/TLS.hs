@@ -20,6 +20,7 @@ import Data.Functor
 -- dnsext-* packages
 import qualified DNS.Do53.Internal as DNS
 import qualified DNS.Log as Log
+import qualified DNS.ThreadAsync as TAsync
 import qualified DNS.ThreadStats as TStat
 
 -- other packages
@@ -73,7 +74,7 @@ tlsServer VcServerConfig{..} env toCacher s = do
                         logLn env Log.DEMO ("tls-send: " ++ es ++ ": " ++ p)
                         dequeueVcPendings pendings senderQ
                     sender = hsend $ senderVC "tls-send" env vcSess send fromX
-                TStat.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
+                TAsync.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
             logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 
 reader :: H2.IOBackend -> TQueue ByteString -> IO ()

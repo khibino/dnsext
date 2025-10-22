@@ -7,12 +7,13 @@ module DNS.Do53.Resolve (
 )
 where
 
-import Control.Concurrent.Async (Async, waitCatchSTM, withAsync)
+import Control.Concurrent.Async (Async, waitCatchSTM)
 import Control.Concurrent.STM
 import Control.Exception as E
 import Control.Monad (when)
 import DNS.Do53.Types
 import qualified DNS.Log as Log
+import qualified DNS.ThreadAsync as TAsync
 import qualified DNS.ThreadStats as TStat
 import DNS.Types
 import Data.List.NonEmpty (NonEmpty (..))
@@ -119,14 +120,10 @@ appendErrorContext Question{..} ResolveInfo{..} e = DNSErrorInfo e info
 -- *** Exception: user error (bad3)
 -- ...
 raceAny :: [IO a] -> IO a
-raceAny ios = withAsyncs ios waitAnyRightCancel
-  where
-    withAsyncs ps h = foldr op (\f -> h (f [])) ps id
-      where
-        op io action = \s -> withAsync io $ \a -> action (s . (a :))
+raceAny ios = raceAnyL (zip ["do53.raceAny." ++ show (i :: Int) | i <- [1..]] ios)
 
 raceAnyL :: [(String, IO a)] -> IO a
-raceAnyL ios = TStat.withAsyncs ios waitAnyRightCancel
+raceAnyL ios = TAsync.withAsyncs ios waitAnyRightCancel
 
 waitAnyRightCancel :: [Async a] -> IO a
 waitAnyRightCancel asyncs = atomically (waitAnyRightSTM asyncs)
