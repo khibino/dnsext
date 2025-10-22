@@ -15,6 +15,7 @@ library
         DNS.TAP.FastStream
         DNS.TAP.ProtocolBuffer
         DNS.TAP.Schema
+        DNS.ThreadAsync
         DNS.ThreadStats
         DNS.TimeCache
         DNS.RRCache
