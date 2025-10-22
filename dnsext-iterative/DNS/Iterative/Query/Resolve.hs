@@ -40,10 +40,12 @@ runResolve cxt q qctl = runDNSQuery (resolve q) cxt $ queryParam q qctl
 resolveByCache :: MonadContext m => Question -> m (([RRset], Domain), Maybe ResultRRS)
 resolveByCache = resolveLogic "cache" Just (const Nothing) (\_ -> pure ((), [], [])) (\_ _ -> pure $ Right ((), [], []))
 
-{- 反復検索を使って最終的な権威サーバーからの DNSMessage を得る.
-   目的の TYPE の RankAnswer 以上のキャッシュ読み出しが得られた場合はそれが結果となる.
-   目的の TYPE が CNAME 以外の場合、結果が CNAME なら繰り返し解決する. その際に CNAME レコードのキャッシュ書き込みを行なう.
-   目的の TYPE の結果レコードをキャッシュする. -}
+-- |
+-- Use iterative resolution to obtain the final `DNSMessage` from the authoritative server.
+-- If a cached entry with a rank of `RankAnswer` or higher for the target `TYPE` is found, it is returned as the result.
+-- If the target `TYPE` is not `CNAME` and the result is a `CNAME`, resolution is repeated.
+-- During this process, the `CNAME` record is written to the cache.
+-- The resulting record for the target `TYPE` is also cached.
 resolve :: MonadQuery m => Question -> m (([RRset], Domain), Either ResultRRS (ResultRRS' DNSMessage))
 resolve = resolveLogic "query" Left Right resolveCNAME resolveTYPE
 
@@ -90,7 +92,7 @@ resolveLogic logMark left right cnameHandler typeHandler (Question n0 typ cls) =
         (maybe (result . right <$> cnameHandler bn) pure =<<) $ runMaybeT $
             cnameCached <|> errorCached
 
-    -- CNAME 以外のタイプの検索について、CNAME のラベルで検索しなおす.
+    -- For queries of types other than `CNAME`, perform a new lookup using the label from the `CNAME` record.
     -- recCNAMEs :: Int -> Domain -> [RRset] -> DNSQuery (([RRset], Domain), Either Result a)
     recCNAMEs cc bn dcnRRsets
         | cc > mcc = do
@@ -152,13 +154,13 @@ resolveLogic logMark left right cnameHandler typeHandler (Question n0 typ cls) =
       where guardCD = guardAllowCachedCD reqCD
     guardAllowCachedCD CheckDisabled    = pure ()
     guardAllowCachedCD NoCheckDisabled  = empty
-    {- 最も低い ranking は reply の answer に利用しない
-     - https://datatracker.ietf.org/doc/html/rfc2181#section-5.4.1 -}
+    -- the lowest ranking is not used for the reply's answer.
+    -- + https://datatracker.ietf.org/doc/html/rfc2181#section-5.4.1
     guardReply rank = guard (rank > RankAdditional)
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-{- CNAME のレコードを取得し、キャッシュする -}
+-- retrieve and cache the `CNAME` record
 resolveCNAME :: MonadQuery m => Domain -> m (ResultRRS' DNSMessage)
 resolveCNAME bn = do
     (msg, d) <- resolveExact bn CNAME
@@ -166,10 +168,11 @@ resolveCNAME bn = do
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-{- 目的の TYPE のレコードを取得できた場合には、結果の DNSMessage と RRset を返す.
-   結果が CNAME の場合、そのドメイン名と RRset を返す.
-   どちらの場合も、結果のレコードをキャッシュする. -}
-{- returns: result msg, cname, verified answer, verified authority -}
+-- If a record of the desired `TYPE` is successfully retrieved, return the resulting `DNSMessage` and RRset.
+-- If the result is a `CNAME`, return the domain name and RRset.
+-- In both case, cache the resulting record.
+--
+-- returns: result msg, cname, verified answer, verified authority
 resolveTYPE :: MonadQuery m => Domain -> TYPE -> m (Either (Domain, RRset) (ResultRRS' DNSMessage))
 resolveTYPE bn typ = do
     (msg, delegation) <- resolveExact bn typ
