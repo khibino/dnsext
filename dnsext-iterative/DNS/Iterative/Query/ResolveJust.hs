@@ -99,7 +99,7 @@ runResolveJust
     -> IO (Either QueryError (DNSMessage, Delegation))
 runResolveJust = runResolveExact
 
--- 権威サーバーからの解決結果を得る
+-- get the resolved info from the authoritative servers
 runResolveExact
     :: Env
     -> Domain
@@ -112,7 +112,10 @@ runResolveExact cxt n typ cd = runDNSQuery (resolveExact n typ) cxt $ queryParam
 resolveJust :: MonadQuery m => Domain -> TYPE -> m (DNSMessage, Delegation)
 resolveJust = resolveExact
 
--- 反復検索を使って最終的な権威サーバーからの DNSMessage とその委任情報を得る. CNAME は解決しない.
+-- |
+-- use iterative queries to get the final `DNSMessage` and its associated delegation information
+-- from the authoritative server.
+-- `CNAME`s are not resolved.
 resolveExact :: MonadQuery m => Domain -> TYPE -> m (DNSMessage, Delegation)
 resolveExact = resolveExactDC 0
 
@@ -148,7 +151,7 @@ resolveExactDC dc n typ
 maxNotSublevelDelegation :: Int
 maxNotSublevelDelegation = 16
 
--- 反復後の委任情報を得る
+-- get delegation information after iterative queries
 runIterative
     :: Env
     -> Delegation
@@ -158,8 +161,20 @@ runIterative
 runIterative cxt sa n cd = runDNSQuery (snd <$> iterative 0 sa (DNS.superDomains n)) cxt $ queryParamIN n A cd
 
 {- FOURMOLU_DISABLE -}
--- | 反復検索
--- 繰り返し委任情報をたどって目的の答えを知るはずの権威サーバー群を見つける
+-- | iterative queries
+-- Follow the chain of delegation repeatedly to locate the set of authoritative servers that are expected to provide the final answer
+--
+-- ----------------------------------------------------------------------------------------------------
+-- To resolve a target domain, `A` queries are repeatedly issued to authoritative servers,
+-- starting from the top-level domain (TLD) and proceeding down toward the sub-domains.
+--
+-- The response message from an authoritative server to an `A` query typically includes:
+-- + Authority section  : the names (`NS` records) of the next set of authoritative servers.
+-- + Additional section : the corresponding addresses (`A` and `AAAA` records) for those names.
+--
+-- Using this information (delegation information), the resolver continues querying down the domain hierarchy.
+-- The initial search domain is the TLD, and the initial set of authoritative servers is the root-servers.
+-- ----------------------------------------------------------------------------------------------------
 --
 -- >>> testIterative dom = do { root <- refreshRoot; iterative 0 root (DNS.superDomains dom) }
 -- >>> env <- _newTestEnv _findConsumed
