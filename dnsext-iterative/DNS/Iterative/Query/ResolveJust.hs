@@ -629,6 +629,7 @@ resolveNS zone disableV6NS dc ns typ = do
 findNegativeTrustAnchor :: MonadEnv m => Domain -> m (Maybe Domain)
 findNegativeTrustAnchor qn = asksEnv negativeTrustAnchors_ <&> \na -> ZMap.lookupApexOn id na qn
 
+-- DNS over UDP53 from a full resolve to an authoritative server
 norec :: MonadQuery m => Bool -> NonEmpty Address -> Domain -> TYPE -> m DNSMessage
 norec dnssecOK aservers name typ = do
     qcount <- (NE.length aservers +) <$> getQS queryCounter_
@@ -644,6 +645,7 @@ norec dnssecOK aservers name typ = do
         maxQueryCount <- asksEnv maxQueryCount_
         let ~exceeded = "max-query-count (==" ++ show maxQueryCount ++ ") exceeded: " ++ showQ' "query" name typ ++ ", " ++ orig
         when (qcount > maxQueryCount) $ logLn Log.WARN exceeded >> left ServerFailure
+        -- queryNorec == Norec.norec for DNSQeury == DNS.Do53.Internal.resolve
         queryNorec dnssecOK aservers name typ >>= either left handleResponse
     handleResponse = handleResponseError (NE.toList aservers) throwQuery pure
     left e = cacheDNSError name typ Cache.RankAnswer e >> dnsError e
