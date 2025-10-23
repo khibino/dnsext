@@ -29,7 +29,7 @@ import DNS.Iterative.Query.ResolveJust
 import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils
 
--- 最終的な解決結果を得る
+-- Getting the final result.
 runResolve
     :: Env
     -> Question
@@ -184,7 +184,7 @@ resolveTYPE bn typ = do
         dispatch
             | not hasCNAME                   = Right . uncurry ((,,) msg) <$> cacheAnswer delegation bn typ msg
             |     hasCNAME && not (has typ)  = cnResult =<< cacheAnswer delegation bn CNAME msg
-            | otherwise                      = throwDnsError UnexpectedRDATA {- CNAME と目的の TYPE が同時に存在した場合はエラー -}
+            | otherwise                      = throwDnsError UnexpectedRDATA {- If both CNAME and the target RR exist, it results in an error. -}
     dispatch
 {- FOURMOLU_ENABLE -}
 
