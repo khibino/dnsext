@@ -571,6 +571,8 @@ delegationFallbacks_
 delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..} name typ = do
     paxs  <- dentryToPermAx disableV6NS dentry
     pnss  <- dentryToPermNS zone dentry
+    -- Try known IP addresses first
+    -- Then try known names if necessary
     fallbacksAx d0 paxs $ fallbacksNS (("<cached>", paxs) :) pnss
   where
     eh' = eh . ("delegationFallbacks: " ++)
@@ -579,7 +581,7 @@ delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..
 
     stepAx d axc nexts ea = ah (NE.toList axc) >> norec' `catchQuery` \ex -> nexts (ea . ((ex, NE.toList axc) :))
       where norec' = (,) <$> norec dnssecOK axc name typ <*> pure d
-    fallbacksAx d axs fbs = foldr (stepAx d) (\ea -> emsg (ea []) >> fbs) (chunksOf' qparallel axs) id
+    fallbacksAx d axs fbs = foldr (stepAx d) (\ea -> emsg (ea []) >> fbs) (chunksOf' qparallel axs) id -- qparallel = 2 in delegationFallbacks
       where emsg es = unless (null es) (void $ eh' $ unlines $ unwords [show name, show typ, "failed:"] : map (("  " ++) . show) es)
     resolveNS' ns tyAx = ( resolveNS zone disableV6NS dc ns tyAx <&> \et -> case et of
                              Left (rc, ei)  ->         Left $ show rc ++ " " ++ ei
