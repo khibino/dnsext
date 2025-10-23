@@ -54,7 +54,7 @@ import DNS.Iterative.Query.Utils
 import qualified DNS.Iterative.Query.Verify as Verify
 import qualified DNS.Iterative.Query.ZoneMap as ZMap
 
----- import for doctest
+-- import for doctest
 import DNS.Iterative.Query.TestEnv
 
 -- $setup

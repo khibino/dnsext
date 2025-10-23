@@ -29,7 +29,7 @@ import DNS.Iterative.Query.ResolveJust
 import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils
 
--- Getting the final result.
+-- | Getting the final result.
 runResolve
     :: Env
     -> Question
@@ -50,10 +50,9 @@ resolve :: MonadQuery m => Question -> m (([RRset], Domain), Either ResultRRS (R
 resolve = resolveLogic "query" Left Right resolveCNAME resolveTYPE
 
 {- FOURMOLU_DISABLE -}
-{- |
-   result value of resolveLogic:
-   * left   :: ResultRRS -> b       - cached result
-   * right  :: ResultRRS' a -> b    - queried result like (ResultRRS' DNSMessage)   -}
+-- result value of resolveLogic:
+--   * left   :: ResultRRS -> b       - cached result
+--   * right  :: ResultRRS' a -> b    - queried result like (ResultRRS' DNSMessage)
 resolveLogic
     :: MonadContext m
     => String
