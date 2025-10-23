@@ -54,7 +54,7 @@ import DNS.Iterative.Query.Utils
 import qualified DNS.Iterative.Query.Verify as Verify
 import qualified DNS.Iterative.Query.ZoneMap as ZMap
 
----- import for doctest
+-- import for doctest
 import DNS.Iterative.Query.TestEnv
 
 -- $setup
@@ -571,6 +571,8 @@ delegationFallbacks_
 delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..} name typ = do
     paxs  <- dentryToPermAx disableV6NS dentry
     pnss  <- dentryToPermNS zone dentry
+    -- Try known IP addresses first
+    -- Then try known names if necessary
     fallbacksAx d0 paxs $ fallbacksNS (("<cached>", paxs) :) pnss
   where
     eh' = eh . ("delegationFallbacks: " ++)
@@ -579,7 +581,7 @@ delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..
 
     stepAx d axc nexts ea = ah (NE.toList axc) >> norec' `catchQuery` \ex -> nexts (ea . ((ex, NE.toList axc) :))
       where norec' = (,) <$> norec dnssecOK axc name typ <*> pure d
-    fallbacksAx d axs fbs = foldr (stepAx d) (\ea -> emsg (ea []) >> fbs) (chunksOf' qparallel axs) id
+    fallbacksAx d axs fbs = foldr (stepAx d) (\ea -> emsg (ea []) >> fbs) (chunksOf' qparallel axs) id -- qparallel = 2 in delegationFallbacks
       where emsg es = unless (null es) (void $ eh' $ unlines $ unwords [show name, show typ, "failed:"] : map (("  " ++) . show) es)
     resolveNS' ns tyAx = ( resolveNS zone disableV6NS dc ns tyAx <&> \et -> case et of
                              Left (rc, ei)  ->         Left $ show rc ++ " " ++ ei
@@ -629,6 +631,7 @@ resolveNS zone disableV6NS dc ns typ = do
 findNegativeTrustAnchor :: MonadEnv m => Domain -> m (Maybe Domain)
 findNegativeTrustAnchor qn = asksEnv negativeTrustAnchors_ <&> \na -> ZMap.lookupApexOn id na qn
 
+-- DNS over UDP53 from a full resolve to an authoritative server
 norec :: MonadQuery m => Bool -> NonEmpty Address -> Domain -> TYPE -> m DNSMessage
 norec dnssecOK aservers name typ = do
     qcount <- (NE.length aservers +) <$> getQS queryCounter_
@@ -644,6 +647,7 @@ norec dnssecOK aservers name typ = do
         maxQueryCount <- asksEnv maxQueryCount_
         let ~exceeded = "max-query-count (==" ++ show maxQueryCount ++ ") exceeded: " ++ showQ' "query" name typ ++ ", " ++ orig
         when (qcount > maxQueryCount) $ logLn Log.WARN exceeded >> left ServerFailure
+        -- queryNorec == Norec.norec for DNSQeury == DNS.Do53.Internal.resolve
         queryNorec dnssecOK aservers name typ >>= either left handleResponse
     handleResponse = handleResponseError (NE.toList aservers) throwQuery pure
     left e = cacheDNSError name typ Cache.RankAnswer e >> dnsError e
