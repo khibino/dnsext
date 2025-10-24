@@ -497,12 +497,17 @@ delegationFallbacks
     => Int -> Bool -> ([Address] -> m b)
     -> Delegation -> Domain -> TYPE -> m (DNSMessage, Delegation)
 delegationFallbacks dc dnssecOK ah d0 name typ = do
+    eventLog' "bgn"
     disableV6NS <- asksEnv disableV6NS_
-    delegationFallbacks_ handled failed qparallel disableV6NS dc dnssecOK ah d0 name typ
+    x <- delegationFallbacks_ handled failed qparallel disableV6NS dc dnssecOK ah d0 name typ
+    eventLog' "end"
+    pure x
   where
     handled = logLn Log.DEMO
     failed ass = logLines Log.DEMO ("delegationFallbacks: failed:" : ["  " ++ unwords (ns : map pprAddr as) | (ns, as) <- ass])
     qparallel = 2
+    eventLog' s = asksQP origQuestion_ >>= liftIO . putLog
+        where putLog (Question n ty _) = TStat.eventLog $ unwords ["iter.dfb", s, show name, show typ, show dc, "orig:", show n, show ty]
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
