@@ -564,7 +564,9 @@ delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..
     fallbacks id d0 ("<cached>", \d n j -> list (n d) (\a as -> j d $ a :| as) paxs1) [(show ns, resolveNS' ns) | ns <- pnss]
   where
     dentry = NE.toList delegationNS
-    fallbacks aa d (tag, runAxs) runsAxs = runAxs d emp ne
+    fallbacks aa d (tag, runAxs) runsAxs = do
+        liftIO $ TStat.eventLog $ unwords $ ["iter.ifb", tag, show name, show typ] ++ [ns | (ns, _) <- runsAxs]
+        runAxs d emp ne
       where
         emp d' = list (fh (aa []) >> throwDnsError ServerFailure) (fallbacks (aa . ((tag, []):)) d') runsAxs
         ne d' paxs = list step (\g gs -> step `catchQuery` \e -> hlog e >> fallbacks (aa . ((tag, paxs'):)) d' g gs) runsAxs
