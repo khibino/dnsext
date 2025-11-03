@@ -14,6 +14,7 @@ module DNS.Do53.Do53 (
 )
 where
 
+import Control.Concurrent.Async (AsyncCancelled)
 import Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
@@ -66,6 +67,19 @@ udpTcpResolver ri q qctl = do
 fromIOException :: String -> E.IOException -> DNSError
 fromIOException tag ioe = NetworkFailure (SomeException ioe) tag
 
+{- FOURMOLU_DISABLE -}
+tryDNS :: String -> IO a -> IO (Either DNSError a)
+tryDNS ~tag action =
+    E.try action >>= either left (return . Right)
+  where
+    left se
+        | Just (e :: DNSError)       <- fromException se = return $ Left   e
+        | Just (e :: IOError)        <- fromException se = return $ Left $ fromIOException tag e
+        | Just (e :: AsyncException) <- fromException se = throwIO e
+        | Just (e :: AsyncCancelled) <- fromException se = throwIO e
+        | otherwise                                      = return $ Left $ BadThing (show se)
+{- FOURMOLU_ENABLE -}
+
 queryTag :: Question -> NameTag -> String
 queryTag Question{..} tag = tag'
   where
@@ -94,14 +108,7 @@ analyzeReply rply qctl0
 udpResolver :: OneshotResolver
 udpResolver ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q _qctl = do
     unless ractionShortLog $ ractionLog Log.DEMO Nothing [qtag]
-    ex <- E.try $ go _qctl
-    case ex of
-        Right r -> return r
-        Left se
-            | Just (e :: DNSError) <- fromException se -> return $ Left e
-            | Just (e :: E.IOException) <- fromException se -> do
-                return $ Left $ fromIOException qtag e
-            | otherwise -> return $ Left $ BadThing (show se)
+    join <$> tryDNS qtag (go _qctl)
   where
     tag = nameTag ri "UDP"
     ~qtag = queryTag q tag
@@ -190,14 +197,7 @@ tcpResolver ri@ResolveInfo{..} q qctl =
 vcResolver :: NameTag -> (BS -> IO ()) -> IO BS -> OneshotResolver
 vcResolver tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q _qctl = do
     unless ractionShortLog $ ractionLog Log.DEMO Nothing [qtag]
-    ex <- E.try $ go _qctl
-    case ex of
-        Right r -> return r
-        Left se
-            | Just (e :: DNSError) <- fromException se -> return $ Left e
-            | Just (e :: E.IOException) <- fromException se -> do
-                return $ Left $ fromIOException qtag e
-            | otherwise -> return $ Left $ BadThing (show se)
+    join <$> tryDNS qtag (go _qctl)
   where
     ~qtag = queryTag q tag
     go qctl0 = do
