@@ -41,4 +41,7 @@ import DNS.Types
 toDNSError :: String -> IO a -> IO a
 toDNSError tag action = action `E.catch` handler
   where
-    handler se@(E.SomeException _) = E.throwIO $ NetworkFailure se tag
+    -- SomeException: asynchronous exceptions are re-thrown
+    handler se@(E.SomeException _)
+        | Just (E.SomeAsyncException _) <- E.fromException se = E.throwIO se
+        | otherwise = E.throwIO $ NetworkFailure se tag
