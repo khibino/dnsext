@@ -1,4 +1,3 @@
-
 module DNS.ThreadAsync where
 
 -- GHC internal

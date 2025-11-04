@@ -120,7 +120,7 @@ appendErrorContext Question{..} ResolveInfo{..} e = DNSErrorInfo e info
 -- *** Exception: user error (bad3)
 -- ...
 raceAny :: [IO a] -> IO a
-raceAny ios = raceAnyL (zip ["do53.raceAny." ++ show (i :: Int) | i <- [1..]] ios)
+raceAny ios = raceAnyL (zip ["do53.raceAny." ++ show (i :: Int) | i <- [1 ..]] ios)
 
 raceAnyL :: [(String, IO a)] -> IO a
 raceAnyL ios = TAsync.withAsyncs ios waitAnyRightCancel

@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module DNS.Iterative.Query.SteppedWait (
-    steppedWait
+    steppedWait,
 ) where
 
 -- ghc internal
@@ -16,8 +16,9 @@ import Control.Monad
 import Data.Functor
 
 -- dnsext-*
-import DNS.Types (DNSError (NetworkFailure))
+
 import DNS.ThreadStats (forkIO)
+import DNS.Types (DNSError (NetworkFailure))
 
 -- $setup
 -- >>> :seti -XNumericUnderscores
@@ -294,7 +295,9 @@ waitEventSTM vrem qres vrun timer =
 {- FOURMOLU_ENABLE -}
 
 waitEvent
-  :: TVar Int -> TQueue (Either e a)
-  -> TVar Running -> Timer
-  -> IO (Event e a)
+    :: TVar Int
+    -> TQueue (Either e a)
+    -> TVar Running
+    -> Timer
+    -> IO (Event e a)
 waitEvent vrem qres vrun timer = atomically $ waitEventSTM vrem qres vrun timer
