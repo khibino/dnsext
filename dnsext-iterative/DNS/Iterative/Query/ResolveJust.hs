@@ -579,8 +579,9 @@ delegationFallbacks_ eh fh qparallel disableV6NS dc dnssecOK ah d0@Delegation{..
     dentry = NE.toList delegationNS
     zone = delegationZone
 
-    stepAx d axc nexts ea = ah (NE.toList axc) >> norec' `catchQuery` \ex -> nexts (ea . ((ex, NE.toList axc) :))
-      where norec' = (,) <$> norec dnssecOK axc name typ <*> pure d
+    stepAx d axc1@(x:|xs) nexts ea = ah axc >> norec' `catchQuery` \ex -> nexts (ea . ((ex, axc) :))
+      where norec' = (,) <$> norec dnssecOK axc1 name typ <*> pure d
+            axc = x:xs
     fallbacksAx d axs fbs = foldr (stepAx d) (\ea -> emsg (ea []) >> fbs) (chunksOf' qparallel axs) id -- qparallel = 2 in delegationFallbacks
       where emsg es = unless (null es) (void $ eh' $ unlines $ unwords [show name, show typ, "failed:"] : map (("  " ++) . show) es)
     resolveNS' ns tyAx = ( resolveNS zone disableV6NS dc ns tyAx <&> \et -> case et of
