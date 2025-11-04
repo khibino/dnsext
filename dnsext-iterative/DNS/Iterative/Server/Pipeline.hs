@@ -129,7 +129,8 @@ cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher
         Left e -> logLn env Log.WARN $ "cacher.decode-error: " ++ inputAddr inpBS ++ " : " ++ show e
         Right queryMsg -> do
             -- Input ByteString -> Input DNSMessage
-            whenQ1 queryMsg (\q -> setWorkerStat (WRun q))
+            let qs = question queryMsg
+            setWorkerStat (WRun qs)
             let inp = inpBS{inputQuery = queryMsg}
             cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
             setWorkerStat $ WWaitEnqueue inputDoX EnBegin
@@ -162,7 +163,8 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     setWorkerStat WWaitDequeue
     inp@Input{..} <- fromCacher
     let showQ q = show (qname q) ++ " " ++ show (qtype q)
-    whenQ1 inputQuery (\q -> setWorkerStat (WRun q) >> TStat.eventLog ("iter.bgn " ++ showQ q))
+        qs = question inputQuery
+    setWorkerStat (WRun qs) >> TStat.eventLog ("iter.bgn " ++ unwords [showQ q | q <- qs])
     ex <- foldResponseIterative Left (curry Right) env inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)

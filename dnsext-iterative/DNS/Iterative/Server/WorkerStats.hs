@@ -75,16 +75,16 @@ instance Show EnqueueTarget where
 
 data WorkerStat
     = WWaitDequeue
-    | WRun Question
+    | WRun [Question]
     | WWaitEnqueue DoX EnqueueTarget
     deriving Eq
 
 instance Show WorkerStat where
     show st = case st of
         WWaitDequeue                 -> "waiting dequeue - WWaitDequeue"
-        WRun q                       -> "querying " ++ pprQ q ++ " - WRun"
+        WRun qs                      -> "querying" ++ pprQs qs ++ " - WRun"
         WWaitEnqueue dox tg          -> "waiting enqueue " ++ show dox ++ " " ++ show tg ++ " - WWaitEnqueue"
-      where pprQ (Question n t c) = show n ++ " " ++ show t ++ " " ++ show c
+      where pprQs qs = qs >>= \(Question n t c) -> [show n, show t, show c] >>= (' ':)
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
