@@ -19,8 +19,8 @@ pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
     let isStat p = p . fst . snd
-        isEnqueue (WWaitEnqueue _dox _tg)  = True
-        isEnqueue  _                       = False
+        isEnqueue WWaitEnqueue{}  = True
+        isEnqueue _               = False
         qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
