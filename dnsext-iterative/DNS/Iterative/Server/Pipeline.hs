@@ -66,7 +66,8 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseIterative)
 import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
-import DNS.Iterative.Server.WorkerStats
+import DNS.Iterative.Server.WorkerStats hiding (setWorkerStat)
+import qualified DNS.Iterative.Server.WorkerStats as WStat
 import DNS.Iterative.Stats
 
 ----------------------------------------------------------------
@@ -122,7 +123,8 @@ inputAddr :: Input a -> String
 inputAddr Input{..} = show inputPeerInfo ++ " -> " ++ show inputMysa
 
 cacherLogic :: Env -> WorkerStatOP -> IO FromReceiver -> (ToWorker -> IO ()) -> IO ()
-cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher" $ do
+cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
+    let setWorkerStat = setWorkerStatEV wstat
     setWorkerStat WWaitDequeue
     inpBS@Input{..} <- fromReceiver
     case DNS.decode inputQuery of
@@ -133,61 +135,59 @@ cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher
             setWorkerStat (WRun qs)
             let inp = inpBS{inputQuery = queryMsg}
             cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
-            setWorkerStat $ WWaitEnqueue inputDoX EnBegin
+            setWorkerStat $ WWaitEnqueue qs inputDoX EnBegin
             case cres of
                 CResultMissHit -> do
-                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase "CResultMissHit")
+                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultMissHit")
                     toWorker inp
                 CResultHit vr replyMsg -> do
-                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase $ "CResultHit" ++ show vr)
+                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase $ "CResultHit" ++ show vr)
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
                     let bs = encodeWithTC env inputPeerInfo (ednsHeader queryMsg) replyMsg
-                    setWorkerStat $ WWaitEnqueue inputDoX EnTap
+                    setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
                     record env inp replyMsg bs
-                    setWorkerStat $ WWaitEnqueue inputDoX EnSend
+                    setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
                     inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
-                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase "CResultDenied")
+                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultDenied")
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     logicDenied env inp
                     vpDelete inputPendingOp
-            setWorkerStat $ WWaitEnqueue inputDoX EnEnd
+            setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
 ----------------------------------------------------------------
 
 workerLogic :: Env -> WorkerStatOP -> IO FromCacher -> IO ()
-workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
+workerLogic env wstat fromCacher = handledLoop env "worker" $ do
+    let setWorkerStat = setWorkerStatEV wstat
     setWorkerStat WWaitDequeue
     inp@Input{..} <- fromCacher
-    let showQ q = show (qname q) ++ " " ++ show (qtype q)
-        qs = question inputQuery
-    setWorkerStat (WRun qs) >> TStat.eventLog ("iter.bgn " ++ unwords [showQ q | q <- qs])
+    let qs = question inputQuery
+    setWorkerStat (WRun qs)
     ex <- foldResponseIterative Left (curry Right) env inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
-    whenQ1 inputQuery (\q -> TStat.eventLog ("iter.end " ++ showQ q))
-    setWorkerStat $ WWaitEnqueue inputDoX EnBegin
+    setWorkerStat $ WWaitEnqueue qs inputDoX EnBegin
     case ex of
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
             let bs = encodeWithTC env inputPeerInfo (ednsHeader inputQuery) replyMsg
-            setWorkerStat $ WWaitEnqueue inputDoX EnTap
+            setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
             record env inp replyMsg bs
-            setWorkerStat $ WWaitEnqueue inputDoX EnSend
+            setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
             inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
-    setWorkerStat $ WWaitEnqueue inputDoX EnEnd
+    setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
 ----------------------------------------------------------------
 
-whenQ1 :: Applicative f => DNSMessage -> (Question -> f ()) -> f ()
-whenQ1 msg f =
-    case question msg of
-        q : _ -> f q
-        [] -> pure ()
+setWorkerStatEV :: WorkerStatOP -> WorkerStat -> IO ()
+setWorkerStatEV wstat st = do
+    WStat.setWorkerStat wstat st
+    TStat.eventLog $ "iter.st " ++ show st
 
 ----------------------------------------------------------------
 
