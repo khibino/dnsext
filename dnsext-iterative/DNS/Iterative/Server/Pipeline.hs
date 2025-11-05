@@ -711,11 +711,9 @@ exceptionCase logLn' body = do
     either handler pure e
   where
     logging e = logLn' $ "received exception: " ++ (show e)
-    -- SomeException: asynchronous exceptions are re-thrown
+    -- SomeException: asynchronous exceptions and others are re-thrown
     handler :: SomeException -> IO a
-    handler e
-        | Just (SomeAsyncException _) <- E.fromException e  = logging e  >> throwIO e
-        | otherwise                                         = logging e  >> throwIO e
+    handler e = logging e  >> throwIO e
 {- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
