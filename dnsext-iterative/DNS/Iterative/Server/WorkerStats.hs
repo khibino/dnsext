@@ -8,7 +8,7 @@ import Data.List (sortBy)
 import Data.Ord (comparing)
 
 -- dnsext-* packages
-import qualified DNS.Types as DNS
+import DNS.Types (Question (..))
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
 
 -- this package
@@ -19,8 +19,8 @@ pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
     let isStat p = p . fst . snd
-        isEnqueue (WWaitEnqueue _dox _tg)  = True
-        isEnqueue  _                       = False
+        isEnqueue WWaitEnqueue{}  = True
+        isEnqueue _               = False
         qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
@@ -75,14 +75,16 @@ instance Show EnqueueTarget where
 
 data WorkerStat
     = WWaitDequeue
-    | WRun DNS.Question
+    | WRun [Question]
     | WWaitEnqueue DoX EnqueueTarget
     deriving Eq
 
 instance Show WorkerStat where
-    show  WWaitDequeue                = "waiting dequeue - WWaitDequeue"
-    show (WRun (DNS.Question n t c))  = "querying " ++ show n ++ " " ++ show t ++ " " ++ show c ++ " - WRun"
-    show (WWaitEnqueue dox tg)        = "waiting enqueue " ++ show dox ++ " " ++ show tg ++ " - WWaitEnqueue"
+    show st = case st of
+        WWaitDequeue                 -> "waiting dequeue - WWaitDequeue"
+        WRun qs                      -> "querying" ++ pprQs qs ++ " - WRun"
+        WWaitEnqueue dox tg          -> "waiting enqueue " ++ show dox ++ " " ++ show tg ++ " - WWaitEnqueue"
+      where pprQs qs = qs >>= \(Question n t c) -> [show n, show t, show c] >>= (' ':)
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}

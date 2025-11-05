@@ -41,7 +41,7 @@ module DNS.Iterative.Server.Pipeline (
 
 -- GHC packages
 import Control.Concurrent.STM
-import Control.Exception (SomeException (..), bracket, handle, throwIO, try)
+import Control.Exception (SomeAsyncException (..), SomeException (..), bracket, handle, throwIO, try)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.IntSet as Set
@@ -129,7 +129,8 @@ cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher
         Left e -> logLn env Log.WARN $ "cacher.decode-error: " ++ inputAddr inpBS ++ " : " ++ show e
         Right queryMsg -> do
             -- Input ByteString -> Input DNSMessage
-            whenQ1 queryMsg (\q -> setWorkerStat (WRun q))
+            let qs = question queryMsg
+            setWorkerStat (WRun qs)
             let inp = inpBS{inputQuery = queryMsg}
             cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
             setWorkerStat $ WWaitEnqueue inputDoX EnBegin
@@ -162,7 +163,8 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     setWorkerStat WWaitDequeue
     inp@Input{..} <- fromCacher
     let showQ q = show (qname q) ++ " " ++ show (qtype q)
-    whenQ1 inputQuery (\q -> setWorkerStat (WRun q) >> TStat.eventLog ("iter.bgn " ++ showQ q))
+        qs = question inputQuery
+    setWorkerStat (WRun qs) >> TStat.eventLog ("iter.bgn " ++ unwords [showQ q | q <- qs])
     ex <- foldResponseIterative Left (curry Right) env inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
@@ -694,8 +696,8 @@ handledLoop env tag body = forever $ handle (\e -> loggingExp env Log.DEBUG tag 
     -- SomeException: asynchronous exceptions are re-thrown
     takeEx :: SomeException -> IO ()
     takeEx e
-        | Just (E.SomeAsyncException _) <- E.fromException e  = throwIO e
-        | otherwise                                           = pure ()
+        | Just (SomeAsyncException _) <- E.fromException e  = throwIO e
+        | otherwise                                         = pure ()
 {- FOURMOLU_ENABLE -}
 
 warnOnError :: Env -> String -> SomeException -> IO ()
@@ -711,11 +713,9 @@ exceptionCase logLn' body = do
     either handler pure e
   where
     logging e = logLn' $ "received exception: " ++ (show e)
-    -- SomeException: asynchronous exceptions are re-thrown
+    -- SomeException: asynchronous exceptions and others are re-thrown
     handler :: SomeException -> IO a
-    handler e
-        | Just (E.SomeAsyncException _) <- E.fromException e  = logging e  >> throwIO e
-        | otherwise                                           = logging e  >> throwIO e
+    handler e = logging e  >> throwIO e
 {- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
