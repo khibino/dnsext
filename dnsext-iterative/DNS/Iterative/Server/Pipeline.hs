@@ -66,7 +66,8 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseIterative)
 import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
-import DNS.Iterative.Server.WorkerStats
+import DNS.Iterative.Server.WorkerStats hiding (setWorkerStat)
+import qualified DNS.Iterative.Server.WorkerStats as WStat
 import DNS.Iterative.Stats
 
 ----------------------------------------------------------------
@@ -122,7 +123,8 @@ inputAddr :: Input a -> String
 inputAddr Input{..} = show inputPeerInfo ++ " -> " ++ show inputMysa
 
 cacherLogic :: Env -> WorkerStatOP -> IO FromReceiver -> (ToWorker -> IO ()) -> IO ()
-cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher" $ do
+cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
+    let setWorkerStat = setWorkerStatEV wstat
     setWorkerStat WWaitDequeue
     inpBS@Input{..} <- fromReceiver
     case DNS.decode inputQuery of
@@ -159,7 +161,8 @@ cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher
 ----------------------------------------------------------------
 
 workerLogic :: Env -> WorkerStatOP -> IO FromCacher -> IO ()
-workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
+workerLogic env wstat fromCacher = handledLoop env "worker" $ do
+    let setWorkerStat = setWorkerStatEV wstat
     setWorkerStat WWaitDequeue
     inp@Input{..} <- fromCacher
     let showQ q = show (qname q) ++ " " ++ show (qtype q)
@@ -182,6 +185,11 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
 ----------------------------------------------------------------
+
+setWorkerStatEV :: WorkerStatOP -> WorkerStat -> IO ()
+setWorkerStatEV wstat st = do
+    WStat.setWorkerStat wstat st
+    TStat.eventLog $ "iter.st " ++ show st
 
 whenQ1 :: Applicative f => DNSMessage -> (Question -> f ()) -> f ()
 whenQ1 msg f =
