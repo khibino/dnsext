@@ -41,7 +41,7 @@ module DNS.Iterative.Server.Pipeline (
 
 -- GHC packages
 import Control.Concurrent.STM
-import Control.Exception (SomeException (..), bracket, handle, throwIO, try)
+import Control.Exception (SomeAsyncException (..), SomeException (..), bracket, handle, throwIO, try)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.IntSet as Set
@@ -694,8 +694,8 @@ handledLoop env tag body = forever $ handle (\e -> loggingExp env Log.DEBUG tag 
     -- SomeException: asynchronous exceptions are re-thrown
     takeEx :: SomeException -> IO ()
     takeEx e
-        | Just (E.SomeAsyncException _) <- E.fromException e  = throwIO e
-        | otherwise                                           = pure ()
+        | Just (SomeAsyncException _) <- E.fromException e  = throwIO e
+        | otherwise                                         = pure ()
 {- FOURMOLU_ENABLE -}
 
 warnOnError :: Env -> String -> SomeException -> IO ()
@@ -714,8 +714,8 @@ exceptionCase logLn' body = do
     -- SomeException: asynchronous exceptions are re-thrown
     handler :: SomeException -> IO a
     handler e
-        | Just (E.SomeAsyncException _) <- E.fromException e  = logging e  >> throwIO e
-        | otherwise                                           = logging e  >> throwIO e
+        | Just (SomeAsyncException _) <- E.fromException e  = logging e  >> throwIO e
+        | otherwise                                         = logging e  >> throwIO e
 {- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
