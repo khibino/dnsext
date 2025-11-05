@@ -227,10 +227,16 @@ bye :: Context -> IO ()
 bye ctx@Context{..}
     | ctxReader = do
         void $ recvControlFrame ctx STOP True
-        when ctxBidi $ sendControlFrame ctx FINISH [] `E.catch` \(E.SomeException _) -> return ()
+        when ctxBidi $ sendControlFrame ctx FINISH [] `E.catch` ignore
     | otherwise = do
         sendControlFrame ctx STOP []
         when ctxBidi $ void $ recvControlFrame ctx FINISH False
+  where
+    -- SomeException: asynchronous exceptions are re-thrown
+    ignore :: E.SomeException -> IO ()
+    ignore se
+        | Just (E.SomeAsyncException _) <- E.fromException se = E.throwIO se
+        | otherwise = return ()
 
 ----------------------------------------------------------------
 

@@ -41,14 +41,13 @@ module DNS.Iterative.Server.Pipeline (
 
 -- GHC packages
 import Control.Concurrent.STM
-import Control.Exception (AsyncException, Exception (..), SomeException (..), bracket, handle, throwIO, try)
+import Control.Exception (SomeException (..), bracket, handle, throwIO, try)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.IntSet as Set
 import GHC.Event (TimeoutKey, TimerManager, getSystemTimerManager, registerTimeout, unregisterTimeout, updateTimeout)
 
 -- libs
-import Control.Concurrent.Async (AsyncCancelled)
 
 -- dnsext packages
 import DNS.Do53.Internal (VCLimit, decodeVCLength)
@@ -339,6 +338,7 @@ receiverVC
 receiverVC name env vcs@VcSession{..} recv toCacher mkInput_ =
     loop 1 `E.catch` onError
   where
+    -- SomeException: asynchronous exceptions are re-thrown
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
     loop i = cases =<< waitVcInput vcs
       where
@@ -400,6 +400,7 @@ receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCac
     ctl <- newCtlRecv $ waitVcInput vcs
     loop ctl 1 `E.catch` onError
   where
+    -- SomeException: asynchronous exceptions are re-thrown
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
     loop ctl i = do
         ex <- controlledRecvVC ctl recvN lim
@@ -457,6 +458,7 @@ senderVC
 senderVC name env vcs send fromX = loop `E.catch` onError
   where
     -- logging async exception intentionally, for not expected `cancel`
+    -- SomeException: asynchronous exceptions are re-thrown
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
     loop = do
         mx <- waitVcOutput vcs
@@ -689,10 +691,10 @@ mkConnector' = do
 handledLoop :: Env -> String -> IO () -> IO ()
 handledLoop env tag body = forever $ handle (\e -> loggingExp env Log.DEBUG tag e >> takeEx e) body
   where
+    -- SomeException: asynchronous exceptions are re-thrown
     takeEx :: SomeException -> IO ()
     takeEx e
-        | Just ae <- fromException e :: Maybe AsyncCancelled  = throwIO ae
-        | Just ae <- fromException e :: Maybe AsyncException  = throwIO ae
+        | Just (E.SomeAsyncException _) <- E.fromException e  = throwIO e
         | otherwise                                           = pure ()
 {- FOURMOLU_ENABLE -}
 
@@ -709,10 +711,10 @@ exceptionCase logLn' body = do
     either handler pure e
   where
     logging e = logLn' $ "received exception: " ++ (show e)
+    -- SomeException: asynchronous exceptions are re-thrown
     handler :: SomeException -> IO a
     handler e
-        | Just ae <- fromException e :: Maybe AsyncCancelled  = logging ae >> throwIO ae
-        | Just ae <- fromException e :: Maybe AsyncException  = logging ae >> throwIO ae
+        | Just (E.SomeAsyncException _) <- E.fromException e  = logging e  >> throwIO e
         | otherwise                                           = logging e  >> throwIO e
 {- FOURMOLU_ENABLE -}
 
