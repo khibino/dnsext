@@ -133,28 +133,28 @@ cacherLogic env WorkerStatOP{..} fromReceiver toWorker = handledLoop env "cacher
             setWorkerStat (WRun qs)
             let inp = inpBS{inputQuery = queryMsg}
             cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
-            setWorkerStat $ WWaitEnqueue inputDoX EnBegin
+            setWorkerStat $ WWaitEnqueue qs inputDoX EnBegin
             case cres of
                 CResultMissHit -> do
-                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase "CResultMissHit")
+                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultMissHit")
                     toWorker inp
                 CResultHit vr replyMsg -> do
-                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase $ "CResultHit" ++ show vr)
+                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase $ "CResultHit" ++ show vr)
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
                     let bs = encodeWithTC env inputPeerInfo (ednsHeader queryMsg) replyMsg
-                    setWorkerStat $ WWaitEnqueue inputDoX EnTap
+                    setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
                     record env inp replyMsg bs
-                    setWorkerStat $ WWaitEnqueue inputDoX EnSend
+                    setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
                     inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
-                    setWorkerStat $ WWaitEnqueue inputDoX (EnCCase "CResultDenied")
+                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultDenied")
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     logicDenied env inp
                     vpDelete inputPendingOp
-            setWorkerStat $ WWaitEnqueue inputDoX EnEnd
+            setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
 ----------------------------------------------------------------
 
@@ -169,17 +169,17 @@ workerLogic env WorkerStatOP{..} fromCacher = handledLoop env "worker" $ do
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
     whenQ1 inputQuery (\q -> TStat.eventLog ("iter.end " ++ showQ q))
-    setWorkerStat $ WWaitEnqueue inputDoX EnBegin
+    setWorkerStat $ WWaitEnqueue qs inputDoX EnBegin
     case ex of
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
             let bs = encodeWithTC env inputPeerInfo (ednsHeader inputQuery) replyMsg
-            setWorkerStat $ WWaitEnqueue inputDoX EnTap
+            setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
             record env inp replyMsg bs
-            setWorkerStat $ WWaitEnqueue inputDoX EnSend
+            setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
             inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
-    setWorkerStat $ WWaitEnqueue inputDoX EnEnd
+    setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
 ----------------------------------------------------------------
 

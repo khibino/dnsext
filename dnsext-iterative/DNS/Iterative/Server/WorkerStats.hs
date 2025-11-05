@@ -25,7 +25,7 @@ pprWorkerStats _pn ops = do
         {- sorted by query span -}
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        pprEnq  p (wn, (WWaitEnqueue dox tg, ds))
+        pprEnq  p (wn, (WWaitEnqueue _qs dox tg, ds))
             | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
         pprEnq _p  _  = id
         pprEnqs
@@ -76,14 +76,14 @@ instance Show EnqueueTarget where
 data WorkerStat
     = WWaitDequeue
     | WRun [Question]
-    | WWaitEnqueue DoX EnqueueTarget
+    | WWaitEnqueue [Question] DoX EnqueueTarget
     deriving Eq
 
 instance Show WorkerStat where
     show st = case st of
         WWaitDequeue                 -> "waiting dequeue - WWaitDequeue"
         WRun qs                      -> "querying" ++ pprQs qs ++ " - WRun"
-        WWaitEnqueue dox tg          -> "waiting enqueue " ++ show dox ++ " " ++ show tg ++ " - WWaitEnqueue"
+        WWaitEnqueue qs dox tg       -> "waiting enqueue" ++ pprQs qs ++ " " ++ show dox ++ " " ++ show tg ++ " - WWaitEnqueue"
       where pprQs qs = qs >>= \(Question n t c) -> [show n, show t, show c] >>= (' ':)
 {- FOURMOLU_ENABLE -}
 
