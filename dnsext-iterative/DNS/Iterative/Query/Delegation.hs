@@ -112,7 +112,7 @@ delegationWithCache zone dnskeys dom msg = do
         cacheNoData dom DS (getRank rankedDS msg)
         caches $> k []
     ncDS ncLog = ncLog >> Verify.bogusError (msgf "not canonical DS")
-    withDS k = Verify.withResult DS msgf $ \dsrds _ _ -> caches $> k dsrds
+    withDS k = Verify.withResult DS msgf $ \dsrds _ _ _ -> caches $> k dsrds
     caches = cacheNS *> cacheAdds
 
     notFound = Verify.verifyLog Nothing (msgf "no delegation")

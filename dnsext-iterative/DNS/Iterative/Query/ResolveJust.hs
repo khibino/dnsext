@@ -273,7 +273,7 @@ servsChildZone dc nss dom msg =
             dnskeys = delegationDNSKEY wd
             nullSOA = pure noDelegation {- guarded by soaRRs [] case -}
             ncSOA _ncLog = pure noDelegation {- guarded by soaRRs [_] case. single record must be canonical -}
-            withSOA = Verify.withResult SOA (\s -> "servs-child: " ++ s ++ ": " ++ show dom) (\_ _ _ -> pure $ hasDelegation wd)
+            withSOA = Verify.withResult SOA (\s -> "servs-child: " ++ s ++ ": " ++ show dom) (\_ _ _ _ -> pure $ hasDelegation wd)
     handleASIG fallback = withSection rankedAnswer msg $ \srrs _rank -> do
         let arrsigRRs = rrListWith RRSIG (signedA <=< DNS.fromRData) dom (\_ rr -> rr) srrs
         case arrsigRRs of
@@ -360,7 +360,7 @@ queryDS dc src@Delegation{..} dom = do
   where
     nullDS = insecure "no DS, so no verify" $> []
     ncDS ncLog = ncLog *> bogus "not canonical DS"
-    withDS dsrds = Verify.withResult DS msgf (\_ _ _ -> pure dsrds) dsrds  {- not reach for no-verify and check-disabled cases -}
+    withDS rds = Verify.withResult DS msgf (\_ _ _ _ -> pure rds) rds  {- not reach for no-verify and check-disabled cases -}
     insecure ~vmsg = Verify.insecureLog (msgf vmsg)
     bogus ~es = Verify.bogusError (msgf es)
     msgf s = "fill delegation - " ++ s ++ ": " ++ domTraceMsg
@@ -499,7 +499,7 @@ cachedDNSKEY getSEPs dc d@Delegation{..} = do
             nullDNSKEY = cacheSectionNegative zone [] zone DNSKEY rankedAnswer msg [] *> bogus "null DNSKEYs for non-empty SEP"
             ncDNSKEY ncLog = ncLog >> bogus "not canonical"
         Verify.cases NoCheckDisabled zone (s : ss) rankedAnswer msg zone DNSKEY dnskeyRD nullDNSKEY ncDNSKEY withDNSKEY
-    withDNSKEY rds = Verify.withResult DNSKEY msgf (\_ _ _ -> pure rds) rds {- not reach for no-verify and check-disabled cases -}
+    withDNSKEY rds = Verify.withResult DNSKEY msgf (\_ _ _ _ -> pure rds) rds {- not reach for no-verify and check-disabled cases -}
     bogus ~es = Verify.bogusError (msgf es)
     msgf s = "require-dnskey: " ++ s ++ ": " ++ show zone
     zone = delegationZone
