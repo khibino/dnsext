@@ -65,8 +65,8 @@ withResult
     :: MonadContext m
     => TYPE -> (String -> String)
     -> ([a] -> RRset -> m () -> m b)
-    ->  [a] -> RRset -> m () -> m b
-withResult typ modf rightK xs xRRset cacheX =
+    ->  [a] -> RRset -> m () -> m () -> m b
+withResult typ modf rightK xs xRRset _logK cacheX =
     mayVerifiedRRS noverify cd bogus valid (rrsMayVerified xRRset)
   where
     valid _   = verifyLog (Just Green) (modf $ "verification success - RRGIG of " ++ show typ) >> result
@@ -101,11 +101,10 @@ cases
     -> Domain  -> TYPE
     -> (RR -> Maybe a)
     -> m b -> (m () -> m b)
-    -> ([a] -> RRset -> m () -> m b)
+    -> ([a] -> RRset -> m () -> m () -> m b)
     -> m b
 cases reqCD zone dnskeys getRanked msg rrn rrty h nullK ncK rightK =
-    withSection getRanked msg $ \srrs rank -> cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK $
-    \fromRDs rrset _logK cacheK -> rightK fromRDs rrset cacheK
+    withSection getRanked msg $ \srrs rank -> cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK rightK
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
