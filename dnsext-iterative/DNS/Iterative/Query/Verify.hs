@@ -104,7 +104,8 @@ cases
     -> ([a] -> RRset -> m () -> m b)
     -> m b
 cases reqCD zone dnskeys getRanked msg rrn rrty h nullK ncK rightK =
-    withSection getRanked msg $ \srrs rank -> cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK rightK
+    withSection getRanked msg $ \srrs rank -> cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK $
+    \fromRDs rrset _logK cacheK -> rightK fromRDs rrset cacheK
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -116,7 +117,7 @@ cases'
     -> Domain -> TYPE
     -> (RR -> Maybe a)
     -> m b -> (m () -> m b)
-    -> ([a] -> RRset -> m () -> m b)
+    -> ([a] -> RRset -> m () -> m () -> m b)
     -> m b
 cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK0 rightK0
     | null xRRs = nullK
@@ -125,7 +126,7 @@ cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK0 rightK0
     ncK rrs s = ncK0 $ logLines Log.DEMO (("not canonical RRset: " ++ s) : map (("\t" ++) . show) rrs)
     (fromRDs, xRRs) = unzip [(x, rr) | rr <- srrs, rrtype rr == rrty, rrname rr == rrn, Just x <- [h rr]]
     sigs = rrsigList zone rrn rrty srrs
-    verifiedK rrset@(RRset dom typ cls minTTL rds sigrds) = rightK0 fromRDs rrset (logInv *> cache)
+    verifiedK rrset@(RRset dom typ cls minTTL rds sigrds) = rightK0 fromRDs rrset logInv cache
       where
         cache = cacheRRset rank dom typ cls minTTL rds sigrds
         logInv = mayVerifiedRRS (pure ()) (pure ()) (logInvalids . lines) (const $ pure ()) $ rrsMayVerified rrset
