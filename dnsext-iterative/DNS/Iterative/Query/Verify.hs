@@ -64,15 +64,15 @@ import DNS.Iterative.Query.Utils
 withResult
     :: MonadContext m
     => TYPE -> (String -> String)
-    -> ([a] -> RRset -> m () -> m b)
+    -> ([a] -> RRset -> m () -> m () -> m b)
     ->  [a] -> RRset -> m () -> m () -> m b
-withResult typ modf rightK xs xRRset _logK cacheX =
+withResult typ modf rightK xs xRRset logK cacheX =
     mayVerifiedRRS noverify cd bogus valid (rrsMayVerified xRRset)
   where
     valid _   = verifyLog (Just Green) (modf $ "verification success - RRGIG of " ++ show typ) >> result
     cd        = verifyLog (Just Yellow) (modf "no verification - check-disabled") >> result
     noverify  = verifyLog (Just Yellow) (modf "no verification - no DS or no DNSKEY avail") >> result
-    result    = cacheX >> rightK xs xRRset cacheX
+    result    = cacheX >> rightK xs xRRset logK cacheX
     bogus _   = bogusError $ modf $ "verification failed - RRSIG of " ++ show typ
 {- FOURMOLU_ENABLE -}
 
