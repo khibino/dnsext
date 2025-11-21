@@ -129,7 +129,8 @@ doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
                         response = H2.responseBuilder HT.ok200 header $ byteString bs'
                     sioWriteResponse (fromSuperStream sprstrm) response
         sender = hsend sloop
-    return $ sbracket $ TAsync.concurrently_ ("bw." ++ name ++ "-send") sender ("bw." ++ name ++ "-recv") receiver
+        run = sbracket $ TAsync.concurrently_ ("bw." ++ name ++ "-send") sender ("bw." ++ name ++ "-recv") receiver
+    return (run >> sioDone)
   where
     mkHeader bs =
         [ (HT.hContentType, "application/dns-message")
