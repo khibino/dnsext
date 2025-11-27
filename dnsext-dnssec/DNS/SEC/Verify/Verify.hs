@@ -158,10 +158,11 @@ verifyRRSIGwith RRSIGImpl{..} now RD_DNSKEY{..} rrsig@RD_RRSIG{..} rrset_name rr
                 ++ " =/= "
                 ++ show rrsig_pubalg
 
-    unless (numLabels rrset_name >= fromIntegral rrsig_num_labels) $
+    let nlabels = numLabels rrset_name
+    unless (nlabels >= fromIntegral rrsig_num_labels) $
         Left $
             "verifyRRSIGwith: number of rrname labels is too small: "
-                ++ ("rrname-labels=" ++ show (numLabels rrset_name))
+                ++ ("rrname-labels=" ++ show nlabels)
                 ++ " < "
                 ++ ("rrsig-labels=" ++ show rrsig_num_labels)
     unless (rrsig_inception <= now && now < rrsig_expiration) $
