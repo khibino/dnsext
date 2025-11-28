@@ -103,8 +103,11 @@ cases
     -> m b -> (m () -> m b)
     -> ([a] -> RRset -> m () -> m () -> m b)
     -> m b
-cases reqCD zone dnskeys getRanked msg rrn rrty h nullK ncK rightK =
-    withSection getRanked msg $ \srrs rank -> cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK rightK
+cases reqCD zone dnskeys getRanked msg rrn rrty h nullK ncK verifiedK =
+    withSection getRanked msg $ \srrs rank -> casesCanoicalize srrs rrn rrty h nullK ncK (canonK srrs rank)
+  where
+    canonK srrs rank fromRDs crrset sortedRDatas =
+        casesVerify reqCD dnskeys (rrsigList zone rrn rrty srrs) rank (rrsName crrset) crrset sortedRDatas (verifiedK fromRDs)
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
