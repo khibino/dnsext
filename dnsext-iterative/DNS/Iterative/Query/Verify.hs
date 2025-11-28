@@ -137,6 +137,42 @@ cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK0 rightK0
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+casesCanoicalize
+    :: MonadEnv m
+    => [RR] -> Domain -> TYPE
+    -> (RR -> Maybe a)
+    -> m b -> (m () -> m b)
+    -> ([a] -> RRset -> [(Int, DNS.Builder ())] -> m b)
+    -> m b
+casesCanoicalize srrs rrn rrty h nullK ncK0 canonK
+    | null xRRs = nullK
+    | otherwise = canonicalRRset xRRs (ncK xRRs) (canonK fromRDs)
+  where
+    ncK rrs s = ncK0 $ logLines Log.DEMO (("not canonical RRset: " ++ s) : map (("\t" ++) . show) rrs)
+    (fromRDs, xRRs) = unzip [(x, rr) | rr <- srrs, rrtype rr == rrty, rrname rr == rrn, Just x <- [h rr]]
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+casesVerify
+    :: MonadEnv m
+    => RequestCD
+    -> [RD_DNSKEY] -> [(RD_RRSIG, TTL)] -> Ranking
+    -> Domain -> RRset -> [(Int, DNS.Builder ())]
+    -> (RRset -> m () -> m () -> m b)
+    -> m b
+casesVerify reqCD dnskeys sigs rank wildcard crrset sortedRDatas rightK0 = do
+    now <- liftIO =<< asksEnv currentSeconds_
+    withVerifiedRRset reqCD now dnskeys wildcard crrset sortedRDatas sigs verifiedK
+  where
+    verifiedK vrrset@(RRset dom typ cls minTTL rds sigrds) = rightK0 vrrset logInv cache
+      where
+        cache = cacheRRset rank dom typ cls minTTL rds sigrds
+        logInv = mayVerifiedRRS (pure ()) (pure ()) (logInvalids . lines) (const $ pure ()) $ rrsMayVerified vrrset
+        logInvalids  []    = clogLn Log.DEMO (Just Cyan)  "cases: InvalidRRS"
+        logInvalids (e:es) = clogLn Log.DEMO (Just Cyan) ("cases: InvalidRRS: " ++ e) *> logLines Log.DEMO es
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 withVerifiedRRset
     :: RequestCD
     -> EpochTime
