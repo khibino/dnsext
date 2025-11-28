@@ -363,12 +363,17 @@ cacheAnswer d@Delegation{..} dom typ msg = do
         nullK = nsecFailed $ "no NSEC/NSEC3 for NXDomain/NoData: " ++ show dom ++ " " ++ show typ
         (witnessNoDatas, witnessNameErr) = negativeWitnessActions nullK d dom typ msg
     ncX _ncLog = pure ([], [])
-    canonX reqCD srrs rank fromRDs crrset sortedRDatas =
-        Verify.casesVerify reqCD dnskeys (rrsigList zone dom typ srrs) rank (rrsName crrset) crrset sortedRDatas (withX fromRDs)
-    withX = Verify.withResult typ (\vmsg -> vmsg ++ ": " ++ show dom) $ \_xs xRRset logK _cacheX -> do
-        logK
-        nws <- wildcardWitnessAction d dom typ msg
-        pure ([xRRset], nws)
+    canonX reqCD srrs rank fromRDs crrset sortedRDatas
+        | (RD_RRSIG{..}, _):_ <- sigs = SEC.withWildcard dom rrsig_num_labels errWild noWild wild
+        | otherwise                   = noWild
+      where
+        sigs = rrsigList zone dom typ srrs :: [(RD_RRSIG, TTL)]
+        vlf s vmsg = vmsg ++ ": " ++ s
+        doVerify s owner = Verify.casesVerify reqCD dnskeys sigs rank owner crrset sortedRDatas (withX (vlf s) fromRDs)
+        errWild s = Verify.bogusError $ vlf (show dom) $ "verification failed - " ++ s
+        noWild = doVerify (show dom) dom <&> \rrs -> (rrs, [])
+        wild wname ncloser = (,) <$> doVerify (show wname ++ " => " ++ show dom) wname <*> wildcardWitnessAction d dom typ ncloser msg
+    withX vl = Verify.withResult typ vl $ \_xs xRRset logK _cacheX -> logK $> [xRRset]
 
     rcode = DNS.rcode msg
     zone = delegationZone
@@ -400,8 +405,8 @@ cacheNoDelegation d zone dnskeys dom msg
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-wildcardWitnessAction :: MonadContext m => Delegation -> Domain -> TYPE -> DNSMessage -> m [RRset]
-wildcardWitnessAction Delegation{..} qname qtype msg = witnessWildcardExpansion =<< asksQP requestCD_
+wildcardWitnessAction :: MonadContext m => Delegation -> Domain -> TYPE -> Domain -> DNSMessage -> m [RRset]
+wildcardWitnessAction Delegation{..} qname qtype _ncloser msg = witnessWildcardExpansion =<< asksQP requestCD_
   where
     witnessWildcardExpansion reqCD
         | FilledDS [] <- delegationDS  = pure []
