@@ -364,12 +364,13 @@ cacheAnswer d@Delegation{..} dom typ msg = do
         nullK = nsecFailed $ "no NSEC/NSEC3 for NXDomain/NoData: " ++ show dom ++ " " ++ show typ
         (witnessNoDatas, witnessNameErr) = negativeWitnessActions nullK d dom typ msg
     ncX _ncLog = pure ([], [])
-    canonX reqCD srrs rank fromRDs crrset sortedRDatas =
-        Verify.casesVerify reqCD dnskeys (rrsigList zone dom typ srrs) rank (rrsName crrset) crrset sortedRDatas (withX fromRDs)
-    withX = Verify.withResult typ (\vmsg -> vmsg ++ ": " ++ show dom) $ \_xs xRRset logK _cacheX -> do
-        logK
+    canonX reqCD srrs rank fromRDs crrset sortedRDatas = do
         nws <- wildcardWitnessAction d dom typ msg
-        pure ([xRRset], nws)
+        let sigs = rrsigList zone dom typ srrs :: [(RD_RRSIG, TTL)]
+            vlf s vmsg = vmsg ++ ": " ++ s
+            doVerify s wname = Verify.casesVerify reqCD dnskeys sigs rank wname crrset sortedRDatas (withX nws (vlf s) fromRDs)
+        withWildcard nws sigs dom (doVerify (show dom) dom) (\wname -> doVerify (show wname ++ " => " ++ show dom) wname)
+    withX nws vl = Verify.withResult typ vl $ \_xs xRRset logK _cacheX -> logK $> ([xRRset], nws)
 
     rcode = DNS.rcode msg
     zone = delegationZone
