@@ -11,7 +11,8 @@ module DNS.Iterative.Query.Verify (
 
     -- * case split for RRSIG verification
     cases,
-    cases',
+    casesCanoicalize,
+    casesVerify,
 
     -- * RRSIG, sep DNSKEY verification, for tests
     rrWithRRSIG,
@@ -108,35 +109,6 @@ cases reqCD zone dnskeys getRanked msg rrn rrty h nullK ncK verifiedK =
   where
     canonK srrs rank fromRDs crrset sortedRDatas =
         casesVerify reqCD dnskeys (rrsigList zone rrn rrty srrs) rank (rrsName crrset) crrset sortedRDatas (verifiedK fromRDs)
-{- FOURMOLU_ENABLE -}
-
-{- FOURMOLU_DISABLE -}
-cases'
-    :: MonadEnv m
-    => RequestCD
-    -> Domain -> [RD_DNSKEY]
-    -> [RR] -> Ranking
-    -> Domain -> TYPE
-    -> (RR -> Maybe a)
-    -> m b -> (m () -> m b)
-    -> ([a] -> RRset -> m () -> m () -> m b)
-    -> m b
-cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK0 rightK0
-    | null xRRs = nullK
-    | otherwise = canonicalRRset xRRs (ncK xRRs) rightK
-  where
-    ncK rrs s = ncK0 $ logLines Log.DEMO (("not canonical RRset: " ++ s) : map (("\t" ++) . show) rrs)
-    (fromRDs, xRRs) = unzip [(x, rr) | rr <- srrs, rrtype rr == rrty, rrname rr == rrn, Just x <- [h rr]]
-    sigs = rrsigList zone rrn rrty srrs
-    verifiedK rrset@(RRset dom typ cls minTTL rds sigrds) = rightK0 fromRDs rrset logInv cache
-      where
-        cache = cacheRRset rank dom typ cls minTTL rds sigrds
-        logInv = mayVerifiedRRS (pure ()) (pure ()) (logInvalids . lines) (const $ pure ()) $ rrsMayVerified rrset
-        logInvalids  []    = clogLn Log.DEMO (Just Cyan)  "cases: InvalidRRS"
-        logInvalids (e:es) = clogLn Log.DEMO (Just Cyan) ("cases: InvalidRRS: " ++ e) *> logLines Log.DEMO es
-    rightK rrset sortedRRs = do
-        now <- liftIO =<< asksEnv currentSeconds_
-        withVerifiedRRset reqCD now dnskeys (rrsName rrset) rrset sortedRRs sigs verifiedK
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
