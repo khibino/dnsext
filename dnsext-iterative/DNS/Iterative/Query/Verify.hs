@@ -73,7 +73,7 @@ withResult typ modf rightK xs xRRset logK cacheX =
     cd        = verifyLog (Just Yellow) (modf "no verification - check-disabled") >> result
     noverify  = verifyLog (Just Yellow) (modf "no verification - no DS or no DNSKEY avail") >> result
     result    = cacheX >> rightK xs xRRset logK cacheX
-    bogus _   = bogusError $ modf $ "verification failed - RRSIG of " ++ show typ
+    bogus _   = logK >> bogusError (modf $ "verification failed - RRSIG of " ++ show typ)
 {- FOURMOLU_ENABLE -}
 
 insecureLog :: MonadEnv m => String -> m ()
