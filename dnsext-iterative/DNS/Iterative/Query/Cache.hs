@@ -421,12 +421,14 @@ wildcardWitnessAction Delegation{..} qname qtype msg = witnessWildcardExpansion 
         | CheckDisabled <- reqCD       = pure []
         | otherwise  = Verify.getWildcardExpansion zone dnskeys rankedAuthority msg qname
                        nullK invalidK (noWitnessK "WildcardExpansion")
-                       resultK resultK
+                       resultK resultK3
     nullK = pure []
     invalidK s = failed $ "NSEC/NSEC3 WildcardExpansion: " ++ qinfo ++ " :\n" ++ s
     noWitnessK wn s = failed $ "cannot find " ++ wn ++ " witness: " ++ qinfo ++ " : " ++ s
-    resultK w rrsets _ = success w $> rrsets
+    resultK  w rrsets _ = success w *> winfo witnessInfoNSEC  w $> rrsets
+    resultK3 w rrsets _ = success w *> winfo witnessInfoNSEC3 w $> rrsets
     success w = clogLn Log.DEMO (Just Green) $ "nsec verification success - " ++ SEC.witnessName w ++ ": " ++ qinfo
+    winfo wi w = clogLn Log.DEMO (Just Cyan) $ unlines $ map ("  " ++) $ wi w
     failed = nsecFailed
     qinfo = show qname ++ " " ++ show qtype
 
