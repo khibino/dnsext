@@ -412,8 +412,9 @@ wildcardWitnessAction Delegation{..} qname qtype msg = witnessWildcardExpansion 
     nullK = pure []
     invalidK s = failed $ "NSEC/NSEC3 WildcardExpansion: " ++ qinfo ++ " :\n" ++ s
     noWitnessK wn s = failed $ "cannot find " ++ wn ++ " witness: " ++ qinfo ++ " : " ++ s
-    resultK w rrsets _ = success w $> rrsets
+    resultK  w rrsets _ = success w *> winfo (showWitness w) $> rrsets
     success w = clogLn Log.DEMO (Just Green) $ "nsec verification success - " ++ SEC.witnessName w ++ ": " ++ qinfo
+    winfo wi = clogLn Log.DEMO (Just Cyan) $ unlines $ map ("  " ++) wi
     failed = nsecFailed
     qinfo = show qname ++ " " ++ show qtype
 
