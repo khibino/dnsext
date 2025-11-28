@@ -348,7 +348,8 @@ cacheAnswer :: MonadContext m => Delegation -> Domain -> TYPE -> DNSMessage -> m
 cacheAnswer d@Delegation{..} dom typ msg = do
     verify =<< asksQP requestCD_
   where
-    verify reqCD = Verify.cases reqCD zone dnskeys rankedAnswer msg dom typ Just nullX ncX withX
+    verify reqCD = withSection rankedAnswer msg $
+       \srrs rank -> Verify.casesCanoicalize srrs dom typ Just nullX ncX (canonX reqCD srrs rank)
 
     nullX = doCacheEmpty <&> \e -> ([], e)
     doCacheEmpty = case rcode of
@@ -362,6 +363,8 @@ cacheAnswer d@Delegation{..} dom typ msg = do
         nullK = nsecFailed $ "no NSEC/NSEC3 for NXDomain/NoData: " ++ show dom ++ " " ++ show typ
         (witnessNoDatas, witnessNameErr) = negativeWitnessActions nullK d dom typ msg
     ncX _ncLog = pure ([], [])
+    canonX reqCD srrs rank fromRDs crrset sortedRDatas =
+        Verify.casesVerify reqCD dnskeys (rrsigList zone dom typ srrs) rank (rrsName crrset) crrset sortedRDatas (withX fromRDs)
     withX = Verify.withResult typ (\vmsg -> vmsg ++ ": " ++ show dom) $ \_xs xRRset logK _cacheX -> do
         logK
         nws <- wildcardWitnessAction d dom typ msg
