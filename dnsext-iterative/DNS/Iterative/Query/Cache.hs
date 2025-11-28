@@ -39,6 +39,7 @@ import DNS.SEC
 import qualified DNS.SEC.Verify as SEC
 import DNS.Types
 import qualified DNS.Types as DNS
+import DNS.Types.Internal (Label)
 import System.Console.ANSI.Types
 
 -- this package
@@ -373,6 +374,17 @@ cacheAnswer d@Delegation{..} dom typ msg = do
     rcode = DNS.rcode msg
     zone = delegationZone
     dnskeys = delegationDNSKEY
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+withWildcard :: [RRset] -> [(RD_RRSIG, a)] -> Domain -> b -> (Domain -> b) -> b
+withWildcard nws sigs dom nonWildK wildK
+    | []                   <- nws   = nonWildK
+    | (RD_RRSIG{..}, _):_  <- sigs  = let labels = toWireLabels dom
+                                          wmatches = length labels - fromIntegral rrsig_num_labels
+                                      in
+                                      wildK $ fromWireLabels $ (fromString "*" :: Label) : drop wmatches labels
+    | otherwise                     = nonWildK
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
