@@ -610,13 +610,17 @@ dequeueVcPendings pendings senderQ = loop
             vpDelete
             when nn loop
 
+vcPendingsThreshold :: Int
+vcPendingsThreshold = 4
+
 waitVcInput :: VcSession -> IO Bool
 waitVcInput VcSession{..} = do
     waitIn <- vcWaitRead_
     atomically $ do
         timeout <- readTVar vcTimeout_
         unless timeout $ do
-            retryUntil =<< vcAllowInput_
+            pendings <- readTVar vcPendings_
+            retryUntil $ Set.size pendings < vcPendingsThreshold
             waitIn
         return timeout
 
