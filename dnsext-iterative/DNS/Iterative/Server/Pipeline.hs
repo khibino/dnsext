@@ -440,8 +440,8 @@ receiverLogic' env mysa recv toCacher toSender dox = do
 noPendingOp :: VcPendingOp
 noPendingOp = VcPendingOp{vpReqNum = 0, vpDelete = pure ()}
 
-pendingOp :: TVar VcPendings -> Int -> (IO (), VcPendingOp)
-pendingOp pendings i = (addPending, pop)
+pendingOp :: TVar VcPendings -> Int -> (IO () -> VcPendingOp -> a) -> a
+pendingOp pendings i h = h addPending pop
   where
     addPending = atomically $ addVcPending pendings i
     delPending = atomically $ delVcPending pendings i
