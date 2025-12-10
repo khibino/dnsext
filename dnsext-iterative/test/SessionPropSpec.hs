@@ -14,6 +14,7 @@ import Control.Concurrent.Async (wait)
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.ST
+import Control.Monad.State
 import Data.Array.ST
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
@@ -21,6 +22,8 @@ import Data.Functor
 import Data.IORef
 import Data.List hiding (insert)
 import qualified Data.Map.Strict as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 
@@ -286,6 +289,40 @@ _checkEventGenerated n = replicateM_ 10 $ do
 ------------------------------------------------------------
 -- generating randomized recv-send list
 
+type EvState = (Set TaskNum, Set TaskNum, Set TaskNum)
+
+genRecvSendList :: Int -> Gen [Event]
+genRecvSendList n =
+    evalStateT (replicateM (2 * n) action) istate
+  where
+    istate = (Set.empty, Set.empty, Set.fromList [1 .. n])
+    action = StateT genNextEvent
+
+genNextEvent :: EvState -> Gen (Event, EvState)
+genNextEvent s@(_done0, pending0, input0)
+    | psz == 0          = fromInput    s
+    | psz == threshold  = fromPending  s
+    | otherwise         = frequency
+                          [ (isz, fromInput s)
+                          , (psz, fromPending s)
+                          ]
+  where
+    psz = Set.size pending0
+    isz = Set.size input0
+    threshold = vcPendingsThreshold - 1  -- for pattern ...,VfEof,VfTimeout,...
+
+    fromInput :: EvState -> Gen (Event, EvState)
+    fromInput (done, pending_, input) = do
+        n <- elements (Set.toList input)
+        pure (EvRecv n, (done, Set.insert n pending_, Set.delete n input))
+
+    fromPending :: EvState -> Gen (Event, EvState)
+    fromPending (done, pending_, input) = do
+        n <- elements (Set.toList pending_)
+        pure (EvSend n, (Set.insert n done, Set.delete n pending_, input))
+
+------------------------------------------------------------
+
 {- FOURMOLU_DISABLE -}
 rsListFromPerm2n :: Int -> [Int] -> [Event]
 rsListFromPerm2n n perm2n = runST $ newArray (1, n) False >>= \recvFlags -> mapM (action recvFlags) perm2n
@@ -302,8 +339,8 @@ rsListFromPerm2n n perm2n = runST $ newArray (1, n) False >>= \recvFlags -> mapM
         | otherwise  = writeArray recvFlags t True $> EvRecv t
 {- FOURMOLU_ENABLE -}
 
-genRecvSendList :: Int -> Gen [Event]
-genRecvSendList n = rsListFromPerm2n n <$> genPermutation (2 * n)
+-- genRecvSendList :: Int -> Gen [Event]
+-- genRecvSendList n = rsListFromPerm2n n <$> genPermutation (2 * n)
 
 {- FOURMOLU_DISABLE -}
 checkRecvSendList :: Int -> [Event] -> [Bool]
