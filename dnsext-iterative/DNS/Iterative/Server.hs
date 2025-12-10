@@ -44,6 +44,7 @@ module DNS.Iterative.Server (
     mkInput,
     noPendingOp,
     checkReceived,
+    vcPendingsThreshold,
     receiverVC,
     getSendVC,
     senderVC,
