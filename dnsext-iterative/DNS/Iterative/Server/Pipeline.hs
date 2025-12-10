@@ -16,6 +16,7 @@ module DNS.Iterative.Server.Pipeline (
     withVcTimer,
     initVcSession,
     initVcSession',
+    vcPendingsThreshold,
     waitVcInput,
     waitVcOutput,
     enableVcEof,
