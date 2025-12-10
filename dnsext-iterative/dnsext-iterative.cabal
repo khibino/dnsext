@@ -138,6 +138,7 @@ test-suite spec
         array,
         bytestring,
         containers,
+        mtl,
         stm,
         -- this package
         dnsext-iterative,
