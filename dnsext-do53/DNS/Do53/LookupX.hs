@@ -31,7 +31,7 @@
 --   error. If you perform, say, an \'AAAA\' lookup for a domain with
 --   no such records, the \"success\" result would be @Right []@.
 --
---   We perform a successful lookup of \"www.example.com\":
+--   We perform a successful lookup of \"mew.org\":
 --
 --   >>> :seti -XOverloadedStrings
 --   >>>
