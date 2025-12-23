@@ -355,10 +355,9 @@ receiverVC name env vcs@VcSession{..} recv toCacher mkInput_ =
             | otherwise = step bs peerInfo ts >> loop (i + 1)
 
         caseEof = atomically (enableVcEof vcEof_) >> return VfEof
-        step bs peerInfo ts = do
-            atomically $ addVcPending vcPendings_ i
-            let delPending = atomically $ delVcPending vcPendings_ i
-            toCacher $ mkInput_ bs peerInfo (VcPendingOp{vpReqNum = i, vpDelete = delPending}) ts
+        step bs peerInfo ts = pendingOp vcPendings_ i $ \add pop -> do
+            add
+            toCacher $ mkInput_ bs peerInfo pop ts
 
 -- Since repeating event waiting and non-blocking reads,
 -- `controlledRecvVC` itself blocks on event waiting.
@@ -416,10 +415,9 @@ receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCac
                 loop ctl (i + 1)
       where
         caseEof = atomically (enableVcEof vcEof_) >> return VfEof
-        step bs ts = do
-            atomically $ addVcPending vcPendings_ i
-            let delPending = atomically $ delVcPending vcPendings_ i
-            toCacher $ mkInput_ bs peerInfo (VcPendingOp{vpReqNum = i, vpDelete = delPending}) ts
+        step bs ts = pendingOp vcPendings_ i $ \add pop -> do
+            add
+            toCacher $ mkInput_ bs peerInfo pop ts
 
 receiverLogic
     :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO ()
@@ -440,8 +438,8 @@ receiverLogic' env mysa recv toCacher toSender dox = do
 noPendingOp :: VcPendingOp
 noPendingOp = VcPendingOp{vpReqNum = 0, vpDelete = pure ()}
 
-pendingOp :: TVar VcPendings -> Int -> (IO (), VcPendingOp)
-pendingOp pendings i = (addPending, pop)
+pendingOp :: TVar VcPendings -> Int -> (IO () -> VcPendingOp -> a) -> a
+pendingOp pendings i h = h addPending pop
   where
     addPending = atomically $ addVcPending pendings i
     delPending = atomically $ delVcPending pendings i
