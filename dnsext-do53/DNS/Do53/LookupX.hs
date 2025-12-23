@@ -31,7 +31,7 @@
 --   error. If you perform, say, an \'AAAA\' lookup for a domain with
 --   no such records, the \"success\" result would be @Right []@.
 --
---   We perform a successful lookup of \"www.example.com\":
+--   We perform a successful lookup of \"mew.org\":
 --
 --   >>> :seti -XOverloadedStrings
 --   >>>
@@ -218,15 +218,15 @@ lookupNS = lookupX NS
 --   you prefer them to be at all deterministic.
 --
 --   For an example, we can look up the nameservers for
---   \"example.com\" from one of the root servers, a.gtld-servers.net,
+--   \"iij.com\" from one of the root servers, a.gtld-servers.net,
 --   the IP address of which was found beforehand:
 --
 --   >>> import Data.List (sort)
 --   >>> let seeds = SeedsAddr "192.5.6.30" -- a.gtld-servers.net
 --   >>> let rc = defaultLookupConf { lconfSeeds = seeds }
---   >>> ns <- withLookupConf rc $ \env -> lookupNSAuth env "example.com"
+--   >>> ns <- withLookupConf rc $ \env -> lookupNSAuth env "iij.com"
 --   >>> fmap sort ns
---   Right [a.iana-servers.net.,b.iana-servers.net.]
+--   Right [dns0.iij.ad.jp.,dns1.iij.ad.jp.]
 lookupNSAuth :: LookupEnv -> Domain -> IO (Either DNSError [RD_NS])
 lookupNSAuth = lookupAuthX NS
 
