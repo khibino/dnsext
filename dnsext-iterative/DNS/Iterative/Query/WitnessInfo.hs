@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -59,7 +60,7 @@ getUpperN3 = fromRepresentation . Opaque.toBase32Hex . nsec3_next_hashed_owner_n
 
 ---
 
-class NSECxWitnessInfo w n where
+class NSECxWitnessInfo w n | n -> w where
     witnessInfo :: (w -> a) -> (w -> a) -> n -> [a]
 
 {- FOURMOLU_DISABLE -}
