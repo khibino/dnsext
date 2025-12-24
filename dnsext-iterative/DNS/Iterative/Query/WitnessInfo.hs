@@ -12,6 +12,9 @@ import DNS.SEC.Verify.Types
 import DNS.Types
 import qualified DNS.Types.Opaque as Opaque
 
+showWitness :: (NSECxShowWintness w, NSECxWitnessInfo w n) => n -> [String]
+showWitness = witnessInfo showMatchWitness showCoverWitness
+
 witnessInfoNSEC3 :: NSECxWitnessInfo NSEC3_Witness n => n -> [String]
 witnessInfoNSEC3 = witnessInfo showMatchWitness showCoverWitness
 
