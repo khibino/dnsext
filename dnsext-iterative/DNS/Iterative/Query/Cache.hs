@@ -47,7 +47,7 @@ import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Helpers
 import DNS.Iterative.Query.Utils
 import qualified DNS.Iterative.Query.Verify as Verify
-import DNS.Iterative.Query.WitnessInfo
+import DNS.Iterative.Query.WitnessInfo (showWitness)
 
 ---- import for doctest
 import DNS.Iterative.Query.TestEnv
@@ -427,19 +427,18 @@ negativeWitnessActions nullK Delegation{..} qname qtype msg =
         | CheckDisabled <- reqCD       = pure []
         | otherwise  = Verify.getNoDatas   zone dnskeys rankedAuthority msg qname qtype
                        nullK invalidK (noWitnessK "NoData")
-                       resultK resultK resultK3 resultK3
+                       resultK resultK resultK resultK
     witnessNameError reqCD
         | FilledDS [] <- delegationDS  = pure []
         | CheckDisabled <- reqCD       = pure []
         | otherwise  = Verify.getNameError zone dnskeys rankedAuthority msg qname
                        nullK invalidK (noWitnessK "NameError")
-                       resultK resultK3
+                       resultK resultK
     invalidK s = failed $ "NSEC/NSEC3 NXDomain/NoData: " ++ qinfo ++ " :\n" ++ s
     noWitnessK wn s = failed $ "cannot find " ++ wn ++ " witness: " ++ qinfo ++ " : " ++ s
-    resultK  w rrsets _ = success w *> winfo witnessInfoNSEC  w $> rrsets
-    resultK3 w rrsets _ = success w *> winfo witnessInfoNSEC3 w $> rrsets
+    resultK  w rrsets _ = success w *> winfo (showWitness w) $> rrsets
     success w = clogLn Log.DEMO (Just Green) $ "nsec verification success - " ++ SEC.witnessName w ++ ": " ++ qinfo
-    winfo wi w = clogLn Log.DEMO (Just Cyan) $ unlines $ map ("  " ++) $ wi w
+    winfo wi = clogLn Log.DEMO (Just Cyan) $ unlines $ map ("  " ++) wi
     failed = nsecFailed
     ~qinfo = show qname ++ " " ++ show qtype
 
