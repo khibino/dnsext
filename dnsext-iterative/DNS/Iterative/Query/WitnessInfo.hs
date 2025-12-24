@@ -19,6 +19,18 @@ witnessInfoNSEC = witnessInfo showMatchNSEC showCoverNSEC
 
 ---
 
+class NSECxShowWintness w where
+    showMatchWitness :: w -> String
+    showCoverWitness :: w -> String
+
+instance NSECxShowWintness NSEC3_Witness where
+    showMatchWitness = showMatch showN3 getUpperN3 nsec3_types
+    showCoverWitness = showCover showN3 getUpperN3 nsec3_types
+
+instance NSECxShowWintness NSEC_Witness where
+    showMatchWitness = showMatch show nsec_next_domain nsec_types
+    showCoverWitness = showCover show nsec_next_domain nsec_types
+
 showMatchNSEC3 :: NSEC3_Witness -> String
 showMatchNSEC3 = showMatch showN3 getUpperN3 nsec3_types
 
