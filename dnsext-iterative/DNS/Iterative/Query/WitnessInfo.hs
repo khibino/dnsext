@@ -13,10 +13,10 @@ import DNS.Types
 import qualified DNS.Types.Opaque as Opaque
 
 witnessInfoNSEC3 :: NSECxWitnessInfo NSEC3_Witness n => n -> [String]
-witnessInfoNSEC3 = witnessInfo showMatchNSEC3 showCoverNSEC3
+witnessInfoNSEC3 = witnessInfo showMatchWitness showCoverWitness
 
 witnessInfoNSEC :: NSECxWitnessInfo NSEC_Witness n => n -> [String]
-witnessInfoNSEC = witnessInfo showMatchNSEC showCoverNSEC
+witnessInfoNSEC = witnessInfo showMatchWitness showCoverWitness
 
 ---
 
@@ -31,18 +31,6 @@ instance NSECxShowWintness NSEC3_Witness where
 instance NSECxShowWintness NSEC_Witness where
     showMatchWitness = showMatch show nsec_next_domain nsec_types
     showCoverWitness = showCover show nsec_next_domain nsec_types
-
-showMatchNSEC3 :: NSEC3_Witness -> String
-showMatchNSEC3 = showMatch showN3 getUpperN3 nsec3_types
-
-showCoverNSEC3 :: NSEC3_Witness -> String
-showCoverNSEC3 = showCover showN3 getUpperN3 nsec3_types
-
-showMatchNSEC :: NSEC_Witness -> String
-showMatchNSEC = showMatch show nsec_next_domain nsec_types
-
-showCoverNSEC :: NSEC_Witness -> String
-showCoverNSEC = showCover show nsec_next_domain nsec_types
 
 showMatch :: (Domain -> String) -> (rd -> Domain) -> (rd -> [TYPE]) -> ((Domain, rd), Domain) -> String
 showMatch showN getU getT ((lower, rd), name) =
