@@ -223,7 +223,7 @@ showConfig2 conf =
 -- | Parsing a configuration file to get an 'Config'.
 parseConfig :: FilePath -> [String] -> IO Config
 parseConfig file args =
-    makeConfig defaultConfig =<< nestedConfs nestedLimit =<< (++) <$> mapM readArg args <*> parseFile config file
+    makeConfig defaultConfig =<< loadNested nestedLimit =<< (++) <$> mapM readArg args <*> parseFile config file
 
 {- FOURMOLU_DISABLE -}
 makeConfig :: Config -> [Conf] -> IO Config
