@@ -500,22 +500,6 @@ logLevel s = case lvs of
 
 ----------------------------------------------------------------
 
-{- FOURMOLU_DISABLE -}
-getInclude :: [Conf] -> IO (Maybe (FilePath, [Conf]))
-getInclude []         = pure Nothing
-getInclude ((k, v):xs)
-    | k == "include"  = fromConf v <&> \path -> Just (path, xs)
-    | otherwise       = getInclude xs
-{- FOURMOLU_ENABLE -}
-
-includesConfs :: [Conf] -> IO [Conf]
-includesConfs cs = concat <$> (mapM loadInclude =<< getIncludes cs)
-  where
-    getIncludes = unfoldrM getInclude
-    loadInclude path = do
-        putStrLn $ "loading included conf: " ++ path
-        parseFile config path
-
 loadNested :: Int -> [Conf] -> IO [Conf]
 loadNested = expandNested loadInclude
 
@@ -558,15 +542,6 @@ expandNested loadInc n cs0 = include cs0
 
 nestedLimit :: Int
 nestedLimit = 5
-
-nestedConfs :: Int -> [Conf] -> IO [Conf]
-nestedConfs n cs0 =  do
-    cs1 <- includesConfs cs0
-    let result
-            | null cs1   = pure cs0
-            | n <= 0     = fail $ "nestedConfs: nested-limit is " ++ show nestedLimit ++ ", limit exceeded."
-            | otherwise  = (cs0 ++) <$> nestedConfs (n-1) cs1
-    result
 {- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
