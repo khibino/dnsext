@@ -42,7 +42,7 @@ spec = do
         it "NoData 2" $ caseNSEC3 nsec3RFC5155NoData2
         it "NoData 3" $ caseNSEC3 nsec3RFC5155NoData3
         it "unsigned delegation" $ caseNSEC3 nsec3RFC5155UnsignedDelegation
-        it "wildcard expansion" $ caseNSEC3 nsec3RFC5155WildcardExpansion
+        it "wildcard expansion" $ caseNSEC3 nsec3RFC5155WildcardExpansionLegacy
         it "wildcard NoData" $ caseNSEC3 nsec3RFC5155WildcardNoData
     describe "verify NSEC" $ do
         it "NameError" $ caseNSEC nsecRFC4035NameError
@@ -775,7 +775,7 @@ data NSEC3_Expect
     = N3Expect_NameError NSEC3_EW NSEC3_EW NSEC3_EW
     | N3Expect_NoData NSEC3_EW
     | N3Expect_UnsignedDelegation NSEC3_EW NSEC3_EW
-    | N3Expect_WildcardExpansion NSEC3_EW
+    | N3Expect_WildcardExpansionLegacy NSEC3_EW
     | N3Expect_WildcardNoData NSEC3_EW NSEC3_EW NSEC3_EW
     deriving (Eq, Show)
 
@@ -792,7 +792,7 @@ nsec3CheckResult result expect = case (result, expect) of
     (N3R_UnsignedDelegation (NSEC3_UnsignedDelegation{..}), N3Expect_UnsignedDelegation ec en) -> do
         check "unsigned: closest" (w2e nsec3_unsignedDelegation_closest_match) ec
         check "unsigned: next" (w2e nsec3_unsignedDelegation_next_closer_cover) en
-    (N3R_WildcardExpansion (NSEC3_WildcardExpansion{..}), N3Expect_WildcardExpansion en) -> do
+    (N3R_WildcardExpansion (NSEC3_WildcardExpansion{..}), N3Expect_WildcardExpansionLegacy en) -> do
         check "wildcard-expansion: next" (w2e nsec3_wildcardExpansion_next_closer_cover) en
     (N3R_WildcardNoData (NSEC3_WildcardNoData{..}), N3Expect_WildcardNoData ec en ew) -> do
         check "wildcard-no-data: closest" (w2e nsec3_wildcardNodata_closest_match) ec
@@ -816,11 +816,11 @@ caseNSEC3 ((zone, rds, qname, qtype), expect) = either expectationFailure (const
   where
     ranges = sortOn fst [(owner, nsec3) | (owner, rd) <- rds, Just nsec3 <- [fromRData rd]]
     getEach = case expect of
-        N3Expect_NameError{}           -> N3R_NameError           <$> nameErrorNSEC3           zone ranges qname
-        N3Expect_NoData{}              -> N3R_NoData              <$> noDataNSEC3              zone ranges qname qtype
-        N3Expect_UnsignedDelegation{}  -> N3R_UnsignedDelegation  <$> unsignedDelegationNSEC3  zone ranges qname
-        N3Expect_WildcardExpansion{}   -> N3R_WildcardExpansion   <$> wildcardExpansionNSEC3   zone ranges qname
-        N3Expect_WildcardNoData{}      -> N3R_WildcardNoData      <$> wildcardNoDataNSEC3      zone ranges qname qtype
+        N3Expect_NameError{}                -> N3R_NameError          <$> nameErrorNSEC3               zone ranges qname
+        N3Expect_NoData{}                   -> N3R_NoData             <$> noDataNSEC3                  zone ranges qname qtype
+        N3Expect_UnsignedDelegation{}       -> N3R_UnsignedDelegation <$> unsignedDelegationNSEC3      zone ranges qname
+        N3Expect_WildcardExpansionLegacy{}  -> N3R_WildcardExpansion  <$> detectWildcardExpansionNSEC3 zone ranges qname
+        N3Expect_WildcardNoData{}           -> N3R_WildcardNoData     <$> wildcardNoDataNSEC3          zone ranges qname qtype
 
 -- example from https://datatracker.ietf.org/doc/html/rfc7129#section-5.5
 nsec3RFC7129NameError :: NSEC3_CASE
@@ -950,8 +950,8 @@ nsec3RFC5155UnsignedDelegation = (("example.", rdatas, "mc.c.example.", MX), exp
 
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.4
 -- Wildcard Expansion
-nsec3RFC5155WildcardExpansion :: NSEC3_CASE
-nsec3RFC5155WildcardExpansion = (("example.", rdatas, "a.z.w.example.", MX), expect)
+nsec3RFC5155WildcardExpansionLegacy :: NSEC3_CASE
+nsec3RFC5155WildcardExpansionLegacy = (("example.", rdatas, "a.z.w.example.", MX), expect)
   where
     rdatas =
         [
@@ -960,7 +960,7 @@ nsec3RFC5155WildcardExpansion = (("example.", rdatas, "a.z.w.example.", MX), exp
             )
         ]
     expect =
-        N3Expect_WildcardExpansion
+        N3Expect_WildcardExpansionLegacy
             ("q04jkcevqvmu85r014c7dkba38o0ji5r.example.", "z.w.example.")
 
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.5
