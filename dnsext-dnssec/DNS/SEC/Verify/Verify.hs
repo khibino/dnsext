@@ -418,6 +418,9 @@ noDataNSEC3 zone ranges qname qtype = getNSEC3Result (NSEC3.get_noData qtype) zo
 unsignedDelegationNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Either String NSEC3_UnsignedDelegation
 unsignedDelegationNSEC3 = getNSEC3Result NSEC3.get_unsignedDelegation
 
+detectWildcardExpansionNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Either String NSEC3_WildcardExpansion
+detectWildcardExpansionNSEC3 = getNSEC3Result NSEC3.detect_wildcardExpansion
+
 wildcardExpansionNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Either String NSEC3_WildcardExpansion
 wildcardExpansionNSEC3 = getNSEC3Result NSEC3.get_wildcardExpansion
 

@@ -77,7 +77,7 @@ detect qtype getPropSet props =
         for both UnsignedDelegation and NoData properties -}
     n3GetNonExistence (\_ ps -> stepNE ps)                       getPropSet props  <|>
     fmap N3R_NoData             <$> get_noData             qtype getPropSet props  <|>
-    fmap N3R_WildcardExpansion  <$> get_wildcardExpansion        getPropSet props
+    fmap N3R_WildcardExpansion  <$> detect_wildcardExpansion     getPropSet props
   where
     stepNE ps =
         fmap N3R_NameError           <$> step_nameError            getPropSet ps  <|>
@@ -106,10 +106,13 @@ get_unsignedDelegation :: Logic NSEC3_UnsignedDelegation
 get_unsignedDelegation = n3GetNonExistence $ \_ props -> step_unsignedDelegation props
 
 {- loop for not-zipped prop-set list to check last zone-apex domain -}
-get_wildcardExpansion :: Logic NSEC3_WildcardExpansion
-get_wildcardExpansion _ = {- longest result -} msum . map step
+detect_wildcardExpansion :: Logic NSEC3_WildcardExpansion
+detect_wildcardExpansion _ = {- longest result -} msum . map step
   where
     step nexts = Right . n3_wildcardExpansion <$> propCover nexts
+
+get_wildcardExpansion :: Logic NSEC3_WildcardExpansion
+get_wildcardExpansion = detect_wildcardExpansion
 
 get_wildcardNoData :: TYPE -> Logic NSEC3_WildcardNoData
 get_wildcardNoData qtype = n3GetNonExistence $ step_wildcardNoData qtype
