@@ -448,8 +448,8 @@ unsignedDelegationNSEC3 = getNSEC3Result NSEC3.get_unsignedDelegation
 detectWildcardExpansionNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Either String NSEC3_WildcardExpansion
 detectWildcardExpansionNSEC3 = getNSEC3Result NSEC3.detect_wildcardExpansion
 
-wildcardExpansionNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Either String NSEC3_WildcardExpansion
-wildcardExpansionNSEC3 = getNSEC3Result NSEC3.get_wildcardExpansion
+wildcardExpansionNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Domain -> Either String NSEC3_WildcardExpansion
+wildcardExpansionNSEC3 zone n3s qname ncn = getNSEC3Result (NSEC3.get_wildcardExpansion ncn) zone n3s qname
 
 wildcardNoDataNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> TYPE -> Either String NSEC3_WildcardNoData
 wildcardNoDataNSEC3 zone ranges qname qtype = getNSEC3Result (NSEC3.get_wildcardNoData qtype) zone ranges qname

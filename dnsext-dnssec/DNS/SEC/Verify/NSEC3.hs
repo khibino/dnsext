@@ -111,8 +111,10 @@ detect_wildcardExpansion _ = {- longest result -} msum . map step
   where
     step nexts = Right . n3_wildcardExpansion <$> propCover nexts
 
-get_wildcardExpansion :: Logic NSEC3_WildcardExpansion
-get_wildcardExpansion = detect_wildcardExpansion
+{- FOURMOLU_DISABLE -}
+get_wildcardExpansion :: Domain -> Logic NSEC3_WildcardExpansion
+get_wildcardExpansion ncn getPropSet _props = Right . n3_wildcardExpansion <$> propCover (getPropSet ncn)
+{- FOURMOLU_ENABLE -}
 
 get_wildcardNoData :: TYPE -> Logic NSEC3_WildcardNoData
 get_wildcardNoData qtype = n3GetNonExistence $ step_wildcardNoData qtype
