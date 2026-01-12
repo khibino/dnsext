@@ -549,7 +549,7 @@ delegationFallbacks dc dnssecOK ah d0 name typ = do
 -- >>> instance MonadQuery TestIO where { queryNorec = qlookup }
 -- >>> --
 -- >>> runF0 zone nss dom typ cs = runReaderT (evalQueryT (fallbacks (delegation zone nss) dom typ) env (qparam dom typ)) (cs :: [Case])
--- >>> runF  zone nss dom typ cs = fmap (map rdata . answer . fst) <$> runF0 zone nss dom typ cs
+-- >>> runF  zone nss dom typ cs = fmap (map rdata . filter ((== typ) . rrtype) . answer . fst) <$> runF0 zone nss dom typ cs
 -- >>> nssG2 = ("ns1.example.", ["192.0.2.17"]) :| [("ns2.example.", ["192.0.2.33"])]
 -- >>> casesG2 = [("192.0.2.17", "a.ts.reasonings.cc.", A, Left RetryLimitExceeded), ("192.0.2.33", "a.ts.reasonings.cc.", A, Right [rd_a "198.51.100.33"])]
 -- >>> runF "reasonings.cc." nssG2 "a.ts.reasonings.cc." A casesG2
