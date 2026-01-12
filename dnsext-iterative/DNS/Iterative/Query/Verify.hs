@@ -333,7 +333,7 @@ getWildcardExpansion :: MonadEnv m => GetNE m msg NSEC_WildcardExpansion NSEC3_W
 getWildcardExpansion zone dnskeys getRanked msg qname =
     getWithFallback
         (\rs -> SEC.wildcardExpansionNSEC zone rs qname)
-        (\rs -> SEC.wildcardExpansionNSEC3 zone rs qname)
+        (\rs -> SEC.detectWildcardExpansionNSEC3 zone rs qname)
         dnskeys
         getRanked
         msg
