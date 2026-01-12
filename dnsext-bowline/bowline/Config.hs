@@ -223,7 +223,7 @@ showConfig2 conf =
 -- | Parsing a configuration file to get an 'Config'.
 parseConfig :: FilePath -> [String] -> IO Config
 parseConfig file args =
-    makeConfig defaultConfig =<< nestedConfs nestedLimit =<< (++) <$> mapM readArg args <*> parseFile config file
+    makeConfig defaultConfig =<< loadNested nestedLimit =<< (++) <$> mapM readArg args <*> parseFile config file
 
 {- FOURMOLU_DISABLE -}
 makeConfig :: Config -> [Conf] -> IO Config
@@ -500,34 +500,48 @@ logLevel s = case lvs of
 
 ----------------------------------------------------------------
 
-{- FOURMOLU_DISABLE -}
-getInclude :: [Conf] -> IO (Maybe (FilePath, [Conf]))
-getInclude []         = pure Nothing
-getInclude ((k, v):xs)
-    | k == "include"  = fromConf v <&> \path -> Just (path, xs)
-    | otherwise       = getInclude xs
-{- FOURMOLU_ENABLE -}
+loadNested :: Int -> [Conf] -> IO [Conf]
+loadNested = expandNested loadInclude
 
-includesConfs :: [Conf] -> IO [Conf]
-includesConfs cs = concat <$> (mapM loadInclude =<< getIncludes cs)
+loadInclude :: FilePath -> IO [Conf]
+loadInclude path = do
+    putStrLn $ "loading included conf: " ++ path
+    parseFile config path
+
+{- FOURMOLU_DISABLE -}
+-- |
+-- >>> include = pure . maybe [] id . (`lookup` [("n1", [("include", CV_String "n3")]), ("n2", [("bar", CV_Int 2)]), ("n3", [("baz", CV_Int 5)])])
+-- >>> runNested n cs = expandNested include n cs
+-- >>> runNested 0 []
+-- *** Exception: ... limit exceeded...
+-- >>> runNested 5 []
+-- []
+-- >>> runNested 1 [("include", CV_String "n1")]
+-- *** Exception: ... limit exceeded...
+-- >>> runNested 5 [("foo", CV_Int 3)]
+-- [("foo",CV_Int 3)]
+-- >>> runNested 5 [("foo", CV_Int 3), ("include", CV_String "n2")]
+-- [("foo",CV_Int 3),("bar",CV_Int 2)]
+-- >>> runNested 5 [("foo", CV_Int 3), ("include", CV_String "n2"), ("bar", CV_Int 7), ("include", CV_String "n1"), ("baz", CV_Int 6)]
+-- [("foo",CV_Int 3),("bar",CV_Int 2),("bar",CV_Int 7),("baz",CV_Int 5),("baz",CV_Int 6)]
+expandNested
+    :: (FilePath -> IO [Conf])
+    -> Int -> [Conf] -> IO [Conf]
+expandNested _       n _
+    | n <= 0              = fail $ "config: config-file nested-inclusion limit is " ++ show nestedLimit ++ ", limit exceeded."
+expandNested loadInc n cs0 = include cs0
   where
-    getIncludes = unfoldrM getInclude
-    loadInclude path = do
-        putStrLn $ "loading included conf: " ++ path
-        parseFile config path
+    include  []           = pure []
+    include (c@(k, v):cs)
+        | k == "include"  = fromConf v >>= \path -> (++) <$> (expandNested loadInc (n - 1) =<< loadInc path) <*> include cs
+        | otherwise       = chunk (c:) cs
+    chunk ac      []      = pure (ac [])
+    chunk ac ccs@(c@(k, _):cs)
+        | k == "include"  = (ac [] ++) <$> include ccs
+        | otherwise       = chunk (ac . (c:)) cs
 
-{- FOURMOLU_DISABLE -}
 nestedLimit :: Int
 nestedLimit = 5
-
-nestedConfs :: Int -> [Conf] -> IO [Conf]
-nestedConfs n cs0 =  do
-    cs1 <- includesConfs cs0
-    let result
-            | null cs1   = pure cs0
-            | n <= 0     = fail $ "nestedConfs: nested-limit is " ++ show nestedLimit ++ ", limit exceeded."
-            | otherwise  = (cs0 ++) <$> nestedConfs (n-1) cs1
-    result
 {- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
