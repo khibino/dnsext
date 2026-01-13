@@ -274,7 +274,10 @@ rsaSHA1NSEC3SHA1 =
     key_rd =
         rd_dnskey'
             256 3 7
-            "AwEAAcXO18j9zWL7GHpu/2yL3X+Qo7S1XjqocD1I7fVDckTUIL5IQnzo H2l9PPYiH9fSqQfJNuTjW1za1M7AGgRdyvXEt8Fp2fEIjWrRx4yE1KXc mFLE2aYGCsmHzSAQPUYR2Ujw3MYQOFRbEskBvLn7fKDEAodMWJL3AXLc vRUn9tuZ"
+            " AwEAAcXO18j9zWL7GHpu/2yL3X+Qo7S1XjqocD1I7fVDckTUIL5IQnzo \
+            \ H2l9PPYiH9fSqQfJNuTjW1za1M7AGgRdyvXEt8Fp2fEIjWrRx4yE1KXc \
+            \ mFLE2aYGCsmHzSAQPUYR2Ujw3MYQOFRbEskBvLn7fKDEAodMWJL3AXLc \
+            \ vRUn9tuZ "
     sig_rd =
         rd_rrsig'
             A 7 2
@@ -282,7 +285,10 @@ rsaSHA1NSEC3SHA1 =
             "20231212072832" "20231205065213"
             37700
             "nist.gov."
-            "CLkk28SVyM1Ouyv4BlCJ1XcWgtehBRyX40kQSCU8uODhSE46HRgRVJYY zZZbJD33WPtmsqWED2r0boZlpWt+T7SPQ0J0x2F3ecVWMwIiXb89vP4K OGaVUkcIIGnV1VOrEG2CiDtdXvEWDCX95fkuqwPgxRn/86GceDZypxZr Etk="
+            " CLkk28SVyM1Ouyv4BlCJ1XcWgtehBRyX40kQSCU8uODhSE46HRgRVJYY \
+            \ zZZbJD33WPtmsqWED2r0boZlpWt+T7SPQ0J0x2F3ecVWMwIiXb89vP4K \
+            \ OGaVUkcIIGnV1VOrEG2CiDtdXvEWDCX95fkuqwPgxRn/86GceDZypxZr \
+            \ Etk= "
 
 -- example from https://datatracker.ietf.org/doc/html/rfc5702#section-6.1
 rsaSHA256 :: RRSIG_CASE
