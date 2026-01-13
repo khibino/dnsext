@@ -768,6 +768,7 @@ nsec3HashRFC7129 =
 -----
 -- NSEC3 cases
 
+{- FOURMOLU_DISABLE -}
 type NSEC3_EW = (Domain, Domain {- expect witness, owner and qname -})
 
 data NSEC3_Expect
@@ -815,11 +816,11 @@ caseNSEC3 ((zone, rds, qname, qtype), expect) = either expectationFailure (const
   where
     ranges = sortOn fst [(owner, nsec3) | (owner, rd) <- rds, Just nsec3 <- [fromRData rd]]
     getEach = case expect of
-        N3Expect_NameError{} -> N3R_NameError <$> nameErrorNSEC3 zone ranges qname
-        N3Expect_NoData{} -> N3R_NoData <$> noDataNSEC3 zone ranges qname qtype
-        N3Expect_UnsignedDelegation{} -> N3R_UnsignedDelegation <$> unsignedDelegationNSEC3 zone ranges qname
-        N3Expect_WildcardExpansion{} -> N3R_WildcardExpansion <$> wildcardExpansionNSEC3 zone ranges qname
-        N3Expect_WildcardNoData{} -> N3R_WildcardNoData <$> wildcardNoDataNSEC3 zone ranges qname qtype
+        N3Expect_NameError{}           -> N3R_NameError           <$> nameErrorNSEC3           zone ranges qname
+        N3Expect_NoData{}              -> N3R_NoData              <$> noDataNSEC3              zone ranges qname qtype
+        N3Expect_UnsignedDelegation{}  -> N3R_UnsignedDelegation  <$> unsignedDelegationNSEC3  zone ranges qname
+        N3Expect_WildcardExpansion{}   -> N3R_WildcardExpansion   <$> wildcardExpansionNSEC3   zone ranges qname
+        N3Expect_WildcardNoData{}      -> N3R_WildcardNoData      <$> wildcardNoDataNSEC3      zone ranges qname qtype
 
 -- example from https://datatracker.ietf.org/doc/html/rfc7129#section-5.5
 nsec3RFC7129NameError :: NSEC3_CASE
@@ -986,9 +987,11 @@ nsec3RFC5155WildcardNoData = (("example.", rdatas, "a.z.w.example.", AAAA), expe
             ("k8udemvp1j2f7eg6jebps17vp3n8i58h.example.", "w.example.")
             ("q04jkcevqvmu85r014c7dkba38o0ji5r.example.", "z.w.example.")
             ("r53bq7cc2uvmubfu5ocmm6pers9tk9en.example.", "*.w.example")
+{- FOURMOLU_ENABLE -}
 
 -----
 
+{- FOURMOLU_DISABLE -}
 type NSEC_EW = (Domain, Domain {- expect witness, owner and qname -})
 
 data NSEC_Expect
@@ -1033,11 +1036,11 @@ caseNSEC ((zone, rds, qname, qtype), expect) = either expectationFailure (const 
   where
     ranges = sortOn fst [(owner, nsec) | (owner, rd) <- rds, Just nsec <- [fromRData rd]]
     getEach = case expect of
-        NSEC_Expect_NameError{} -> NSECR_NameError <$> nameErrorNSEC zone ranges qname
-        NSEC_Expect_NoData{} -> NSECR_NoData <$> noDataNSEC zone ranges qname qtype
-        NSEC_Expect_UnsignedDelegation{} -> NSECR_UnsignedDelegation <$> unsignedDelegationNSEC zone ranges qname
-        NSEC_Expect_WildcardExpansion{} -> NSECR_WildcardExpansion <$> wildcardExpansionNSEC zone ranges qname
-        NSEC_Expect_WildcardNoData{} -> NSECR_WildcardNoData <$> wildcardNoDataNSEC zone ranges qname qtype
+        NSEC_Expect_NameError{}           -> NSECR_NameError           <$> nameErrorNSEC           zone ranges qname
+        NSEC_Expect_NoData{}              -> NSECR_NoData              <$> noDataNSEC              zone ranges qname qtype
+        NSEC_Expect_UnsignedDelegation{}  -> NSECR_UnsignedDelegation  <$> unsignedDelegationNSEC  zone ranges qname
+        NSEC_Expect_WildcardExpansion{}   -> NSECR_WildcardExpansion   <$> wildcardExpansionNSEC   zone ranges qname
+        NSEC_Expect_WildcardNoData{}      -> NSECR_WildcardNoData      <$> wildcardNoDataNSEC      zone ranges qname qtype
 
 -- example from https://datatracker.ietf.org/doc/html/rfc4035#appendix-B.2
 -- Name Error
@@ -1127,6 +1130,7 @@ nsecRFC4035WildcardNoData = (("example.", rdatas, "a.z.w.example.", AAAA), expec
 -- a.z.w.example.      IN AAAA
 {-- x.y.w.example. 3600 NSEC   xx.example. MX RRSIG NSEC -}
 {-- *.w.example.   3600 NSEC   x.w.example. MX RRSIG NSEC -}
+{- FOURMOLU_ENABLE -}
 
 -----
 -- helpers
