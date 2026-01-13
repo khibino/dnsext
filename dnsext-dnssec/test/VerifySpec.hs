@@ -779,7 +779,7 @@ data NSEC3_Expect
     | N3Expect_WildcardNoData NSEC3_EW NSEC3_EW NSEC3_EW
     deriving (Eq, Show)
 
-type NSEC3_CASE = ((Domain, [(Domain, RData)], Domain, TYPE), NSEC3_Expect)
+type NSEC3_CASE = ((Domain, [(Domain, RData)], Domain, TYPE, Domain), NSEC3_Expect)
 
 nsec3CheckResult :: NSEC3_Result -> NSEC3_Expect -> Either String ()
 nsec3CheckResult result expect = case (result, expect) of
@@ -808,7 +808,7 @@ nsec3CheckResult result expect = case (result, expect) of
         | otherwise = Left $ tag ++ ": " ++ show r ++ " =/= " ++ show e
 
 caseNSEC3 :: NSEC3_CASE -> Expectation
-caseNSEC3 ((zone, rds, qname, qtype), expect) = either expectationFailure (const $ pure ()) $ do
+caseNSEC3 ((zone, rds, qname, qtype, _ncloser), expect) = either expectationFailure (const $ pure ()) $ do
     resEach <- getEach
     nsec3CheckResult resEach expect
     result <- detectNSEC3 zone ranges qname qtype
@@ -824,7 +824,7 @@ caseNSEC3 ((zone, rds, qname, qtype), expect) = either expectationFailure (const
 
 -- example from https://datatracker.ietf.org/doc/html/rfc7129#section-5.5
 nsec3RFC7129NameError :: NSEC3_CASE
-nsec3RFC7129NameError = (("example.org.", rdatas, fromString "x.2.example.org.", TXT), expect)
+nsec3RFC7129NameError = (("example.org.", rdatas, fromString "x.2.example.org.", TXT, "(unused)"), expect)
   where
     rdatas =
         [
@@ -855,7 +855,7 @@ nsec3RFC7129NameError = (("example.org.", rdatas, fromString "x.2.example.org.",
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.1
 -- Name Error
 nsec3RFC5155NameError :: NSEC3_CASE
-nsec3RFC5155NameError = (("example.", rdatas, "a.c.x.w.example.", A), expect)
+nsec3RFC5155NameError = (("example.", rdatas, "a.c.x.w.example.", A, "(unused)"), expect)
   where
     rdatas =
         [
@@ -886,7 +886,7 @@ nsec3RFC5155NameError = (("example.", rdatas, "a.c.x.w.example.", A), expect)
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.2
 -- No Data Error
 nsec3RFC5155NoData1 :: NSEC3_CASE
-nsec3RFC5155NoData1 = (("example.", rdatas, "ns1.example.", MX), expect)
+nsec3RFC5155NoData1 = (("example.", rdatas, "ns1.example.", MX, "(unused)"), expect)
   where
     rdatas =
         [
@@ -899,7 +899,7 @@ nsec3RFC5155NoData1 = (("example.", rdatas, "ns1.example.", MX), expect)
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.2.1
 -- No Data Error, Empty Non-Terminal
 nsec3RFC5155NoData2 :: NSEC3_CASE
-nsec3RFC5155NoData2 = (("example.", rdatas, "y.w.example.", A), expect)
+nsec3RFC5155NoData2 = (("example.", rdatas, "y.w.example.", A, "(unused)"), expect)
   where
     rdatas =
         [
@@ -912,7 +912,7 @@ nsec3RFC5155NoData2 = (("example.", rdatas, "y.w.example.", A), expect)
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.6
 -- DS Child Zone No Data Error
 nsec3RFC5155NoData3 :: NSEC3_CASE
-nsec3RFC5155NoData3 = (("example.", rdatas, "example.", DS), expect)
+nsec3RFC5155NoData3 = (("example.", rdatas, "example.", DS, "(unused)"), expect)
   where
     rdatas =
         [
@@ -925,7 +925,7 @@ nsec3RFC5155NoData3 = (("example.", rdatas, "example.", DS), expect)
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.3
 -- Referral to an Opt-Out Unsigned Zone
 nsec3RFC5155UnsignedDelegation :: NSEC3_CASE
-nsec3RFC5155UnsignedDelegation = (("example.", rdatas, "mc.c.example.", MX), expect)
+nsec3RFC5155UnsignedDelegation = (("example.", rdatas, "mc.c.example.", MX, "(unused)"), expect)
   where
     rdatas =
         [
@@ -951,7 +951,7 @@ nsec3RFC5155UnsignedDelegation = (("example.", rdatas, "mc.c.example.", MX), exp
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.4
 -- Wildcard Expansion
 nsec3RFC5155WildcardExpansionLegacy :: NSEC3_CASE
-nsec3RFC5155WildcardExpansionLegacy = (("example.", rdatas, "a.z.w.example.", MX), expect)
+nsec3RFC5155WildcardExpansionLegacy = (("example.", rdatas, "a.z.w.example.", MX, "(unused)"), expect)
   where
     rdatas =
         [
@@ -966,7 +966,7 @@ nsec3RFC5155WildcardExpansionLegacy = (("example.", rdatas, "a.z.w.example.", MX
 -- example from https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.5
 -- Wildcard No Data Error
 nsec3RFC5155WildcardNoData :: NSEC3_CASE
-nsec3RFC5155WildcardNoData = (("example.", rdatas, "a.z.w.example.", AAAA), expect)
+nsec3RFC5155WildcardNoData = (("example.", rdatas, "a.z.w.example.", AAAA, "(unused)"), expect)
   where
     rdatas =
         [
