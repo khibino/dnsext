@@ -406,12 +406,12 @@ cacheNoDelegation d zone dnskeys dom msg
 
 {- FOURMOLU_DISABLE -}
 wildcardWitnessAction :: MonadContext m => Delegation -> Domain -> TYPE -> Domain -> DNSMessage -> m [RRset]
-wildcardWitnessAction Delegation{..} qname qtype _ncloser msg = witnessWildcardExpansion =<< asksQP requestCD_
+wildcardWitnessAction Delegation{..} qname qtype ncloser msg = witnessWildcardExpansion =<< asksQP requestCD_
   where
     witnessWildcardExpansion reqCD
         | FilledDS [] <- delegationDS  = pure []
         | CheckDisabled <- reqCD       = pure []
-        | otherwise  = Verify.getWildcardExpansion zone dnskeys rankedAuthority msg qname
+        | otherwise  = Verify.getWildcardExpansion ncloser zone dnskeys rankedAuthority msg qname
                        nullK invalidK (noWitnessK "WildcardExpansion")
                        resultK resultK
     nullK = pure []

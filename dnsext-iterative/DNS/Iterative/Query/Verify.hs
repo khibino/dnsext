@@ -329,11 +329,11 @@ getUnsignedDelegation zone dnskeys getRanked msg qname =
         getRanked
         msg
 
-getWildcardExpansion :: MonadEnv m => GetNE m msg NSEC_WildcardExpansion NSEC3_WildcardExpansion a
-getWildcardExpansion zone dnskeys getRanked msg qname =
+getWildcardExpansion :: MonadEnv m => Domain -> GetNE m msg NSEC_WildcardExpansion NSEC3_WildcardExpansion a
+getWildcardExpansion ncloser zone dnskeys getRanked msg qname =
     getWithFallback
         (\rs -> SEC.wildcardExpansionNSEC zone rs qname)
-        (\rs -> SEC.detectWildcardExpansionNSEC3 zone rs qname)
+        (\rs -> SEC.wildcardExpansionNSEC3 zone rs qname ncloser)
         dnskeys
         getRanked
         msg
