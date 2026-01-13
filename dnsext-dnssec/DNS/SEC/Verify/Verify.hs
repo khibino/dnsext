@@ -36,6 +36,9 @@ import DNS.SEC.Verify.RSA (rsaSHA1, rsaSHA256, rsaSHA512)
 import qualified DNS.SEC.Verify.SHA as DS
 import DNS.SEC.Verify.Types
 
+-- $setup
+-- >>> :seti -XOverloadedStrings
+
 keyTag :: RD_DNSKEY -> Word16
 keyTag dnskey = keyTagFromBS $ runBuilder (resourceDataSize dnskey) $ putResourceData Canonical dnskey
 
@@ -393,6 +396,30 @@ hashNSEC3PARAM nsec3p domain =
   where
     alg = nsec3param_hashalg nsec3p
     hash impl = hashNSEC3PARAMwith impl nsec3p domain
+
+---
+
+{- FOURMOLU_DISABLE -}
+-- |
+-- >>> withWildcard' qn nlabel = withWildcard qn nlabel id "not wildcard" (\wild nc -> show wild ++ " " ++ show nc)
+-- >>> withWildcard' "a.example." 2
+-- "not wildcard"
+-- >>> withWildcard' "a.example." 3
+-- "inconsistent nlabel:..."
+-- >>> withWildcard' "a.b.w.example." 2
+-- "\"*.w.example.\" \"b.w.example.\""
+withWildcard :: Domain -> Word8 -> (String -> a) -> a -> (Domain -> Domain -> a) -> a
+withWildcard qname nlabel left0 nw wild
+    | wmatches <  0  = left "inconsistent nlabel"
+    | wmatches == 0  = nw
+    | otherwise      = case ncs of
+        []          -> left "inconsistent length of wildcard matched"
+        _:ws        -> wild (fromWireLabels $ fromString "*" : ws) (fromWireLabels ncs)
+  where
+    left s = left0 $ s ++ ": nlabel=" ++ show nlabel ++ ", " ++ show qname
+    wmatches = labelsCount qname - fromIntegral nlabel
+    ncs = drop (wmatches - 1) $ toWireLabels qname :: [Label]
+{- FOURMOLU_ENABLE -}
 
 ---
 
