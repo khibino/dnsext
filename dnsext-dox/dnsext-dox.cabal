@@ -44,8 +44,8 @@ library
         dnsext-types,
         dnsext-utils,
         -- other packages
-        crypton-x509 >=1.7 && <1.8,
-        crypton-x509-validation >=1.6 && <1.7,
+        crypton-x509 >=1.8 && <1.9,
+        crypton-x509-validation >=1.8 && <1.9,
         http-types,
         http2 >= 5.4 && < 5.5,
         http2-tls >= 0.5 && < 0.6,
