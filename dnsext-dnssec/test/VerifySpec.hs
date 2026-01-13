@@ -776,6 +776,7 @@ data NSEC3_Expect
     | N3Expect_NoData NSEC3_EW
     | N3Expect_UnsignedDelegation NSEC3_EW NSEC3_EW
     | N3Expect_WildcardExpansionLegacy NSEC3_EW
+    | N3Expect_WildcardExpansion NSEC3_EW
     | N3Expect_WildcardNoData NSEC3_EW NSEC3_EW NSEC3_EW
     deriving (Eq, Show)
 
@@ -793,6 +794,8 @@ nsec3CheckResult result expect = case (result, expect) of
         check "unsigned: closest" (w2e nsec3_unsignedDelegation_closest_match) ec
         check "unsigned: next" (w2e nsec3_unsignedDelegation_next_closer_cover) en
     (N3R_WildcardExpansion (NSEC3_WildcardExpansion{..}), N3Expect_WildcardExpansionLegacy en) -> do
+        check "wildcard-expansion legacy: next" (w2e nsec3_wildcardExpansion_next_closer_cover) en
+    (N3R_WildcardExpansion (NSEC3_WildcardExpansion{..}), N3Expect_WildcardExpansion en) -> do
         check "wildcard-expansion: next" (w2e nsec3_wildcardExpansion_next_closer_cover) en
     (N3R_WildcardNoData (NSEC3_WildcardNoData{..}), N3Expect_WildcardNoData ec en ew) -> do
         check "wildcard-no-data: closest" (w2e nsec3_wildcardNodata_closest_match) ec
@@ -808,7 +811,7 @@ nsec3CheckResult result expect = case (result, expect) of
         | otherwise = Left $ tag ++ ": " ++ show r ++ " =/= " ++ show e
 
 caseNSEC3 :: NSEC3_CASE -> Expectation
-caseNSEC3 ((zone, rds, qname, qtype, _ncloser), expect) = either expectationFailure (const $ pure ()) $ do
+caseNSEC3 ((zone, rds, qname, qtype, ncloser), expect) = either expectationFailure (const $ pure ()) $ do
     resEach <- getEach
     nsec3CheckResult resEach expect
     result <- detectNSEC3 zone ranges qname qtype
@@ -820,6 +823,7 @@ caseNSEC3 ((zone, rds, qname, qtype, _ncloser), expect) = either expectationFail
         N3Expect_NoData{}                   -> N3R_NoData             <$> noDataNSEC3                  zone ranges qname qtype
         N3Expect_UnsignedDelegation{}       -> N3R_UnsignedDelegation <$> unsignedDelegationNSEC3      zone ranges qname
         N3Expect_WildcardExpansionLegacy{}  -> N3R_WildcardExpansion  <$> detectWildcardExpansionNSEC3 zone ranges qname
+        N3Expect_WildcardExpansion{}        -> N3R_WildcardExpansion  <$> wildcardExpansionNSEC3       zone ranges qname ncloser
         N3Expect_WildcardNoData{}           -> N3R_WildcardNoData     <$> wildcardNoDataNSEC3          zone ranges qname qtype
 
 -- example from https://datatracker.ietf.org/doc/html/rfc7129#section-5.5
