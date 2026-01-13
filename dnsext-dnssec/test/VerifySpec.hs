@@ -808,19 +808,18 @@ nsec3CheckResult result expect = case (result, expect) of
 
 caseNSEC3 :: NSEC3_CASE -> Expectation
 caseNSEC3 ((zone, rds, qname, qtype), expect) = either expectationFailure (const $ pure ()) $ do
-    let checkEach = getEach expect
-    resEach <- checkEach zone ranges qname qtype
+    resEach <- getEach
     nsec3CheckResult resEach expect
     result <- detectNSEC3 zone ranges qname qtype
     nsec3CheckResult result expect
   where
     ranges = sortOn fst [(owner, nsec3) | (owner, rd) <- rds, Just nsec3 <- [fromRData rd]]
-    getEach ex mz rs qn qt = case ex of
-        N3Expect_NameError{} -> N3R_NameError <$> nameErrorNSEC3 mz rs qn
-        N3Expect_NoData{} -> N3R_NoData <$> noDataNSEC3 mz rs qn qt
-        N3Expect_UnsignedDelegation{} -> N3R_UnsignedDelegation <$> unsignedDelegationNSEC3 mz rs qn
-        N3Expect_WildcardExpansion{} -> N3R_WildcardExpansion <$> wildcardExpansionNSEC3 mz rs qn
-        N3Expect_WildcardNoData{} -> N3R_WildcardNoData <$> wildcardNoDataNSEC3 mz rs qn qt
+    getEach = case expect of
+        N3Expect_NameError{} -> N3R_NameError <$> nameErrorNSEC3 zone ranges qname
+        N3Expect_NoData{} -> N3R_NoData <$> noDataNSEC3 zone ranges qname qtype
+        N3Expect_UnsignedDelegation{} -> N3R_UnsignedDelegation <$> unsignedDelegationNSEC3 zone ranges qname
+        N3Expect_WildcardExpansion{} -> N3R_WildcardExpansion <$> wildcardExpansionNSEC3 zone ranges qname
+        N3Expect_WildcardNoData{} -> N3R_WildcardNoData <$> wildcardNoDataNSEC3 zone ranges qname qtype
 
 -- example from https://datatracker.ietf.org/doc/html/rfc7129#section-5.5
 nsec3RFC7129NameError :: NSEC3_CASE
