@@ -64,16 +64,16 @@ import DNS.Iterative.Query.Utils
 withResult
     :: MonadContext m
     => TYPE -> (String -> String)
-    -> ([a] -> RRset -> m () -> m b)
-    ->  [a] -> RRset -> m () -> m b
-withResult typ modf rightK xs xRRset cacheX =
+    -> ([a] -> RRset -> m () -> m () -> m b)
+    ->  [a] -> RRset -> m () -> m () -> m b
+withResult typ modf rightK xs xRRset logK cacheX =
     mayVerifiedRRS noverify cd bogus valid (rrsMayVerified xRRset)
   where
     valid _   = verifyLog (Just Green) (modf $ "verification success - RRGIG of " ++ show typ) >> result
     cd        = verifyLog (Just Yellow) (modf "no verification - check-disabled") >> result
     noverify  = verifyLog (Just Yellow) (modf "no verification - no DS or no DNSKEY avail") >> result
-    result    = cacheX >> rightK xs xRRset cacheX
-    bogus _   = bogusError $ modf $ "verification failed - RRSIG of " ++ show typ
+    result    = cacheX >> rightK xs xRRset logK cacheX
+    bogus _   = logK >> bogusError (modf $ "verification failed - RRSIG of " ++ show typ)
 {- FOURMOLU_ENABLE -}
 
 insecureLog :: MonadEnv m => String -> m ()
@@ -101,7 +101,7 @@ cases
     -> Domain  -> TYPE
     -> (RR -> Maybe a)
     -> m b -> (m () -> m b)
-    -> ([a] -> RRset -> m () -> m b)
+    -> ([a] -> RRset -> m () -> m () -> m b)
     -> m b
 cases reqCD zone dnskeys getRanked msg rrn rrty h nullK ncK rightK =
     withSection getRanked msg $ \srrs rank -> cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK rightK
@@ -116,7 +116,7 @@ cases'
     -> Domain -> TYPE
     -> (RR -> Maybe a)
     -> m b -> (m () -> m b)
-    -> ([a] -> RRset -> m () -> m b)
+    -> ([a] -> RRset -> m () -> m () -> m b)
     -> m b
 cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK0 rightK0
     | null xRRs = nullK
@@ -125,7 +125,7 @@ cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK0 rightK0
     ncK rrs s = ncK0 $ logLines Log.DEMO (("not canonical RRset: " ++ s) : map (("\t" ++) . show) rrs)
     (fromRDs, xRRs) = unzip [(x, rr) | rr <- srrs, rrtype rr == rrty, rrname rr == rrn, Just x <- [h rr]]
     sigs = rrsigList zone rrn rrty srrs
-    verifiedK rrset@(RRset dom typ cls minTTL rds sigrds) = rightK0 fromRDs rrset (logInv *> cache)
+    verifiedK rrset@(RRset dom typ cls minTTL rds sigrds) = rightK0 fromRDs rrset logInv cache
       where
         cache = cacheRRset rank dom typ cls minTTL rds sigrds
         logInv = mayVerifiedRRS (pure ()) (pure ()) (logInvalids . lines) (const $ pure ()) $ rrsMayVerified rrset

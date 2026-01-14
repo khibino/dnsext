@@ -270,7 +270,7 @@ cacheSectionNegative zone dnskeys dom typ getRanked msg nws = do
         soaTTL ttl soa = minimum [DNS.soa_minimum soa, ttl, maxNegativeTTL]
         fromSOA ResourceRecord{..} = (,) rrname . soaTTL rrttl <$> DNS.fromRData rdata
         nullSOA = withSection getRanked msg $ \_rrs rank -> cacheNegativeNoSOA (rcode msg) dom typ maxNegativeTTL rank $> []
-        soaK ps soaRRset _cacheSOA = either (\s -> ncWarn s *> nullSOA $> []) (ncache >>> ($> soaRRset : nws)) $ single ps
+        soaK ps soaRRset _logK _cacheK = either (\s -> ncWarn s *> nullSOA $> []) (ncache >>> ($> soaRRset : nws)) $ single ps
         withSOA = Verify.withResult SOA msgf soaK
     --
     Verify.cases reqCD zone dnskeys rankedAuthority msg zone SOA fromSOA nullSOA ($> []) withSOA
@@ -362,7 +362,8 @@ cacheAnswer d@Delegation{..} dom typ msg = do
         nullK = nsecFailed $ "no NSEC/NSEC3 for NXDomain/NoData: " ++ show dom ++ " " ++ show typ
         (witnessNoDatas, witnessNameErr) = negativeWitnessActions nullK d dom typ msg
     ncX _ncLog = pure ([], [])
-    withX = Verify.withResult typ (\vmsg -> vmsg ++ ": " ++ show dom) $ \_xs xRRset _cacheX -> do
+    withX = Verify.withResult typ (\vmsg -> vmsg ++ ": " ++ show dom) $ \_xs xRRset logK _cacheX -> do
+        logK
         nws <- wildcardWitnessAction d dom typ msg
         pure ([xRRset], nws)
 
@@ -387,7 +388,7 @@ cacheNoDelegation d zone dnskeys dom msg
     nullCNAME = cacheSectionNegative zone dnskeys dom Cache.ERR rankedAuthority msg =<< witnessNameErr
     (_witnessNoDatas, witnessNameErr) = negativeWitnessActions (pure []) d dom A msg
     ncCNAME _ncLog = cacheNoDataNS
-    withCNAME = Verify.withResult CNAME (\s -> "no delegation: " ++ s ++ ": " ++ show dom) (\_ _ _ -> cacheNoDataNS)
+    withCNAME = Verify.withResult CNAME (\s -> "no delegation: " ++ s ++ ": " ++ show dom) (\_ _ _ _ -> cacheNoDataNS)
     {- not always possible to obtain NoData witness for NS
        * no NSEC/NSEC3 records - ex. A record exists
        * encloser NSEC/NSEC3 records for other than QNAME - ex. dig @ns1.dns-oarc.net. porttest.dns-oarc.net. A +dnssec -}

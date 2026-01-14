@@ -273,7 +273,7 @@ servsChildZone dc nss dom msg =
             dnskeys = delegationDNSKEY wd
             nullSOA = pure noDelegation {- guarded by soaRRs [] case -}
             ncSOA _ncLog = pure noDelegation {- guarded by soaRRs [_] case. single record must be canonical -}
-            withSOA = Verify.withResult SOA (\s -> "servs-child: " ++ s ++ ": " ++ show dom) (\_ _ _ -> pure $ hasDelegation wd)
+            withSOA = Verify.withResult SOA (\s -> "servs-child: " ++ s ++ ": " ++ show dom) (\_ _ _ _ -> pure $ hasDelegation wd)
     handleASIG fallback = withSection rankedAnswer msg $ \srrs _rank -> do
         let arrsigRRs = rrListWith RRSIG (signedA <=< DNS.fromRData) dom (\_ rr -> rr) srrs
         case arrsigRRs of
@@ -360,7 +360,7 @@ queryDS dc src@Delegation{..} dom = do
   where
     nullDS = insecure "no DS, so no verify" $> []
     ncDS ncLog = ncLog *> bogus "not canonical DS"
-    withDS dsrds = Verify.withResult DS msgf (\_ _ _ -> pure dsrds) dsrds  {- not reach for no-verify and check-disabled cases -}
+    withDS rds = Verify.withResult DS msgf (\_ _ _ _ -> pure rds) rds  {- not reach for no-verify and check-disabled cases -}
     insecure ~vmsg = Verify.insecureLog (msgf vmsg)
     bogus ~es = Verify.bogusError (msgf es)
     msgf s = "fill delegation - " ++ s ++ ": " ++ domTraceMsg
@@ -416,16 +416,16 @@ rootPriming =
     pairNS rr = (,) <$> rdata rr `DNS.rdataField` DNS.ns_domain <*> pure rr
 
     verify hint msgNS = Verify.cases NoCheckDisabled "." dnskeys rankedAnswer msgNS "." NS pairNS nullNS ncNS $
-        \nsps nsRRset postAction -> do
+        \nsps nsRRset logK cacheK -> do
             let nsSet = Set.fromList $ map fst nsps
                 (axRRs, cacheAX) = withSection Cache.rankedAdditional msgNS $ \rrs rank ->
                     (axList False (`Set.member` nsSet) (\_ rr -> rr) rrs, cacheSection axRRs rank)
                 result "."  ents
                     | not $ rrsetValid nsRRset = do
-                          postAction  {- Call action for logging error info. `Verify.cacheRRset` does not cache invalids -}
+                          logK {- Call action for logging error info. -}
                           logResult ents Red "verification failed - RRSIG of NS: \".\"" $> left "DNSSEC verification failed"
                     | otherwise                = do
-                          postAction *> cacheAX
+                          logK *> cacheK *> cacheAX
                           logResult ents Green "verification success - RRSIG of NS: \".\""
                           pure $ Right $ hint{delegationNS = ents, delegationFresh = FreshD}
                 result apex _ents = pure $ left $ "inconsistent zone apex: " ++ show apex ++ ", not \".\""
@@ -499,7 +499,7 @@ cachedDNSKEY getSEPs dc d@Delegation{..} = do
             nullDNSKEY = cacheSectionNegative zone [] zone DNSKEY rankedAnswer msg [] *> bogus "null DNSKEYs for non-empty SEP"
             ncDNSKEY ncLog = ncLog >> bogus "not canonical"
         Verify.cases NoCheckDisabled zone (s : ss) rankedAnswer msg zone DNSKEY dnskeyRD nullDNSKEY ncDNSKEY withDNSKEY
-    withDNSKEY rds = Verify.withResult DNSKEY msgf (\_ _ _ -> pure rds) rds {- not reach for no-verify and check-disabled cases -}
+    withDNSKEY rds = Verify.withResult DNSKEY msgf (\_ _ _ _ -> pure rds) rds {- not reach for no-verify and check-disabled cases -}
     bogus ~es = Verify.bogusError (msgf es)
     msgf s = "require-dnskey: " ++ s ++ ": " ++ show zone
     zone = delegationZone
