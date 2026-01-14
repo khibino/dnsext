@@ -11,7 +11,8 @@ module DNS.Iterative.Query.Verify (
 
     -- * case split for RRSIG verification
     cases,
-    cases',
+    casesCanoicalize,
+    casesVerify,
 
     -- * RRSIG, sep DNSKEY verification, for tests
     rrWithRRSIG,
@@ -103,37 +104,47 @@ cases
     -> m b -> (m () -> m b)
     -> ([a] -> RRset -> m () -> m () -> m b)
     -> m b
-cases reqCD zone dnskeys getRanked msg rrn rrty h nullK ncK rightK =
-    withSection getRanked msg $ \srrs rank -> cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK rightK
+cases reqCD zone dnskeys getRanked msg rrn rrty h nullK ncK verifiedK =
+    withSection getRanked msg $ \srrs rank -> casesCanoicalize srrs rrn rrty h nullK ncK (canonK srrs rank)
+  where
+    canonK srrs rank fromRDs crrset sortedRDatas =
+        casesVerify reqCD dnskeys (rrsigList zone rrn rrty srrs) rank (rrsName crrset) crrset sortedRDatas (verifiedK fromRDs)
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-cases'
+casesCanoicalize
     :: MonadEnv m
-    => RequestCD
-    -> Domain -> [RD_DNSKEY]
-    -> [RR] -> Ranking
-    -> Domain -> TYPE
+    => [RR] -> Domain -> TYPE
     -> (RR -> Maybe a)
     -> m b -> (m () -> m b)
-    -> ([a] -> RRset -> m () -> m () -> m b)
+    -> ([a] -> RRset -> [(Int, DNS.Builder ())] -> m b)
     -> m b
-cases' reqCD zone dnskeys srrs rank rrn rrty h nullK ncK0 rightK0
+casesCanoicalize srrs rrn rrty h nullK ncK0 canonK
     | null xRRs = nullK
-    | otherwise = canonicalRRset xRRs (ncK xRRs) rightK
+    | otherwise = canonicalRRset xRRs (ncK xRRs) (canonK fromRDs)
   where
     ncK rrs s = ncK0 $ logLines Log.DEMO (("not canonical RRset: " ++ s) : map (("\t" ++) . show) rrs)
     (fromRDs, xRRs) = unzip [(x, rr) | rr <- srrs, rrtype rr == rrty, rrname rr == rrn, Just x <- [h rr]]
-    sigs = rrsigList zone rrn rrty srrs
-    verifiedK rrset@(RRset dom typ cls minTTL rds sigrds) = rightK0 fromRDs rrset logInv cache
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+casesVerify
+    :: MonadEnv m
+    => RequestCD
+    -> [RD_DNSKEY] -> [(RD_RRSIG, TTL)] -> Ranking
+    -> Domain -> RRset -> [(Int, DNS.Builder ())]
+    -> (RRset -> m () -> m () -> m b)
+    -> m b
+casesVerify reqCD dnskeys sigs rank wildcard crrset sortedRDatas rightK0 = do
+    now <- liftIO =<< asksEnv currentSeconds_
+    withVerifiedRRset reqCD now dnskeys wildcard crrset sortedRDatas sigs verifiedK
+  where
+    verifiedK vrrset@(RRset dom typ cls minTTL rds sigrds) = rightK0 vrrset logInv cache
       where
         cache = cacheRRset rank dom typ cls minTTL rds sigrds
-        logInv = mayVerifiedRRS (pure ()) (pure ()) (logInvalids . lines) (const $ pure ()) $ rrsMayVerified rrset
+        logInv = mayVerifiedRRS (pure ()) (pure ()) (logInvalids . lines) (const $ pure ()) $ rrsMayVerified vrrset
         logInvalids  []    = clogLn Log.DEMO (Just Cyan)  "cases: InvalidRRS"
         logInvalids (e:es) = clogLn Log.DEMO (Just Cyan) ("cases: InvalidRRS: " ++ e) *> logLines Log.DEMO es
-    rightK rrset sortedRRs = do
-        now <- liftIO =<< asksEnv currentSeconds_
-        withVerifiedRRset reqCD now dnskeys rrset sortedRRs sigs verifiedK
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -141,10 +152,10 @@ withVerifiedRRset
     :: RequestCD
     -> EpochTime
     -> [RD_DNSKEY]
-    -> RRset -> [(Int, DNS.Builder ())] -> [(RD_RRSIG, TTL)]
+    -> Domain -> RRset -> [(Int, DNS.Builder ())] -> [(RD_RRSIG, TTL)]
     -> (RRset -> a)
     -> a
-withVerifiedRRset reqCD now dnskeys0 RRset{..} sortedRDatas sigs0 vk =
+withVerifiedRRset reqCD now dnskeys0 wildcard RRset{..} sortedRDatas sigs0 vk =
     vk $ RRset rrsName rrsType rrsClass minTTL rrsRDatas mayVerified
   where
     mayVerified_ NoCheckDisabled  = notValidNoSig
@@ -156,7 +167,7 @@ withVerifiedRRset reqCD now dnskeys0 RRset{..} sortedRDatas sigs0 vk =
         (sigrds, sigTTLs) = unzip goodSigs
         expireTTLs = [exttl | sig <- sigrds, let exttl = fromDNSTime (rrsig_expiration sig) - now, exttl > 0]
 
-    (minTTL, mayVerified) = rrWithRRSIG' now dnskeys0 rrsName rrsType rrsClass sortedRDatas sigs0 noverify invalid valid
+    (minTTL, mayVerified) = rrWithRRSIG' now dnskeys0 wildcard rrsType rrsClass sortedRDatas sigs0 noverify invalid valid
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -499,7 +510,7 @@ nsecxWithRanges withZippedSigs dnskeys getRanked msg nullK leftK rightK = do
 
     verify now (rr, range, sigs) =
         canonicalRRset [rr] Left $ \rrset sortedRDatas ->
-            Right $ withVerifiedRRset NoCheckDisabled now dnskeys rrset sortedRDatas sigs ((,) range)
+            Right $ withVerifiedRRset NoCheckDisabled now dnskeys (rrsName rrset) rrset sortedRDatas sigs ((,) range)
 
 ---
 
