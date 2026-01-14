@@ -274,7 +274,10 @@ rsaSHA1NSEC3SHA1 =
     key_rd =
         rd_dnskey'
             256 3 7
-            "AwEAAcXO18j9zWL7GHpu/2yL3X+Qo7S1XjqocD1I7fVDckTUIL5IQnzo H2l9PPYiH9fSqQfJNuTjW1za1M7AGgRdyvXEt8Fp2fEIjWrRx4yE1KXc mFLE2aYGCsmHzSAQPUYR2Ujw3MYQOFRbEskBvLn7fKDEAodMWJL3AXLc vRUn9tuZ"
+            " AwEAAcXO18j9zWL7GHpu/2yL3X+Qo7S1XjqocD1I7fVDckTUIL5IQnzo \
+            \ H2l9PPYiH9fSqQfJNuTjW1za1M7AGgRdyvXEt8Fp2fEIjWrRx4yE1KXc \
+            \ mFLE2aYGCsmHzSAQPUYR2Ujw3MYQOFRbEskBvLn7fKDEAodMWJL3AXLc \
+            \ vRUn9tuZ "
     sig_rd =
         rd_rrsig'
             A 7 2
@@ -282,7 +285,10 @@ rsaSHA1NSEC3SHA1 =
             "20231212072832" "20231205065213"
             37700
             "nist.gov."
-            "CLkk28SVyM1Ouyv4BlCJ1XcWgtehBRyX40kQSCU8uODhSE46HRgRVJYY zZZbJD33WPtmsqWED2r0boZlpWt+T7SPQ0J0x2F3ecVWMwIiXb89vP4K OGaVUkcIIGnV1VOrEG2CiDtdXvEWDCX95fkuqwPgxRn/86GceDZypxZr Etk="
+            " CLkk28SVyM1Ouyv4BlCJ1XcWgtehBRyX40kQSCU8uODhSE46HRgRVJYY \
+            \ zZZbJD33WPtmsqWED2r0boZlpWt+T7SPQ0J0x2F3ecVWMwIiXb89vP4K \
+            \ OGaVUkcIIGnV1VOrEG2CiDtdXvEWDCX95fkuqwPgxRn/86GceDZypxZr \
+            \ Etk= "
 
 -- example from https://datatracker.ietf.org/doc/html/rfc5702#section-6.1
 rsaSHA256 :: RRSIG_CASE
@@ -762,6 +768,7 @@ nsec3HashRFC7129 =
 -----
 -- NSEC3 cases
 
+{- FOURMOLU_DISABLE -}
 type NSEC3_EW = (Domain, Domain {- expect witness, owner and qname -})
 
 data NSEC3_Expect
@@ -802,19 +809,18 @@ nsec3CheckResult result expect = case (result, expect) of
 
 caseNSEC3 :: NSEC3_CASE -> Expectation
 caseNSEC3 ((zone, rds, qname, qtype), expect) = either expectationFailure (const $ pure ()) $ do
-    let checkEach = getEach expect
-    resEach <- checkEach zone ranges qname qtype
+    resEach <- getEach
     nsec3CheckResult resEach expect
     result <- detectNSEC3 zone ranges qname qtype
     nsec3CheckResult result expect
   where
     ranges = sortOn fst [(owner, nsec3) | (owner, rd) <- rds, Just nsec3 <- [fromRData rd]]
-    getEach ex mz rs qn qt = case ex of
-        N3Expect_NameError{} -> N3R_NameError <$> nameErrorNSEC3 mz rs qn
-        N3Expect_NoData{} -> N3R_NoData <$> noDataNSEC3 mz rs qn qt
-        N3Expect_UnsignedDelegation{} -> N3R_UnsignedDelegation <$> unsignedDelegationNSEC3 mz rs qn
-        N3Expect_WildcardExpansion{} -> N3R_WildcardExpansion <$> wildcardExpansionNSEC3 mz rs qn
-        N3Expect_WildcardNoData{} -> N3R_WildcardNoData <$> wildcardNoDataNSEC3 mz rs qn qt
+    getEach = case expect of
+        N3Expect_NameError{}           -> N3R_NameError           <$> nameErrorNSEC3           zone ranges qname
+        N3Expect_NoData{}              -> N3R_NoData              <$> noDataNSEC3              zone ranges qname qtype
+        N3Expect_UnsignedDelegation{}  -> N3R_UnsignedDelegation  <$> unsignedDelegationNSEC3  zone ranges qname
+        N3Expect_WildcardExpansion{}   -> N3R_WildcardExpansion   <$> wildcardExpansionNSEC3   zone ranges qname
+        N3Expect_WildcardNoData{}      -> N3R_WildcardNoData      <$> wildcardNoDataNSEC3      zone ranges qname qtype
 
 -- example from https://datatracker.ietf.org/doc/html/rfc7129#section-5.5
 nsec3RFC7129NameError :: NSEC3_CASE
@@ -981,9 +987,11 @@ nsec3RFC5155WildcardNoData = (("example.", rdatas, "a.z.w.example.", AAAA), expe
             ("k8udemvp1j2f7eg6jebps17vp3n8i58h.example.", "w.example.")
             ("q04jkcevqvmu85r014c7dkba38o0ji5r.example.", "z.w.example.")
             ("r53bq7cc2uvmubfu5ocmm6pers9tk9en.example.", "*.w.example")
+{- FOURMOLU_ENABLE -}
 
 -----
 
+{- FOURMOLU_DISABLE -}
 type NSEC_EW = (Domain, Domain {- expect witness, owner and qname -})
 
 data NSEC_Expect
@@ -1021,19 +1029,18 @@ type NSEC_CASE = ((Domain, [(Domain, RData)], Domain, TYPE), NSEC_Expect)
 
 caseNSEC :: NSEC_CASE -> Expectation
 caseNSEC ((zone, rds, qname, qtype), expect) = either expectationFailure (const $ pure ()) $ do
-    let checkEach = getEach expect
-    resEach <- checkEach zone ranges qname qtype
+    resEach <- getEach
     nsecCheckResult resEach expect
     result <- detectNSEC zone ranges qname qtype
     nsecCheckResult result expect
   where
     ranges = sortOn fst [(owner, nsec) | (owner, rd) <- rds, Just nsec <- [fromRData rd]]
-    getEach ex z rs qn qt = case ex of
-        NSEC_Expect_NameError{} -> NSECR_NameError <$> nameErrorNSEC z rs qn
-        NSEC_Expect_NoData{} -> NSECR_NoData <$> noDataNSEC z rs qn qt
-        NSEC_Expect_UnsignedDelegation{} -> NSECR_UnsignedDelegation <$> unsignedDelegationNSEC z rs qn
-        NSEC_Expect_WildcardExpansion{} -> NSECR_WildcardExpansion <$> wildcardExpansionNSEC z rs qn
-        NSEC_Expect_WildcardNoData{} -> NSECR_WildcardNoData <$> wildcardNoDataNSEC z rs qn qt
+    getEach = case expect of
+        NSEC_Expect_NameError{}           -> NSECR_NameError           <$> nameErrorNSEC           zone ranges qname
+        NSEC_Expect_NoData{}              -> NSECR_NoData              <$> noDataNSEC              zone ranges qname qtype
+        NSEC_Expect_UnsignedDelegation{}  -> NSECR_UnsignedDelegation  <$> unsignedDelegationNSEC  zone ranges qname
+        NSEC_Expect_WildcardExpansion{}   -> NSECR_WildcardExpansion   <$> wildcardExpansionNSEC   zone ranges qname
+        NSEC_Expect_WildcardNoData{}      -> NSECR_WildcardNoData      <$> wildcardNoDataNSEC      zone ranges qname qtype
 
 -- example from https://datatracker.ietf.org/doc/html/rfc4035#appendix-B.2
 -- Name Error
@@ -1123,6 +1130,7 @@ nsecRFC4035WildcardNoData = (("example.", rdatas, "a.z.w.example.", AAAA), expec
 -- a.z.w.example.      IN AAAA
 {-- x.y.w.example. 3600 NSEC   xx.example. MX RRSIG NSEC -}
 {-- *.w.example.   3600 NSEC   x.w.example. MX RRSIG NSEC -}
+{- FOURMOLU_ENABLE -}
 
 -----
 -- helpers
