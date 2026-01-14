@@ -39,7 +39,7 @@ import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Helpers
 import DNS.Iterative.Query.Utils
 import qualified DNS.Iterative.Query.Verify as Verify
-import DNS.Iterative.Query.WitnessInfo hiding (witnessInfo)
+import DNS.Iterative.Query.WitnessInfo (showWitness)
 
 newtype GMayDelegation a
     = MayDelegation (Maybe a)
@@ -229,9 +229,9 @@ unsignedDelegationOrNoDataAction zone dnskeys qname_ qtype_ msg = nsec
     nsec3 = Verify.nsec3WithValid  dnskeys rankedAuthority msg nullK    invalidK nsec3K
     nsec3K ranges rrsets doCache =
         Verify.runHandlers "cannot handle NSEC3 UnsignedDelegation/NoDatas:" noWitnessK $
-        handle unsignedDelegation resultK3 .
-        handle wildcardNoData     resultK3 .
-        handle noData             resultK3
+        handle unsignedDelegation resultK .
+        handle wildcardNoData     resultK .
+        handle noData             resultK
       where
         handle = Verify.mkHandler ranges rrsets doCache
         unsignedDelegation rs  = SEC.unsignedDelegationNSEC3  zone rs qname_
@@ -241,11 +241,10 @@ unsignedDelegationOrNoDataAction zone dnskeys qname_ qtype_ msg = nsec
     nullK = noverify "no NSEC/NSEC3 records" $> []
     invalidK s = failed $ "invalid NSEC/NSEC3: " ++ traceInfo ++ " : " ++ s
     noWitnessK s =noverify ("nsec witness not found: " ++ traceInfo ++ " : " ++ s) $> []
-    resultK  w rrsets _ = success w *> winfo witnessInfoNSEC  w $> rrsets
-    resultK3 w rrsets _ = success w *> winfo witnessInfoNSEC3 w $> rrsets
+    resultK  w rrsets _ = success w *> winfo (showWitness w) $> rrsets
 
     success w = putLog (Just Green) $ "nsec verification success - " ++ witnessInfo w
-    winfo wi w = putLog (Just Cyan) $ unlines $ map ("  " ++) $ wi w
+    winfo wi = putLog (Just Cyan) $ unlines $ map ("  " ++) wi
     noverify s = putLog (Just Yellow) $ "nsec no verification - " ++ s
     failed s = putLog (Just Red) ( "nsec verification failed - " ++ s) *> throwDnsError DNS.ServerFailure
 

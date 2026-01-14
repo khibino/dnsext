@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -11,25 +12,22 @@ import DNS.SEC.Verify.Types
 import DNS.Types
 import qualified DNS.Types.Opaque as Opaque
 
-witnessInfoNSEC3 :: NSECxWitnessInfo NSEC3_Witness n => n -> [String]
-witnessInfoNSEC3 = witnessInfo showMatchNSEC3 showCoverNSEC3
-
-witnessInfoNSEC :: NSECxWitnessInfo NSEC_Witness n => n -> [String]
-witnessInfoNSEC = witnessInfo showMatchNSEC showCoverNSEC
+showWitness :: (NSECxShowWintness w, NSECxWitnessInfo w n) => n -> [String]
+showWitness = witnessInfo showMatchWitness showCoverWitness
 
 ---
 
-showMatchNSEC3 :: NSEC3_Witness -> String
-showMatchNSEC3 = showMatch showN3 getUpperN3 nsec3_types
+class NSECxShowWintness w where
+    showMatchWitness :: w -> String
+    showCoverWitness :: w -> String
 
-showCoverNSEC3 :: NSEC3_Witness -> String
-showCoverNSEC3 = showCover showN3 getUpperN3 nsec3_types
+instance NSECxShowWintness NSEC3_Witness where
+    showMatchWitness = showMatch showN3 getUpperN3 nsec3_types
+    showCoverWitness = showCover showN3 getUpperN3 nsec3_types
 
-showMatchNSEC :: NSEC_Witness -> String
-showMatchNSEC = showMatch show nsec_next_domain nsec_types
-
-showCoverNSEC :: NSEC_Witness -> String
-showCoverNSEC = showCover show nsec_next_domain nsec_types
+instance NSECxShowWintness NSEC_Witness where
+    showMatchWitness = showMatch show nsec_next_domain nsec_types
+    showCoverWitness = showCover show nsec_next_domain nsec_types
 
 showMatch :: (Domain -> String) -> (rd -> Domain) -> (rd -> [TYPE]) -> ((Domain, rd), Domain) -> String
 showMatch showN getU getT ((lower, rd), name) =
@@ -47,7 +45,7 @@ getUpperN3 = fromRepresentation . Opaque.toBase32Hex . nsec3_next_hashed_owner_n
 
 ---
 
-class NSECxWitnessInfo w n where
+class NSECxWitnessInfo w n | n -> w where
     witnessInfo :: (w -> a) -> (w -> a) -> n -> [a]
 
 {- FOURMOLU_DISABLE -}
