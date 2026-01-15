@@ -348,7 +348,8 @@ cacheAnswer :: MonadContext m => Delegation -> Domain -> TYPE -> DNSMessage -> m
 cacheAnswer d@Delegation{..} dom typ msg = do
     verify =<< asksQP requestCD_
   where
-    verify reqCD = Verify.cases reqCD zone dnskeys rankedAnswer msg dom typ Just nullX ncX withX
+    verify reqCD = withSection rankedAnswer msg $
+       \srrs rank -> Verify.casesCanoicalize srrs dom typ Just nullX ncX (canonX reqCD srrs rank)
 
     nullX = doCacheEmpty <&> \e -> ([], e)
     doCacheEmpty = case rcode of
@@ -362,10 +363,17 @@ cacheAnswer d@Delegation{..} dom typ msg = do
         nullK = nsecFailed $ "no NSEC/NSEC3 for NXDomain/NoData: " ++ show dom ++ " " ++ show typ
         (witnessNoDatas, witnessNameErr) = negativeWitnessActions nullK d dom typ msg
     ncX _ncLog = pure ([], [])
-    withX = Verify.withResult typ (\vmsg -> vmsg ++ ": " ++ show dom) $ \_xs xRRset logK _cacheX -> do
-        logK
-        nws <- wildcardWitnessAction d dom typ msg
-        pure ([xRRset], nws)
+    canonX reqCD srrs rank fromRDs crrset sortedRDatas
+        | (RD_RRSIG{..}, _):_ <- sigs = SEC.withWildcard dom rrsig_num_labels errWild noWild wild
+        | otherwise                   = noWild
+      where
+        sigs = rrsigList zone dom typ srrs :: [(RD_RRSIG, TTL)]
+        vlf s vmsg = vmsg ++ ": " ++ s
+        doVerify s owner = Verify.casesVerify reqCD dnskeys sigs rank owner crrset sortedRDatas (withX (vlf s) fromRDs)
+        errWild s = Verify.bogusError $ vlf (show dom) $ "verification failed - " ++ s
+        noWild = doVerify (show dom) dom <&> \rrs -> (rrs, [])
+        wild wname ncloser = (,) <$> doVerify (show wname ++ " => " ++ show dom) wname <*> wildcardWitnessAction d dom typ ncloser msg
+    withX vl = Verify.withResult typ vl $ \_xs xRRset logK _cacheX -> logK $> [xRRset]
 
     rcode = DNS.rcode msg
     zone = delegationZone
@@ -397,20 +405,21 @@ cacheNoDelegation d zone dnskeys dom msg
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-wildcardWitnessAction :: MonadContext m => Delegation -> Domain -> TYPE -> DNSMessage -> m [RRset]
-wildcardWitnessAction Delegation{..} qname qtype msg = witnessWildcardExpansion =<< asksQP requestCD_
+wildcardWitnessAction :: MonadContext m => Delegation -> Domain -> TYPE -> Domain -> DNSMessage -> m [RRset]
+wildcardWitnessAction Delegation{..} qname qtype ncloser msg = witnessWildcardExpansion =<< asksQP requestCD_
   where
     witnessWildcardExpansion reqCD
         | FilledDS [] <- delegationDS  = pure []
         | CheckDisabled <- reqCD       = pure []
-        | otherwise  = Verify.getWildcardExpansion zone dnskeys rankedAuthority msg qname
+        | otherwise  = Verify.getWildcardExpansion ncloser zone dnskeys rankedAuthority msg qname
                        nullK invalidK (noWitnessK "WildcardExpansion")
                        resultK resultK
     nullK = pure []
     invalidK s = failed $ "NSEC/NSEC3 WildcardExpansion: " ++ qinfo ++ " :\n" ++ s
     noWitnessK wn s = failed $ "cannot find " ++ wn ++ " witness: " ++ qinfo ++ " : " ++ s
-    resultK w rrsets _ = success w $> rrsets
+    resultK  w rrsets _ = success w *> winfo (showWitness w) $> rrsets
     success w = clogLn Log.DEMO (Just Green) $ "nsec verification success - " ++ SEC.witnessName w ++ ": " ++ qinfo
+    winfo wi = clogLn Log.DEMO (Just Cyan) $ unlines $ map ("  " ++) wi
     failed = nsecFailed
     qinfo = show qname ++ " " ++ show qtype
 

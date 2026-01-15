@@ -36,6 +36,9 @@ import DNS.SEC.Verify.RSA (rsaSHA1, rsaSHA256, rsaSHA512)
 import qualified DNS.SEC.Verify.SHA as DS
 import DNS.SEC.Verify.Types
 
+-- $setup
+-- >>> :seti -XOverloadedStrings
+
 keyTag :: RD_DNSKEY -> Word16
 keyTag dnskey = keyTagFromBS $ runBuilder (resourceDataSize dnskey) $ putResourceData Canonical dnskey
 
@@ -396,6 +399,30 @@ hashNSEC3PARAM nsec3p domain =
 
 ---
 
+{- FOURMOLU_DISABLE -}
+-- |
+-- >>> withWildcard' qn nlabel = withWildcard qn nlabel id "not wildcard" (\wild nc -> show wild ++ " " ++ show nc)
+-- >>> withWildcard' "a.example." 2
+-- "not wildcard"
+-- >>> withWildcard' "a.example." 3
+-- "inconsistent nlabel:..."
+-- >>> withWildcard' "a.b.w.example." 2
+-- "\"*.w.example.\" \"b.w.example.\""
+withWildcard :: Domain -> Word8 -> (String -> a) -> a -> (Domain -> Domain -> a) -> a
+withWildcard qname nlabel left0 nw wild
+    | wmatches <  0  = left "inconsistent nlabel"
+    | wmatches == 0  = nw
+    | otherwise      = case ncs of
+        []          -> left "inconsistent length of wildcard matched"
+        _:ws        -> wild (fromWireLabels $ fromString "*" : ws) (fromWireLabels ncs)
+  where
+    left s = left0 $ s ++ ": nlabel=" ++ show nlabel ++ ", " ++ show qname
+    wmatches = labelsCount qname - fromIntegral nlabel
+    ncs = drop (wmatches - 1) $ toWireLabels qname :: [Label]
+{- FOURMOLU_ENABLE -}
+
+---
+
 zipSigsNSEC3 :: [ResourceRecord] -> (String -> a) -> ([(ResourceRecord, NSEC3_Range, [(RD_RRSIG, TTL)])] -> a) -> a
 zipSigsNSEC3 = NRange.zipSigsets NSEC3.rangeImpl
 
@@ -418,8 +445,11 @@ noDataNSEC3 zone ranges qname qtype = getNSEC3Result (NSEC3.get_noData qtype) zo
 unsignedDelegationNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Either String NSEC3_UnsignedDelegation
 unsignedDelegationNSEC3 = getNSEC3Result NSEC3.get_unsignedDelegation
 
-wildcardExpansionNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Either String NSEC3_WildcardExpansion
-wildcardExpansionNSEC3 = getNSEC3Result NSEC3.get_wildcardExpansion
+detectWildcardExpansionNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Either String NSEC3_WildcardExpansion
+detectWildcardExpansionNSEC3 = getNSEC3Result NSEC3.detect_wildcardExpansion
+
+wildcardExpansionNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> Domain -> Either String NSEC3_WildcardExpansion
+wildcardExpansionNSEC3 zone n3s qname ncn = getNSEC3Result (NSEC3.get_wildcardExpansion ncn) zone n3s qname
 
 wildcardNoDataNSEC3 :: Domain -> [NSEC3_Range] -> Domain -> TYPE -> Either String NSEC3_WildcardNoData
 wildcardNoDataNSEC3 zone ranges qname qtype = getNSEC3Result (NSEC3.get_wildcardNoData qtype) zone ranges qname
