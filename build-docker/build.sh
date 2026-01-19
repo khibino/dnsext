@@ -134,10 +134,10 @@ set +x
 case "$BOWLINE_BUILD_METHOD" in
     ghcup)
         [ x"$GHC_VERSION" != x ] || GHC_VERSION=9.6.7
-        [ x"$DEBIAN_REVISON" != x ] || DEBIAN_REVISON=bookworm
+        [ x"$DEBIAN_REVISION" != x ] || DEBIAN_REVISION=bookworm
         #--
         set -x
-        debian_rev="$DEBIAN_REVISON"
+        debian_rev="$DEBIAN_REVISION"
         ghc_version="$GHC_VERSION"
         case "$ghc_version" in
             9.6.*)
