@@ -182,7 +182,7 @@ config = commentLines *> many cfield <* eof
 -- >>> parse field "" "str: foo\n"
 -- Right ("str",CV_String "foo")
 -- >>> parse field "" "prefix-int: 127.0.0.1,::1 # comment \n"
--- Right ("prefix-int",CV_String "127.0.0.1,::1")
+-- Right ("prefix-int",CV_Strings ["127.0.0.1","::1"])
 -- >>> parse field "" "prefix-bool-1: nothing # comment \n"
 -- Right ("prefix-bool-1",CV_String "nothing")
 -- >>> parse field "" "prefix-bool-2: yesterday # comment \n"
