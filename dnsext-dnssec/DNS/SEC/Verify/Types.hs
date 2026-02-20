@@ -11,25 +11,28 @@ import DNS.SEC.Types (RD_NSEC, RD_NSEC3)
 import DNS.Types
 
 {- FOURMOLU_DISABLE -}
-data RRSIGImpl = forall pubkey sig .
-    RRSIGImpl
+data RRSIGImpl
+    = forall pubkey sig.
+      RRSIGImpl
     { rrsigIGetKey :: PubKey -> Either String pubkey
     , rrsigIGetSig :: Opaque -> Either String sig
     , rrsigIVerify :: pubkey -> sig -> ByteString -> Either String Bool
     }
 
-data DSImpl = forall digest .
-    DSImpl
+data DSImpl
+    = forall digest.
+      DSImpl
     { dsIGetDigest :: ByteString -> digest
-    , dsIVerify :: digest -> ByteString -> Bool
+    , dsIVerify    :: digest -> ByteString -> Bool
     }
 
-data NSEC3Impl = forall hash .
-    NSEC3Impl
-    { nsec3IGetHash :: ByteString -> hash
+data NSEC3Impl
+    = forall hash.
+      NSEC3Impl
+    { nsec3IGetHash  :: ByteString -> hash
     , nsec3IGetBytes :: hash -> ByteString
     }
-{- FOURMOLU_DISABLE -}
+{- FOURMOLU_ENABLE -}
 
 ---
 
@@ -40,41 +43,42 @@ type NSEC3_Range = (Domain, RD_NSEC3)
 type NSEC3_Witness = (NSEC3_Range, Domain)
 
 {- FOURMOLU_DISABLE -}
-data NSEC3_NameError =
-    NSEC3_NameError
-    { nsec3_nameError_closest_match :: NSEC3_Witness
+data NSEC3_NameError
+    = NSEC3_NameError
+    { nsec3_nameError_closest_match     :: NSEC3_Witness
     , nsec3_nameError_next_closer_cover :: NSEC3_Witness
-    , nsec3_nameError_wildcard_cover :: NSEC3_Witness
+    , nsec3_nameError_wildcard_cover    :: NSEC3_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.1 -}
-    deriving Show
+    deriving (Show)
 
-newtype NSEC3_NoData =
-    NSEC3_NoData
+newtype NSEC3_NoData
+    = NSEC3_NoData
     { nsec3_noData_closest_match :: NSEC3_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.2
          https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.6 -}
-    deriving Show
+    deriving (Show)
 
-data NSEC3_UnsignedDelegation =
-    NSEC3_UnsignedDelegation
-    { nsec3_unsignedDelegation_closest_match :: NSEC3_Witness
+data NSEC3_UnsignedDelegation
+    = NSEC3_UnsignedDelegation
+    { nsec3_unsignedDelegation_closest_match     :: NSEC3_Witness
     , nsec3_unsignedDelegation_next_closer_cover :: NSEC3_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.3 -}
-    deriving Show
+    deriving (Show)
 
-newtype NSEC3_WildcardExpansion =
-    NSEC3_WildcardExpansion
+newtype NSEC3_WildcardExpansion
+    = NSEC3_WildcardExpansion
     { nsec3_wildcardExpansion_next_closer_cover :: NSEC3_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.4 -}
-    deriving Show
+    deriving (Show)
 
-data NSEC3_WildcardNoData =
-    NSEC3_WildcardNoData
-    { nsec3_wildcardNodata_closest_match :: NSEC3_Witness
+data NSEC3_WildcardNoData
+    = NSEC3_WildcardNoData
+    { nsec3_wildcardNodata_closest_match     :: NSEC3_Witness
     , nsec3_wildcardNodata_next_closer_cover :: NSEC3_Witness
-    , nsec3_wildcardNodata_wildcard_match :: NSEC3_Witness
+    , nsec3_wildcardNodata_wildcard_match    :: NSEC3_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc5155#appendix-B.5 -}
-    deriving Show
+    deriving (Show)
+
 {- FOURMOLU_ENABLE -}
 
 data NSEC3_Result
@@ -92,37 +96,37 @@ type NSEC_Range = (Domain, RD_NSEC)
 type NSEC_Witness = (NSEC_Range, Domain)
 
 {- FOURMOLU_DISABLE -}
-data NSEC_NameError =
-    NSEC_NameError
-    { nsec_nameError_qname_cover :: NSEC_Witness
+data NSEC_NameError
+    = NSEC_NameError
+    { nsec_nameError_qname_cover    :: NSEC_Witness
     , nsec_nameError_wildcard_cover :: NSEC_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc4035#appendix-B.2 -}
-    deriving Show
+    deriving (Show)
 
-newtype NSEC_NoData =
-    NSEC_NoData
+newtype NSEC_NoData
+    = NSEC_NoData
     { nsec_noData_qname_match :: NSEC_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc4035#appendix-B.3 -}
-    deriving Show
+    deriving (Show)
 
-newtype NSEC_UnsignedDelegation =
-    NSEC_UnsignedDelegation
+newtype NSEC_UnsignedDelegation
+    = NSEC_UnsignedDelegation
     { nsec_unsignedDelegation_ns_qname_cover :: NSEC_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc4035#appendix-B.5 -}
-    deriving Show
+    deriving (Show)
 
-newtype NSEC_WildcardExpansion =
-    NSEC_WildcardExpansion
+newtype NSEC_WildcardExpansion
+    = NSEC_WildcardExpansion
     { nsec_wildcardExpansion_qname_cover :: NSEC_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc4035#appendix-B.6 -}
-    deriving Show
+    deriving (Show)
 
-data NSEC_WildcardNoData =
-    NSEC_WildcardNoData
-    { nsec_wildcardNoData_qname_cover :: NSEC_Witness
+data NSEC_WildcardNoData
+    = NSEC_WildcardNoData
+    { nsec_wildcardNoData_qname_cover    :: NSEC_Witness
     , nsec_wildcardNoData_wildcard_match :: NSEC_Witness
     } {- https://datatracker.ietf.org/doc/html/rfc4035#appendix-B.7 -}
-    deriving Show
+    deriving (Show)
 {- FOURMOLU_ENABLE -}
 
 data NSEC_Result
