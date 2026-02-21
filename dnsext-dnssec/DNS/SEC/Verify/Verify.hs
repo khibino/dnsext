@@ -51,24 +51,27 @@ keyTagFromBS (BS.BS ftpr (I# len#)) =
     go :: Int -> Word -> Ptr Word8 -> Word
     go (I# i0) (W# ac0) (Ptr ptr0#) = runST $ ST $ loop i0 ac0
       where
-        loop :: Int# -> Word# -> State# d -> (# State# d, Word #)  {- unboxed-word calculation -}
+        loop :: Int# -> Word# -> State# d -> (# State# d, Word #) {- unboxed-word calculation -}
         loop i0# ac0# s = case len# -# i0# of
             0# -> (# s, final ac0# #)
             1# -> case readWord8OffAddr# ptr0# i0# s of
-                      (# s, key0# #) ->
-                          let ac1# = ac0# `plusWord#` (word8ToWord# key0# `uncheckedShiftL#` 8#)
-                          in  (# s, final ac1# #)
-            _  -> case readWord8OffAddr# ptr0# i0# s of
-                      (# s, key0# #) -> case readWord8OffAddr# ptr0# (i0# +# 1#) s of
-                          (# s, key1# #) ->
-                              let ac2# = ac0# `plusWord#` (word8ToWord# key0# `uncheckedShiftL#` 8#)
-                                              `plusWord#` word8ToWord# key1#
-                                  i2# = i0# +# 2#
-                              in  loop i2# ac2# s
+                (# s, key0# #) ->
+                    let ac1# = ac0# `plusWord#` (word8ToWord# key0# `uncheckedShiftL#` 8#)
+                     in (# s, final ac1# #)
+            _ -> case readWord8OffAddr# ptr0# i0# s of
+                (# s, key0# #) -> case readWord8OffAddr# ptr0# (i0# +# 1#) s of
+                    (# s, key1# #) ->
+                        let ac2# =
+                                ac0#
+                                    `plusWord#` (word8ToWord# key0# `uncheckedShiftL#` 8#)
+                                    `plusWord#` word8ToWord# key1#
+                            i2# = i0# +# 2#
+                         in loop i2# ac2# s
     final :: Word# -> Word
     final ac# = W# ((ac# `plusWord#` ((ac# `uncheckedShiftRL#` 16#) `and#` 0xFFFF##)) `and#` 0xFFFF##)
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 checkKeyTag :: RD_DNSKEY -> Word16 -> Either String ()
 checkKeyTag dnskey@RD_DNSKEY{..} tag = do
     let keyTag_ = keyTag dnskey
@@ -77,9 +80,10 @@ checkKeyTag dnskey@RD_DNSKEY{..} tag = do
     unless (keyTag_ == tag) $
         Left $
             "checkKeyTag: Key Tag mismatch between DNSKEY and RRSIG: "
-                ++ show keyTag_
-                ++ " =/= "
-                ++ show tag
+         ++ show keyTag_
+         ++ " =/= "
+         ++ show tag
+{- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
 pubkeyDicts :: Map PubAlg RRSIGImpl
@@ -118,17 +122,20 @@ putRRSIGHeader RD_RRSIG{..} wbuf ref = do
     put16 wbuf rrsig_key_tag
     putDomain Canonical rrsig_zone wbuf ref
 
+{- FOURMOLU_DISABLE -}
 sizeRRSIGHeader :: RD_RRSIG -> Int
 sizeRRSIGHeader RD_RRSIG{..} =
-    2 {- TYPE -}
-        + 1 {- PubAlg -}
-        + 1 {- num_labels -}
-        + 4 {- Seconds -}
-        + 4 {- DNSTime -}
-        + 4 {- DNSTime -}
-        + 2 {- KeyTag -}
-        + domainSize rrsig_zone
+      2 {- TYPE -}
+    + 1 {- PubAlg -}
+    + 1 {- num_labels -}
+    + 4 {- Seconds -}
+    + 4 {- DNSTime -}
+    + 4 {- DNSTime -}
+    + 2 {- KeyTag -}
+    + domainSize rrsig_zone
+{- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 verifyRRSIGwith
     :: RRSIGImpl
     -> DNSTime
@@ -157,32 +164,32 @@ verifyRRSIGwith RRSIGImpl{..} now RD_DNSKEY{..} rrsig@RD_RRSIG{..} rrset_name rr
     unless (dnskey_pubalg == rrsig_pubalg) $
         Left $
             "verifyRRSIGwith: pubkey algorithm mismatch between DNSKEY and RRSIG: "
-                ++ show dnskey_pubalg
-                ++ " =/= "
-                ++ show rrsig_pubalg
+         ++ show dnskey_pubalg
+         ++ " =/= "
+         ++ show rrsig_pubalg
 
     let nlabels = numLabels rrset_name
     unless (nlabels >= fromIntegral rrsig_num_labels) $
         Left $
             "verifyRRSIGwith: number of rrname labels is too small: "
-                ++ ("rrname-labels=" ++ show nlabels)
-                ++ " < "
-                ++ ("rrsig-labels=" ++ show rrsig_num_labels)
+         ++ ("rrname-labels=" ++ show nlabels)
+         ++ " < "
+         ++ ("rrsig-labels=" ++ show rrsig_num_labels)
     unless (rrsig_inception <= now && now < rrsig_expiration) $
         Left $
             "verifyRRSIGwith: not valid period of RRSIG: to be valid, time "
-                ++ show now
-                ++ " must be between "
-                ++ show rrsig_inception
-                ++ " and "
-                ++ show rrsig_expiration
+         ++ show now
+         ++ " must be between "
+         ++ show rrsig_inception
+         ++ " and "
+         ++ show rrsig_expiration
 
     unless (rrset_type == rrsig_type) $
         Left $
             "verifyRRSIGwith: TYPE mismatch between RRset and RRSIG: "
-                ++ show rrset_type
-                ++ " =/= "
-                ++ show rrsig_type
+         ++ show rrset_type
+         ++ " =/= "
+         ++ show rrsig_type
 
     pubkey <- rrsigIGetKey dnskey_public_key
     sig <- rrsigIGetSig rrsig_signature
@@ -209,6 +216,7 @@ verifyRRSIGwith RRSIGImpl{..} now RD_DNSKEY{..} rrsig@RD_RRSIG{..} rrset_name rr
     {- `Data.List.sort` is linear for sorted case -}
     good <- rrsigIVerify pubkey sig str
     unless good $ Left "verifyRRSIGwith: rejected on verification"
+{- FOURMOLU_ENABLE -}
 
 {- RFC 4034 Section 6.3: Canonical RR Ordering within an RRset
    https://datatracker.ietf.org/doc/html/rfc4034#section-6.3
@@ -254,8 +262,10 @@ canonicalRRsetSorted rrs = canonicalRRsetSorted' rrs Left (\n ty cls ttl rd -> R
 {- generalized RRset with CPS -}
 canonicalRRset
     :: [ResourceRecord]
-    -> (String -> a) -> ((Domain -> TYPE -> CLASS -> TTL -> [RData] -> a) -> a)
+    -> (String -> a)
+    -> ((Domain -> TYPE -> CLASS -> TTL -> [RData] -> a) -> a)
 canonicalRRset rrs = canonicalRRsetSorted' [rr | (_, rr) <- sortRDataCanonical rrs]
+
 {- FOURMOLU_ENABLE -}
 
 verifyRRSIGsorted
@@ -285,21 +295,24 @@ verifyRRSIG
     -> Either String ()
 verifyRRSIG now zone dnskey owner rrsig@RD_RRSIG{..} rrs = do
     unless (rrsig_zone == zone) $
-        Left $ "verifyRRSIG: RRSIG zone mismatch: "
-            ++ show rrsig_zone
-            ++ " =/= "
-            ++ show zone
+        Left $
+            "verifyRRSIG: RRSIG zone mismatch: "
+         ++ show rrsig_zone
+         ++ " =/= "
+         ++ show zone
     {- The RRset MUST be sorted in canonical order.
        https://datatracker.ietf.org/doc/html/rfc4034#section-3.1.8.1 -}
     let (sortedRDatas, sortedRRs) = unzip $ sortRDataCanonical rrs
     canonicalRRsetSorted' sortedRRs Left $
         \rrset_dom typ cls _ttl _rds -> do
             unless (rrset_dom == owner) $
-                Left $ "verifyRRSIG: RRset domain mismatch with owner-domain: "
-                    ++ show rrset_dom
-                    ++ " =/= "
-                    ++ show owner
+                Left $
+                    "verifyRRSIG: RRset domain mismatch with owner-domain: "
+                 ++ show rrset_dom
+                 ++ " =/= "
+                 ++ show owner
             verifyRRSIGsorted now dnskey rrsig rrset_dom typ cls sortedRDatas
+
 {- FOURMOLU_ENABLE -}
 
 supportedRRSIG :: RD_RRSIG -> Bool
@@ -307,6 +320,7 @@ supportedRRSIG RD_RRSIG{..} = Map.member rrsig_pubalg pubkeyDicts
 
 ---
 
+{- FOURMOLU_DISABLE -}
 verifyDSwith :: DSImpl -> Domain -> RD_DNSKEY -> RD_DS -> Either String ()
 verifyDSwith DSImpl{..} owner dnskey@RD_DNSKEY{..} RD_DS{..} = do
     unless (ZONE `elem` dnskey_flags) $
@@ -316,14 +330,15 @@ verifyDSwith DSImpl{..} owner dnskey@RD_DNSKEY{..} RD_DS{..} = do
     unless (dnskey_pubalg == ds_pubalg) $
         Left $
             "verifyDSwith: pubkey algorithm mismatch between DNSKEY and DS: "
-                ++ show dnskey_pubalg
-                ++ " =/= "
-                ++ show ds_pubalg
+         ++ show dnskey_pubalg
+         ++ " =/= "
+         ++ show ds_pubalg
     let dnskeyBS = runBuilder (resourceDataSize dnskey) $ putResourceData Canonical dnskey
         digest = dsIGetDigest (runBuilder (domainSize owner) (putDomain Canonical owner) <> dnskeyBS)
         ds_digest' = Opaque.toByteString ds_digest
     unless (dsIVerify digest ds_digest') $
         Left "verifyDSwith: rejected on verification"
+{- FOURMOLU_ENABLE -}
 
 dsDicts :: Map DigestAlg DSImpl
 dsDicts =
