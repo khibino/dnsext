@@ -141,9 +141,11 @@ checkSOA :: [ResourceRecord] -> [ResourceRecord]
 checkSOA [] = []
 checkSOA (soa : rrs)
     | rrtype soa == SOA =
-        case unsnoc rrs of
+        case unsnoc' rrs of
             Nothing -> []
             Just (rrs', soa')
                 | rrtype soa' == SOA -> soa : rrs'
                 | otherwise -> []
     | otherwise = []
+  where
+    unsnoc' = foldr (\x -> Just . maybe ([], x) (\(~(a, b)) -> (x : a, b))) Nothing
