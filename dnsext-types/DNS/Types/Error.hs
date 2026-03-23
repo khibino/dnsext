@@ -2,9 +2,15 @@
 
 module DNS.Types.Error where
 
-import Control.Exception (Exception, SomeException)
+import Control.Exception
+import System.Timeout (timeout)
+
+import DNS.Exception
 
 ----------------------------------------------------------------
+
+-- $setup
+-- >>> :seti -Wno-type-defaults
 
 -- | An enumeration of all possible DNS errors that can occur.
 data DNSError
@@ -103,3 +109,54 @@ unwrapDNSErrorInfo = go id
     go a (DNSErrorInfo e s) = go (a . (s:)) e
     go a e                  = (e, a [])
 {- FOURMOLU_ENABLE -}
+
+networkFailure :: String -> IOException -> DNSError
+networkFailure tag ioe = NetworkFailure (SomeException ioe) tag
+
+fromIOException :: String -> IOException -> DNSError
+fromIOException = networkFailure
+
+----------------------------------------------------------------
+
+{- FOURMOLU_DISABLE -}
+catchDNS'
+    :: (String -> IO ())
+    -> String
+    -> IO a -> (DNSError -> IO a) -> IO a
+catchDNS' logLn ~tag action h =
+    catchSafe' logLn tag action h'
+  where
+    h' se = h (dnsError se)
+    dnsError se
+        | Just e  <- fromException se :: Maybe DNSError  = DNSErrorInfo e tag
+        | Just e  <- fromException se :: Maybe IOError   = networkFailure tag e
+        | otherwise                                      = BadThing (show se ++ " " ++ tag)
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+handleDNS'
+    :: (String -> IO ())
+    -> String
+    -> (DNSError -> IO a) -> IO a -> IO a
+handleDNS'  logLn ~tag = flip (catchDNS' logLn tag)
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+tryDNS'
+    :: (String -> IO ())
+    -> String
+    -> IO a -> IO (Either DNSError a)
+tryDNS' logLn ~tag action = catchDNS' logLn tag (action >>= \v -> return (Right v)) (\e -> pure (Left e))
+{- FOURMOLU_ENABLE -}
+
+catchDNS :: String -> IO a -> (DNSError -> IO a) -> IO a
+catchDNS = catchDNS' (\_ -> return ())
+
+handleDNS :: String -> (DNSError -> IO a) -> IO a -> IO a
+handleDNS ~tag = flip (catchDNS tag)
+
+tryDNS :: String -> IO a -> IO (Either DNSError a)
+tryDNS = tryDNS' (\_ -> return ())
+
+timeoutDNS :: Int -> IO a -> IO a
+timeoutDNS micro action = maybe (throwIO TimeoutExpired) pure =<< timeout micro action
