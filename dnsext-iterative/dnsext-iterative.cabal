@@ -31,6 +31,7 @@ library
         DNS.Iterative.Query.Random
         DNS.Iterative.Query.Resolve
         DNS.Iterative.Query.ResolveJust
+        DNS.Iterative.Query.Resolver53
         DNS.Iterative.Query.StubZone
         DNS.Iterative.Query.SteppedWait
         DNS.Iterative.Query.TestEnv
