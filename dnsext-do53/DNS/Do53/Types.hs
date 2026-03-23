@@ -161,7 +161,7 @@ data LookupConf = LookupConf
 -- | Return a default 'LookupConf':
 --
 -- * 'lconfSeeds' is 'SeedsFilePath' \"\/etc\/resolv.conf\".
--- * 'lconfRetry' is 3.
+-- * 'lconfUDPRetry' is 3.
 -- * 'lconfConcurrent' is False.
 -- * 'lconfCacheConf' is Nothing.
 -- * 'lconfQueryControls' is an empty set of overrides.
