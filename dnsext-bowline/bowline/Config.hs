@@ -20,7 +20,7 @@ import System.Posix (GroupID, UserID)
 import DNS.Config
 import DNS.Iterative.Internal (Address, LocalZoneType (..))
 import qualified DNS.Log as Log
-import DNS.Types (DNSError, Domain, OD_NSID (..), ResourceRecord (..), isSubDomainOf, maxUdpSize, minUdpSize)
+import DNS.Types (DNSError, Domain, OD_NSID (..), ResourceRecord (..), isSubDomainOf, maxUdpSize, minUdpSize, tryDNS)
 import DNS.ZoneFile (Context (cx_name, cx_zone), defaultContext, parseLineRR)
 
 data Config = Config
@@ -437,11 +437,11 @@ getDomainInsecure  []         = pure Nothing
 getDomainInsecure ((k, v):xs)
     | k == "domain-insecure"  = do
           vstr <- fromConf v
-          either (left vstr) right =<< E.try (E.evaluate $ fromString vstr)
+          either (left vstr) right =<< tryDNS "Config.getDomainInsecure" (E.evaluate $ fromString vstr)
     | otherwise = getDomainInsecure xs
   where
     left :: String -> DNSError -> IO a
-    left vstr e = fail ("domain-insecure: " ++ show e ++ ": " ++ vstr)
+    left vstr e = fail ("domain-insecure: " ++ show e ++ ": " ++ vstr)  -- show handled DecodeError
     right d = pure $ Just (d, xs)
 {- FOURMOLU_ENABLE -}
 
