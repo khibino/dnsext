@@ -18,7 +18,6 @@ import DNS.Do53.Internal (
     ResolveEnv (..),
     ResolveInfo (..),
     defaultResolveInfo,
-    udpTcpResolver,
  )
 import qualified DNS.Do53.Internal as DNS
 import DNS.Types
@@ -27,6 +26,7 @@ import DNS.Types
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.SteppedWait (steppedWait)
+import DNS.Iterative.Query.Resolver53 (udpTcpResolver1)
 
 {- FOURMOLU_DISABLE -}
 norec :: MonadIO m => Env -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
@@ -65,7 +65,7 @@ norec_ utimeout cxt dnssecOK aservers name typ = do
             ]
         renv =
             ResolveEnv
-                { renvResolver      = udpTcpResolver
+                { renvResolver      = udpTcpResolver1
                 , renvConcurrent    = True -- should set True if multiple RIs are provided
                 , renvResolveInfos  = ris
                 }
