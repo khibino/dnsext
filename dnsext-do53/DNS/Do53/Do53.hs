@@ -205,11 +205,7 @@ vcResolver tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q _qctl 
                 let mqctl = analyzeReply rply qctl0
                 case mqctl of
                     Nothing -> return $ Right rply
-                    Just qctl -> do
-                        erply' <- sendQueryRecvAnswer qctl
-                        case erply' of
-                            Left e' -> return $ Left e'
-                            Right rply' -> return $ Right rply'
+                    Just qctl -> sendQueryRecvAnswer qctl
 
     sendQueryRecvAnswer qctl = do
         -- Using a fresh identifier.
