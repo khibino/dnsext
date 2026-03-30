@@ -77,11 +77,17 @@ tryDNS ~tag action =
         | otherwise                                      = return $ Left $ BadThing (show se)
 {- FOURMOLU_ENABLE -}
 
-queryTag :: Question -> NameTag -> String
-queryTag Question{..} tag = tag'
+queryTag :: Question -> NameTag -> QueryControls -> String
+queryTag Question{..} tag qctl = tag'
   where
+    isNotify = ccOpcode (qctlCode qctl) == Just OP_NOTIFY
+    queryOrNotify
+        | isNotify = "notify"
+        | otherwise = "query"
     ~tag' =
-        "    query @"
+        "    "
+            ++ queryOrNotify
+            ++ " @"
             ++ fromNameTag tag
             ++ " "
             ++ show qname
@@ -108,7 +114,7 @@ udpResolver ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q qctl_ = do
     join <$> tryDNS qtag (go qctl_)
   where
     tag = nameTag ri "UDP"
-    ~qtag = queryTag q tag
+    ~qtag = queryTag q tag qctl_
     -- Using only one socket and the same identifier.
     go qctl = bracket open close $ \sock -> do
         ractionSetSockOpt sock
@@ -196,7 +202,7 @@ vcResolver tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q qctl_ 
     unless ractionShortLog $ ractionLog Log.DEMO Nothing [qtag]
     join <$> tryDNS qtag (go qctl_)
   where
-    ~qtag = queryTag q tag
+    ~qtag = queryTag q tag qctl_
     go qctl0 = do
         erply <- sendQueryRecvAnswer qctl0
         case erply of
