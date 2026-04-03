@@ -17,6 +17,9 @@ data Config = Config
     , cnf_tcp_port  :: PortNumber
     , cnf_udp_addrs :: [String]
     , cnf_udp_port  :: PortNumber
+    , cnf_log       :: Bool
+    , cnf_log_file  :: Maybe FilePath
+    , cnf_log_level :: String
     }
 
 defaultConfig :: Config
@@ -26,6 +29,9 @@ defaultConfig =
         , cnf_tcp_port  = 53
         , cnf_udp_addrs = []
         , cnf_udp_port  = 53
+        , cnf_log       = False
+        , cnf_log_file  = Nothing
+        , cnf_log_level = "WARNING"
         }
 
 defaultZoneConf :: ZoneConf
@@ -48,6 +54,9 @@ makeConfig def conf0 = do
     cnf_tcp_port  <- get "tcp-port"  cnf_tcp_port
     cnf_udp_addrs <- get "udp-addrs" cnf_udp_addrs
     cnf_udp_port  <- get "udp-port"  cnf_udp_port
+    cnf_log       <- get "log"       cnf_log
+    cnf_log_file  <- get "log-file"  cnf_log_file
+    cnf_log_level <- get "log-level" cnf_log_level
     zonelist      <- mapM (makeZoneConf defaultZoneConf) zones
     pure (Config{..}, zonelist)
   where
