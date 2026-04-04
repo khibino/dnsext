@@ -55,10 +55,13 @@ data Level
 
 {- FOURMOLU_DISABLE -}
 {- levels for backword compat  -}
+-- | Alias for 'INFO'
 pattern DEMO     :: Level
 pattern DEMO     = INFO
+-- | Alias for 'WARNING'
 pattern WARN     :: Level
 pattern WARN     = WARNING
+-- | Alias for 'SYSTEM'
 pattern SYSTEM   :: Level
 pattern SYSTEM   = ERR
 {- FOURMOLU_ENABLE -}
