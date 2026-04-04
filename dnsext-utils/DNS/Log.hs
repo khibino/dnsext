@@ -88,13 +88,19 @@ type PutLines m = Level -> Maybe Color -> [String] -> m ()
 type KillLogger = ()
 type ReopenLogger = ()
 
+-- | Creating 'LogUtils' for stdout or stderr.
 new :: StdHandle -> Level -> IO LogUtils
 new oh lv = with (pure id) (pure $ stdHandle oh) (\_ -> pure ()) lv (\lu _ -> pure lu)
 
 {- FOURMOLU_DISABLE -}
+-- | Creating logger based on 'Handle'.
 with
-    :: IO ShowS -> IO Handle -> (Handle -> IO ()) -> Level
-    -> (LogUtils -> IO ReopenLogger -> IO a) -> IO a
+    :: IO ShowS           -- ^ Getting log source
+    -> IO Handle          -- ^ Open
+    -> (Handle -> IO ())  -- ^ Close
+    -> Level              -- ^ Log level
+    -> (LogUtils -> IO ReopenLogger -> IO a) -- ^ Function which typically return 'LogUtils'
+    -> IO a
 with = withHandleLogger queueBound
 {- FOURMOLU_ENABLE -}
 
