@@ -14,6 +14,7 @@ module DNS.Log (
     Logger,
     PutLines,
     KillLogger,
+    ReopenLogger,
 ) where
 
 -- GHC packages
