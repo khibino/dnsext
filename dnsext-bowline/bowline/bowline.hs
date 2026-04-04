@@ -274,7 +274,7 @@ getLogger ruid conf@Config{..} TimeCache{..}
                 | cnf_log_timestamp  = getTimeStr <&> (. (' ' :))
                 | otherwise          = pure id
             result hreop Log.LogUtils{..} r = return (void $ TStat.forkIO "bw.logger" runLogger, putLines, killLogger, hreop r)
-            lk open close fr = Log.with getpts open close cnf_log_level (result fr)
+            lk open close fr = Log.newHandleLogger getpts open close cnf_log_level (result fr)
             handle   = lk (pure $ Log.stdHandle cnf_log_output)         (\_ -> pure ()) (\_ -> pure ())
             file fn  = lk (withRoot ruid conf $ openFile fn AppendMode)  hClose         id
         maybe handle file cnf_log_file
@@ -291,7 +291,7 @@ getSSLKeyLogger ruid conf =
   where
     mkLogger fn = either left pure =<< tryIOError (logger' fn)
     left e = putStrLn ("sslkey-logfile: logger open failed: " ++ show e) $> nolog
-    logger' fn = Log.with (pure id) (open fn) hClose Log.INFO $
+    logger' fn = Log.newHandleLogger (pure id) (open fn) hClose Log.INFO $
         \Log.LogUtils{..} _ -> pure (void $ TStat.forkIO "bw.sslkey" runLogger, \s -> putLines Log.INFO Nothing [s], killLogger)
     open fn = do
         fh <- withRoot ruid conf $ openFile fn AppendMode

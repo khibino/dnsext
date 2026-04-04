@@ -242,7 +242,7 @@ cookOpts args opt@Options{..} = do
     let (at, dtq) = partition ("@" `isPrefixOf`) args
     qs <- getQueries dtq
     port <- getPort optPort optDoX
-    lu@Log.LogUtils{..} <- Log.new Log.Stdout (logLevel opt)
+    lu@Log.LogUtils{..} <- Log.newStdLogger Log.Stdout (logLevel opt)
     let putLn = mkPutline optFormat putLinesSTM
     return (at, port, qs, lu, putLn)
 

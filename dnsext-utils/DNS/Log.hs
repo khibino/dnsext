@@ -2,8 +2,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Log (
-    new,
-    with,
+    newStdLogger,
+    newHandleLogger,
     LogUtils (..),
     --
     Level (..),
@@ -89,19 +89,19 @@ type KillLogger = ()
 type ReopenLogger = ()
 
 -- | Creating 'LogUtils' for stdout or stderr.
-new :: StdHandle -> Level -> IO LogUtils
-new oh lv = with (pure id) (pure $ stdHandle oh) (\_ -> pure ()) lv (\lu _ -> pure lu)
+newStdLogger :: StdHandle -> Level -> IO LogUtils
+newStdLogger oh lv = newHandleLogger (pure id) (pure $ stdHandle oh) (\_ -> pure ()) lv (\lu _ -> pure lu)
 
 {- FOURMOLU_DISABLE -}
 -- | Creating logger based on 'Handle'.
-with
+newHandleLogger
     :: IO ShowS           -- ^ Getting log source
     -> IO Handle          -- ^ Open
     -> (Handle -> IO ())  -- ^ Close
     -> Level              -- ^ Log level
     -> (LogUtils -> IO ReopenLogger -> IO a) -- ^ Function which typically return 'LogUtils'
     -> IO a
-with = withHandleLogger queueBound
+newHandleLogger = withHandleLogger queueBound
 {- FOURMOLU_ENABLE -}
 
 stdHandle :: StdHandle -> Handle
