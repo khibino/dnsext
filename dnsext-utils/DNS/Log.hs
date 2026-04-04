@@ -39,14 +39,14 @@ import System.Console.ANSI.Types
 
 {- FOURMOLU_DISABLE -}
 data Level
-    = DEBUG
-    | INFO
-    | NOTICE
-    | WARNING
-    | ERR
-    | CRIT     {- not used, syslog compat -}
-    | ALERT    {- not used, syslog compat -}
-    | EMERG    {- not used, syslog compat -}
+    = DEBUG   -- ^ Most detailed.
+    | INFO    -- ^ For demonstration
+    | NOTICE  -- ^ (reserved for demo)
+    | WARNING -- ^ Not error but caution is necessary (default)
+    | ERR     -- ^ Fatal
+    | CRIT    -- ^ (reserved)
+    | ALERT   -- ^ (reserved)
+    | EMERG   -- ^ (reserved)
     deriving (Eq, Ord, Show, Read)
 {- FOURMOLU_ENABLE -}
 
