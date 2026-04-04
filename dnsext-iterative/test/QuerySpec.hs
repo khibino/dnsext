@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module QuerySpec where
 
 import Test.Hspec
@@ -63,9 +65,9 @@ spec = do
     debug <- getEnvBool "QTEST_DEBUG"
     runIO $ DNS.runInitIO DNS.addResourceDataForDNSSEC
     let debugLog = do
-            (logger, _, putLines, flush) <- Log.new Log.Stdout Log.DEBUG
-            void $ forkIO logger -- fixme
-            pure (\lv c xs -> putLines lv c [show lv ++ ": " ++ x | x <- xs], flush)
+            Log.LogUtils{..} <- Log.new Log.Stdout Log.DEBUG
+            void $ forkIO runLogger -- fixme
+            pure (\lv c xs -> putLines lv c [show lv ++ ": " ++ x | x <- xs], killLogger)
         quiet = (\_ _ _ -> pure (), pure ())
     (putLines, flush) <- if debug then runIO debugLog else pure quiet
     envSpec
