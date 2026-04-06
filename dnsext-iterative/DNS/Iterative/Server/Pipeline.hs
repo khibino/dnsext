@@ -41,7 +41,7 @@ module DNS.Iterative.Server.Pipeline (
 
 -- GHC packages
 import Control.Concurrent.STM
-import Control.Exception (SomeAsyncException (..), SomeException (..), bracket, handle, throwIO, try)
+import Control.Exception (SomeException (..), bracket, throwIO)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.IntSet as Set
@@ -51,6 +51,7 @@ import GHC.Event (TimeoutKey, TimerManager, getSystemTimerManager, registerTimeo
 
 -- dnsext packages
 import DNS.Do53.Internal (VCLimit, decodeVCLength)
+import DNS.Exception
 import qualified DNS.Log as Log
 import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOH, DOQ, DOT))
 import qualified DNS.TAP.Schema as DNSTAP
@@ -336,9 +337,9 @@ receiverVC
     -> MkInput
     -> IO VcFinished
 receiverVC name env vcs@VcSession{..} recv toCacher mkInput_ =
-    loop 1 `E.catch` onError
+    loop 1 `catchSafe` onError
   where
-    -- SomeException: asynchronous exceptions are re-thrown
+    -- SomeException: asynchronous exceptions are re-thrown in `catchSafe`
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
     loop i = cases =<< waitVcInput vcs
       where
@@ -397,9 +398,9 @@ receiverVCnonBlocking
     -> IO VcFinished
 receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCacher mkInput_ = do
     ctl <- newCtlRecv $ waitVcInput vcs
-    loop ctl 1 `E.catch` onError
+    loop ctl 1 `catchSafe` onError
   where
-    -- SomeException: asynchronous exceptions are re-thrown
+    -- SomeException: asynchronous exceptions are re-thrown in `catchSafe`
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
     loop ctl i = do
         ex <- controlledRecvVC ctl recvN lim
@@ -453,10 +454,10 @@ senderVC
     -> (BS -> Peer -> IO ())
     -> IO FromX
     -> IO VcFinished
-senderVC name env vcs send fromX = loop `E.catch` onError
+senderVC name env vcs send fromX = loop `catchSafe` onError
   where
     -- logging async exception intentionally, for not expected `cancel`
-    -- SomeException: asynchronous exceptions are re-thrown
+    -- SomeException: asynchronous exceptions are re-thrown in `catchSafe`
     onError se@(SomeException e) = warnOnError env name se >> throwIO e
     loop = do
         mx <- waitVcOutput vcs
@@ -687,13 +688,7 @@ mkConnector' = do
 
 {- FOURMOLU_DISABLE -}
 handledLoop :: Env -> String -> IO () -> IO ()
-handledLoop env tag body = forever $ handle (\e -> loggingExp env Log.DEBUG tag e >> takeEx e) body
-  where
-    -- SomeException: asynchronous exceptions are re-thrown
-    takeEx :: SomeException -> IO ()
-    takeEx e
-        | Just (SomeAsyncException _) <- E.fromException e  = throwIO e
-        | otherwise                                         = pure ()
+handledLoop env tag body = forever $ handleSafe (\e -> loggingExp env Log.DEBUG tag e) body
 {- FOURMOLU_ENABLE -}
 
 warnOnError :: Env -> String -> SomeException -> IO ()
@@ -705,11 +700,11 @@ loggingExp env lv tag (SomeException e) = logLn env lv (tag ++ ": exception: " +
 {- FOURMOLU_DISABLE -}
 exceptionCase :: (String -> IO ()) -> IO a -> IO a
 exceptionCase logLn' body = do
-    e <- try body
+    e <- trySafe body
     either handler pure e
   where
     logging e = logLn' $ "received exception: " ++ (show e)
-    -- SomeException: asynchronous exceptions and others are re-thrown
+    -- SomeException: asynchronous exceptions and others are re-thrown in `trySafe`
     handler :: SomeException -> IO a
     handler e = logging e  >> throwIO e
 {- FOURMOLU_ENABLE -}
