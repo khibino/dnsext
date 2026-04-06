@@ -10,7 +10,7 @@ import Control.Applicative ((<|>))
 import Control.Concurrent (forkFinally, getNumCapabilities, threadWaitRead)
 import Control.Concurrent.Async (waitSTM)
 import Control.Concurrent.STM (STM, atomically)
-import Control.Exception (SomeException, throwIO, try)
+import Control.Exception (SomeException, throwIO)
 import Control.Monad
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy.Char8 as BL
@@ -33,6 +33,7 @@ import System.IO.Error (tryIOError)
 import Text.Read (readMaybe)
 
 -- dnsext-* packages
+import DNS.Exception (trySafe)
 import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server (withLocationIOE)
 import qualified DNS.Log as Log
@@ -287,9 +288,9 @@ console conf env ctl@Control{..} GlobalCache{gcacheControl=CacheControl{..}} srv
 {- FOURMOLU_ENABLE -}
 
 loggingException :: (String -> IO a) -> IO b -> IO b
-loggingException logging action = try action >>= either left pure
+loggingException logging action = trySafe action >>= either left pure
   where
-    -- SomeException: asynchronous exceptions are re-thrown
+    -- SomeException: asynchronous exceptions are re-thrown in `trySafe`
     left :: SomeException -> IO b
     left e = logging ("Monitor: un-expected exception: " ++ show e) >> throwIO e
 
