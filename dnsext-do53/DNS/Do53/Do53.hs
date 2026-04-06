@@ -192,9 +192,9 @@ tcpResolver ri@ResolveInfo{..} q qctl =
 
 -- | Generic resolver for virtual circuit.
 vcResolver :: NameTag -> (BS -> IO ()) -> IO BS -> OneshotResolver
-vcResolver tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q _qctl = do
+vcResolver tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q qctl_ = do
     unless ractionShortLog $ ractionLog Log.DEMO Nothing [qtag]
-    join <$> tryDNS qtag (go _qctl)
+    join <$> tryDNS qtag (go qctl_)
   where
     ~qtag = queryTag q tag
     go qctl0 = do
