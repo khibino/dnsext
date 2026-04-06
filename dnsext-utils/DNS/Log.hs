@@ -63,7 +63,7 @@ pattern DEMO     = INFO
 -- | Alias for 'WARNING'
 pattern WARN     :: Level
 pattern WARN     = WARNING
--- | Alias for 'SYSTEM'
+-- | Alias for 'ERR'
 pattern SYSTEM   :: Level
 pattern SYSTEM   = ERR
 {- FOURMOLU_ENABLE -}
