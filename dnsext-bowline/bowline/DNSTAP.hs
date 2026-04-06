@@ -17,6 +17,8 @@ import qualified DNS.ThreadStats as TStat
 import Data.IORef
 import Network.Socket
 
+import DNS.Types (trySafe)
+
 import Config
 
 new :: Config -> Log.PutLines IO -> IO (IO (Maybe ThreadId), Message -> IO ())
@@ -81,13 +83,10 @@ control :: Config -> IO () -> IO ()
 control Config{..} body = loop
   where
     loop = do
-        ex <- E.try body
+        ex <- trySafe body
         case ex of
             Right () -> return ()
-            -- SomeException: asynchronous exceptions are re-thrown
-            Left se@(E.SomeException _)
-                | Just (E.SomeAsyncException _) <- E.fromException se ->
-                    E.throwIO se
-                | otherwise -> do
-                    threadDelay (cnf_dnstap_reconnect_interval * 1000000)
-                    loop
+            -- SomeException: asynchronous exceptions are re-thrown in `trySafe`
+            Left (E.SomeException _) -> do
+                threadDelay (cnf_dnstap_reconnect_interval * 1000000)
+                loop
