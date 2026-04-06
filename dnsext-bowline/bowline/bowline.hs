@@ -273,8 +273,8 @@ getLogger ruid conf@Config{..} TimeCache{..}
         let getpts
                 | cnf_log_timestamp  = getTimeStr <&> (. (' ' :))
                 | otherwise          = pure id
-            result hreop a _ p k r = return (void $ TStat.forkIO "bw.logger" a, p, k, hreop r)
-            lk open close fr = Log.with getpts open close cnf_log_level (result fr)
+            result hreop Log.LogUtils{..} r = return (void $ TStat.forkIO "bw.logger" runLogger, putLines, killLogger, hreop r)
+            lk open close fr = Log.newHandleLogger getpts open close cnf_log_level (result fr)
             handle   = lk (pure $ Log.stdHandle cnf_log_output)         (\_ -> pure ()) (\_ -> pure ())
             file fn  = lk (withRoot ruid conf $ openFile fn AppendMode)  hClose         id
         maybe handle file cnf_log_file
@@ -287,12 +287,12 @@ getLogger ruid conf@Config{..} TimeCache{..}
 {- FOURMOLU_DISABLE -}
 getSSLKeyLogger :: UserID -> Config -> IO (IO (), String -> IO (), IO ())
 getSSLKeyLogger ruid conf =
-    maybe (pure nolog) logger =<< lookupEnv "BOWLINE_SSLKEYLOGFILE"
+    maybe (pure nolog) mkLogger =<< lookupEnv "BOWLINE_SSLKEYLOGFILE"
   where
-    logger fn = either left pure =<< tryIOError (logger' fn)
+    mkLogger fn = either left pure =<< tryIOError (logger' fn)
     left e = putStrLn ("sslkey-logfile: logger open failed: " ++ show e) $> nolog
-    logger' fn = Log.with (pure id) (open fn) hClose Log.INFO $
-        \a _ p k _ -> pure (void $ TStat.forkIO "bw.sslkey" a, \s -> p Log.INFO Nothing [s], k)
+    logger' fn = Log.newHandleLogger (pure id) (open fn) hClose Log.INFO $
+        \Log.LogUtils{..} _ -> pure (void $ TStat.forkIO "bw.sslkey" runLogger, \s -> putLines Log.INFO Nothing [s], killLogger)
     open fn = do
         fh <- withRoot ruid conf $ openFile fn AppendMode
         hSetBuffering fh LineBuffering

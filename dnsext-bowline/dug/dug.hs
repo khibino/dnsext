@@ -158,12 +158,12 @@ main = do
         exitSuccess
     ------------------------
     deprecated
-    (at, port, qs, runLogger, putLnSTM, putLinesSTM, killLogger) <- cookOpts args opts1
+    (at, port, qs, Log.LogUtils{..}, putLnSTM) <- cookOpts args opts1
     when (null qs) $ do
         putStrLn "Usage: dug [options] [@server]* [name [query-type] [query-control]*]+"
         exitFailure
     let putLn = atomically . putLnSTM
-        putLines a b c = atomically $ putLinesSTM a b c
+        putLines' a b c = atomically $ putLinesSTM a b c
     void $ forkIO runLogger
     t0 <- T.getUnixTime
     tq <- newTQueueIO
@@ -172,14 +172,14 @@ main = do
         then do
             target <- checkIterative at qs
             opts <- checkFallbackV4 opts1 =<< getRootV6
-            iterativeQuery putLn putLines target opts
+            iterativeQuery putLn putLines' target opts
         else do
             let mserver = map (drop 1) at
             ips <- resolveServers opts1 mserver
             opts <- checkFallbackV4 opts1 [(ip, 53) | (ip, _) <- ips]
             recursiveQuery ips port putLnSTM putLinesSTM qs opts tq
     ------------------------
-    when (optFormat `notElem` [Short, JSONstyle]) $ putTime t0 putLines
+    when (optFormat `notElem` [Short, JSONstyle]) $ putTime t0 putLines'
     killLogger
     sentinel tq
     deprecated
@@ -235,18 +235,16 @@ cookOpts
         ( [String]
         , PortNumber
         , [(Question, QueryControls)]
-        , IO ()
+        , Log.LogUtils
         , DNSMessage -> STM ()
-        , Log.PutLines STM
-        , IO ()
         )
 cookOpts args opt@Options{..} = do
     let (at, dtq) = partition ("@" `isPrefixOf`) args
     qs <- getQueries dtq
     port <- getPort optPort optDoX
-    (runLogger, putLines, _, killLogger) <- Log.new Log.Stdout (logLevel opt)
-    let putLn = mkPutline optFormat putLines
-    return (at, port, qs, runLogger, putLn, putLines, killLogger)
+    lu@Log.LogUtils{..} <- Log.newStdLogger Log.Stdout (logLevel opt)
+    let putLn = mkPutline optFormat putLinesSTM
+    return (at, port, qs, lu, putLn)
 
 ----------------------------------------------------------------
 

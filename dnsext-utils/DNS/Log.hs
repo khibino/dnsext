@@ -1,8 +1,10 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module DNS.Log (
-    new,
-    with,
+    newStdLogger,
+    newHandleLogger,
+    LogUtils (..),
     --
     Level (..),
     pattern DEMO,
@@ -14,6 +16,7 @@ module DNS.Log (
     Logger,
     PutLines,
     KillLogger,
+    ReopenLogger,
 ) where
 
 -- GHC packages
@@ -39,14 +42,14 @@ import System.Console.ANSI.Types
 
 {- FOURMOLU_DISABLE -}
 data Level
-    = DEBUG
-    | INFO
-    | NOTICE
-    | WARNING
-    | ERR
-    | CRIT     {- not used, syslog compat -}
-    | ALERT    {- not used, syslog compat -}
-    | EMERG    {- not used, syslog compat -}
+    = DEBUG   -- ^ Most detailed.
+    | INFO    -- ^ For demonstration
+    | NOTICE  -- ^ (reserved for demo)
+    | WARNING -- ^ Not error but caution is necessary (default)
+    | ERR     -- ^ Fatal
+    | CRIT    -- ^ (reserved)
+    | ALERT   -- ^ (reserved)
+    | EMERG   -- ^ (reserved)
     deriving (Eq, Ord, Show, Read)
 {- FOURMOLU_ENABLE -}
 
@@ -54,10 +57,13 @@ data Level
 
 {- FOURMOLU_DISABLE -}
 {- levels for backword compat  -}
+-- | Alias for 'INFO'
 pattern DEMO     :: Level
 pattern DEMO     = INFO
+-- | Alias for 'WARNING'
 pattern WARN     :: Level
 pattern WARN     = WARNING
+-- | Alias for 'ERR'
 pattern SYSTEM   :: Level
 pattern SYSTEM   = ERR
 {- FOURMOLU_ENABLE -}
@@ -70,19 +76,32 @@ instance Show StdHandle where
     show Stdout = "<stdout>"
     show Stderr = "<stderr>"
 
+data LogUtils = LogUtils
+    { runLogger :: IO Logger
+    , putLinesSTM :: PutLines STM
+    , putLines :: PutLines IO
+    , killLogger :: IO KillLogger
+    }
+
 type Logger = ()
 type PutLines m = Level -> Maybe Color -> [String] -> m ()
 type KillLogger = ()
 type ReopenLogger = ()
 
-new :: StdHandle -> Level -> IO (IO Logger, PutLines STM, PutLines IO, IO KillLogger)
-new oh lv = with (pure id) (pure $ stdHandle oh) (\_ -> pure ()) lv $ \lg sp ip k _ -> pure (lg, sp, ip, k)
+-- | Creating 'LogUtils' for stdout or stderr.
+newStdLogger :: StdHandle -> Level -> IO LogUtils
+newStdLogger oh lv = newHandleLogger (pure id) (pure $ stdHandle oh) (\_ -> pure ()) lv (\lu _ -> pure lu)
 
 {- FOURMOLU_DISABLE -}
-with
-    :: IO ShowS -> IO Handle -> (Handle -> IO ()) -> Level
-    -> (IO Logger -> PutLines STM -> PutLines IO -> IO KillLogger -> IO ReopenLogger -> IO a) -> IO a
-with = withHandleLogger queueBound
+-- | Creating logger based on 'Handle'.
+newHandleLogger
+    :: IO ShowS           -- ^ Getting log source
+    -> IO Handle          -- ^ Open
+    -> (Handle -> IO ())  -- ^ Close
+    -> Level              -- ^ Log level
+    -> (LogUtils -> IO ReopenLogger -> IO a) -- ^ Function which typically return 'LogUtils'
+    -> IO a
+newHandleLogger = withHandleLogger queueBound
 {- FOURMOLU_ENABLE -}
 
 stdHandle :: StdHandle -> Handle
@@ -96,29 +115,31 @@ queueBound = 8
 {- FOURMOLU_DISABLE -}
 withHandleLogger
     :: Natural -> IO ShowS -> IO Handle -> (Handle -> IO ()) -> Level
-    -> (IO Logger -> PutLines STM -> PutLines IO -> IO KillLogger -> IO ReopenLogger -> IO a) -> IO a
+    -> (LogUtils -> IO ReopenLogger -> IO a) -> IO a
 withHandleLogger qsize getM open close loggerLevel k = do
     outFh <- open'
     colorize  <- hSupportsANSIColor outFh
     inQ       <- newTBQueueIO qsize
     mvar      <- newEmptyMVar
-    let logger  = loggerLoop inQ mvar outFh
-        putSTM  = putLinesSTM colorize inQ
-        putIO   = putLinesIO  colorize inQ
-        kill    = killLogger inQ mvar
+    let lu = LogUtils
+                { runLogger = loggerLoop inQ mvar outFh
+                , putLinesSTM = putLinesSTM_ colorize inQ
+                , putLines = putLinesIO_  colorize inQ
+                , killLogger = killLogger inQ mvar
+                }
         reopen  = reopenLogger colorize inQ
-    k logger putSTM putIO kill reopen
+    k lu reopen
   where
     killLogger inQ mvar = do
         atomically                              $ writeTBQueue inQ $ \bk _  _  -> bk
         takeMVar mvar
 
     reopenLogger colorize inQ = do
-        putLinesIO colorize inQ INFO Nothing ["re-opening log."]
+        putLinesIO_ colorize inQ INFO Nothing ["re-opening log."]
         atomically                              $ writeTBQueue inQ $ \_  rk _  -> rk
 
-    putLinesSTM  = putLines_ (pure id) id
-    putLinesIO   = putLines_  getM     atomically
+    putLinesSTM_  = putLines_ (pure id) id
+    putLinesIO_   = putLines_  getM     atomically
 
     putLines_ getM' toM colorize inQ lv ~color ~xs
         | colorize   = withColor color
