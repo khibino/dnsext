@@ -103,9 +103,9 @@ analyzeReply rply qctl0
 -- | A resolver using UDP.
 --   UDP attempts must use the same ID and accept delayed answers.
 udpResolver :: OneshotResolver
-udpResolver ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q _qctl = do
+udpResolver ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q qctl_ = do
     unless ractionShortLog $ ractionLog Log.DEMO Nothing [qtag]
-    join <$> tryDNS qtag (go _qctl)
+    join <$> tryDNS qtag (go qctl_)
   where
     tag = nameTag ri "UDP"
     ~qtag = queryTag q tag
@@ -192,9 +192,9 @@ tcpResolver ri@ResolveInfo{..} q qctl =
 
 -- | Generic resolver for virtual circuit.
 vcResolver :: NameTag -> (BS -> IO ()) -> IO BS -> OneshotResolver
-vcResolver tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q _qctl = do
+vcResolver tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q qctl_ = do
     unless ractionShortLog $ ractionLog Log.DEMO Nothing [qtag]
-    join <$> tryDNS qtag (go _qctl)
+    join <$> tryDNS qtag (go qctl_)
   where
     ~qtag = queryTag q tag
     go qctl0 = do
@@ -205,11 +205,7 @@ vcResolver tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q _qctl 
                 let mqctl = analyzeReply rply qctl0
                 case mqctl of
                     Nothing -> return $ Right rply
-                    Just qctl -> do
-                        erply' <- sendQueryRecvAnswer qctl
-                        case erply' of
-                            Left e' -> return $ Left e'
-                            Right rply' -> return $ Right rply'
+                    Just qctl -> sendQueryRecvAnswer qctl
 
     sendQueryRecvAnswer qctl = do
         -- Using a fresh identifier.
