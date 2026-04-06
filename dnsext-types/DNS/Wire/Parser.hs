@@ -164,7 +164,7 @@ failParser = E.throwIO . DecodeError
 
 runParserAt :: EpochTime -> Parser a -> ByteString -> Either DNSError a
 runParserAt t parser inp =
-    unsafeDupablePerformIO $ E.handle handler parse
+    unsafeDupablePerformIO $ handleSafe handler parse
   where
     parse = withReadBuffer inp $ \rbuf -> do
         ref <- newIORef $ initialState t
@@ -172,10 +172,9 @@ runParserAt t parser inp =
         left <- remainingSize rbuf
         when (left /= 0) $ failParser "excess input"
         return $ Right ret
-    -- SomeException: asynchronous exceptions are re-thrown
+    -- SomeException: asynchronous exceptions are re-thrown in `handleSafe`
     handler se@(E.SomeException e)
         | Just (DecodeError msg) <- E.fromException se = return $ Left $ DecodeError msg
-        | Just (E.SomeAsyncException _) <- E.fromException se = E.throwIO se
         | otherwise = return $ Left $ DecodeError $ "incomplete input: " ++ show e
 
 runParser :: Parser a -> ByteString -> Either DNSError a
