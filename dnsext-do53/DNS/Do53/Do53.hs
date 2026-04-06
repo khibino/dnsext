@@ -9,7 +9,6 @@ module DNS.Do53.Do53 (
     vcResolver,
     checkRespM,
     queryTag,
-    fromIOException,
 )
 where
 
