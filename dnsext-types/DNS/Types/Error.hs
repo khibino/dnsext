@@ -2,9 +2,13 @@
 
 module DNS.Types.Error where
 
-import Control.Exception (Exception, SomeException)
+import Control.Exception
+import System.Timeout (timeout)
 
 ----------------------------------------------------------------
+
+-- $setup
+-- >>> :seti -Wno-type-defaults
 
 -- | An enumeration of all possible DNS errors that can occur.
 data DNSError
@@ -103,3 +107,94 @@ unwrapDNSErrorInfo = go id
     go a (DNSErrorInfo e s) = go (a . (s:)) e
     go a e                  = (e, a [])
 {- FOURMOLU_ENABLE -}
+
+networkFailure :: String -> IOException -> DNSError
+networkFailure tag ioe = NetworkFailure (SomeException ioe) tag
+
+fromIOException :: String -> IOException -> DNSError
+fromIOException = networkFailure
+
+{- FOURMOLU_DISABLE -}
+catchSafe0
+    :: (SomeException -> IO ())
+    -> IO a -> (SomeException -> IO a) -> IO a
+catchSafe0 logEx action h0 =
+    catch action (\se -> logEx se >> h1 se)
+  where
+    -- SomeException: asynchronous exceptions are re-thrown
+    h1 se
+        | Just (SomeAsyncException _) <- fromException se  = throwIO se
+        | otherwise                                        = h0 se
+{- FOURMOLU_ENABLE -}
+
+----------------------------------------------------------------
+
+{- FOURMOLU_DISABLE -}
+-- |
+-- >>> catchSafe' putStrLn "case1" (fail "foo") print >> return "result"
+-- ...user error (foo)...case1...
+-- user error (foo)
+-- "result"
+-- >>> catchSafe' putStrLn "case2" (throwIO ThreadKilled) print >> return "result"
+-- ...thread killed...case2...
+-- *** Exception: thread killed
+catchSafe'
+    :: (String -> IO ())
+    -> String
+    -> IO a -> (SomeException -> IO a) -> IO a
+catchSafe' logLn ~tag action h0 = catchSafe0 logEx action h0
+  where
+    logEx se = logLn ("DNS.catchSafe: " ++ show se ++ ": " ++ tag)
+{- FOURMOLU_ENABLE -}
+
+catchSafe :: IO a -> (SomeException -> IO a) -> IO a
+catchSafe = catchSafe0 (\_ -> return ())
+
+handleSafe :: (SomeException -> IO a) -> IO a -> IO a
+handleSafe = flip catchSafe
+
+trySafe :: IO a -> IO (Either SomeException a)
+trySafe action = catchSafe (action >>= \v -> return (Right v)) (\e -> return (Left e))
+
+{- FOURMOLU_DISABLE -}
+catchDNS'
+    :: (String -> IO ())
+    -> String
+    -> IO a -> (DNSError -> IO a) -> IO a
+catchDNS' logLn ~tag action h =
+    catchSafe' logLn tag action h'
+  where
+    h' se = h (dnsError se)
+    dnsError se
+        | Just e  <- fromException se :: Maybe DNSError  = DNSErrorInfo e tag
+        | Just e  <- fromException se :: Maybe IOError   = networkFailure tag e
+        | otherwise                                      = BadThing (show se ++ " " ++ tag)
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+handleDNS'
+    :: (String -> IO ())
+    -> String
+    -> (DNSError -> IO a) -> IO a -> IO a
+handleDNS'  logLn ~tag = flip (catchDNS' logLn tag)
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+tryDNS'
+    :: (String -> IO ())
+    -> String
+    -> IO a -> IO (Either DNSError a)
+tryDNS' logLn ~tag action = catchDNS' logLn tag (action >>= \v -> return (Right v)) (\e -> pure (Left e))
+{- FOURMOLU_ENABLE -}
+
+catchDNS :: String -> IO a -> (DNSError -> IO a) -> IO a
+catchDNS = catchDNS' (\_ -> return ())
+
+handleDNS :: String -> (DNSError -> IO a) -> IO a -> IO a
+handleDNS ~tag = flip (catchDNS tag)
+
+tryDNS :: String -> IO a -> IO (Either DNSError a)
+tryDNS = tryDNS' (\_ -> return ())
+
+timeoutDNS :: Int -> IO a -> IO a
+timeoutDNS micro action = maybe (throwIO TimeoutExpired) pure =<< timeout micro action

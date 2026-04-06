@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module DNS.Do53.Do53 (
     udpTcpResolver,
@@ -10,11 +9,9 @@ module DNS.Do53.Do53 (
     vcResolver,
     checkRespM,
     queryTag,
-    fromIOException,
 )
 where
 
-import Control.Concurrent.Async (AsyncCancelled)
 import Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
@@ -60,22 +57,6 @@ udpTcpResolver ri q qctl = do
         e@(Left _) -> return e
 
 ----------------------------------------------------------------
-
-fromIOException :: String -> E.IOException -> DNSError
-fromIOException tag ioe = NetworkFailure (SomeException ioe) tag
-
-{- FOURMOLU_DISABLE -}
-tryDNS :: String -> IO a -> IO (Either DNSError a)
-tryDNS ~tag action =
-    E.try action >>= either left (return . Right)
-  where
-    left se
-        | Just (e :: DNSError)       <- fromException se = return $ Left   e
-        | Just (e :: IOError)        <- fromException se = return $ Left $ fromIOException tag e
-        | Just (e :: AsyncException) <- fromException se = throwIO e
-        | Just (e :: AsyncCancelled) <- fromException se = throwIO e
-        | otherwise                                      = return $ Left $ BadThing (show se)
-{- FOURMOLU_ENABLE -}
 
 queryTag :: Question -> NameTag -> String
 queryTag Question{..} tag = tag'
