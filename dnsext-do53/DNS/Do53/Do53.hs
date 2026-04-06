@@ -103,9 +103,9 @@ analyzeReply rply qctl0
 -- | A resolver using UDP.
 --   UDP attempts must use the same ID and accept delayed answers.
 udpResolver :: OneshotResolver
-udpResolver ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q _qctl = do
+udpResolver ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q qctl_ = do
     unless ractionShortLog $ ractionLog Log.DEMO Nothing [qtag]
-    join <$> tryDNS qtag (go _qctl)
+    join <$> tryDNS qtag (go qctl_)
   where
     tag = nameTag ri "UDP"
     ~qtag = queryTag q tag
