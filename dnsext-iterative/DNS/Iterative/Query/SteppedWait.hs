@@ -22,23 +22,9 @@ import DNS.Types (DNSError (NetworkFailure))
 -- $setup
 -- >>> :seti -XNumericUnderscores
 
-{- FOURMOLU_DISABLE -}
--- try function for doctests
-_tryDNS :: IO a -> IO (Either DNSError a)
-_tryDNS action = either left right =<< try action
-  where
-    right x = pure (Right x)
-    left ex
-      -- -- | Just ae <- fromException ex :: Maybe AsyncCancelled  = throwIO ae
-      | Just ae <- fromException ex :: Maybe AsyncException  = throwIO ae
-      | Just de <- fromException ex :: Maybe DNSError        = pure (Left de)
-      | otherwise                                            = pure (Left $ NetworkFailure ex "")
-{- FOURMOLU_ENABLE -}
-
-{- FOURMOLU_DISABLE -}
 -- |
--- >>> import DNS.Types (DNSError (TimeoutExpired, RetryLimitExceeded, UnknownDNSError))
--- >>> steppedWait' uu actions = steppedWait TimeoutExpired RetryLimitExceeded uu (zip (cycle [""]) $ map _tryDNS actions)
+-- >>> import DNS.Types (DNSError (TimeoutExpired, RetryLimitExceeded, UnknownDNSError), tryDNS)
+-- >>> steppedWait' uu actions = steppedWait TimeoutExpired RetryLimitExceeded uu (zip (cycle [""]) $ map (tryDNS "doctest") actions)
 --
 -- --------------------------------------------------------------------------------
 -- run  runnings   timer     remain-actions
@@ -102,7 +88,7 @@ _tryDNS action = either left right =<< try action
 --   Left <lastE>
 --
 -- >>> steppedWait' 1_000_000 [threadDelay 100_000 >> throwIO UnknownDNSError] :: IO (Either DNSError ())
--- Left UnknownDNSError
+-- Left (DNSErrorInfo UnknownDNSError "doctest")
 --
 -- --------------------------------------------------------------------------------
 -- run  runnings   timer   remain-actions
