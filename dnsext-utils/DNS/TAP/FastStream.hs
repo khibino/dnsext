@@ -32,6 +32,8 @@ import Network.Socket
 import qualified Network.Socket.BufferPool as P
 import qualified Network.Socket.ByteString as NSB
 
+import DNS.Types (catchSafe)
+
 ----------------------------------------------------------------
 
 -- | Configuration for fast stream.
@@ -227,16 +229,14 @@ bye :: Context -> IO ()
 bye ctx@Context{..}
     | ctxReader = do
         void $ recvControlFrame ctx STOP True
-        when ctxBidi $ sendControlFrame ctx FINISH [] `E.catch` ignore
+        when ctxBidi $ sendControlFrame ctx FINISH [] `catchSafe` ignore
     | otherwise = do
         sendControlFrame ctx STOP []
         when ctxBidi $ void $ recvControlFrame ctx FINISH False
   where
-    -- SomeException: asynchronous exceptions are re-thrown
+    -- SomeException: asynchronous exceptions are re-thrown in `catchSafe`
     ignore :: E.SomeException -> IO ()
-    ignore se
-        | Just (E.SomeAsyncException _) <- E.fromException se = E.throwIO se
-        | otherwise = return ()
+    ignore _se = return ()
 
 ----------------------------------------------------------------
 
