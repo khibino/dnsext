@@ -251,6 +251,15 @@ module DNS.Types (
     -- ** Errors
     DNSError (..),
     unwrapDNSErrorInfo,
+    networkFailure,
+    fromIOException,
+    catchDNS',
+    catchDNS,
+    handleDNS',
+    handleDNS,
+    tryDNS',
+    tryDNS,
+    timeoutDNS,
 
     -- ** Seconds
     Seconds (..),

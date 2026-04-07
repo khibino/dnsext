@@ -21,6 +21,7 @@ source-repository head
 
 library
     exposed-modules:
+        DNS.Exception
         DNS.Types
         DNS.Types.Decode
         DNS.Types.Encode
