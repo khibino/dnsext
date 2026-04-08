@@ -3,6 +3,7 @@
 
 module DNS.Log (
     newStdLogger,
+    withStdLogger,
     newHandleLogger,
     Ops (..),
     LowOps (..),
@@ -23,6 +24,7 @@ module DNS.Log (
 -- GHC packages
 import Control.Concurrent
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Control.Monad (when)
 import Data.Functor
 import Numeric.Natural
@@ -40,6 +42,8 @@ import System.Console.ANSI (hSetSGR, hSupportsANSIColor)
 import System.Console.ANSI.Types
 
 -- this package
+
+import qualified DNS.ThreadStats as TStat
 
 {- FOURMOLU_DISABLE -}
 data Level
@@ -96,6 +100,18 @@ type ReopenLogger = ()
 -- | Creating 'Ops' for stdout or stderr.
 newStdLogger :: StdHandle -> Level -> IO (Ops, LowOps)
 newStdLogger oh lv = newHandleLogger (pure id) (pure $ stdHandle oh) (\_ -> pure ()) lv (\ops lowOps -> pure (ops, lowOps))
+
+withStdLogger
+    :: String
+    -> StdHandle
+    -> Level
+    -> (Ops -> IO a)
+    -> IO a
+withStdLogger name oh lv body = do
+    (ops, LowOps{..}) <- newStdLogger oh lv
+    let run = void $ TStat.forkIO name runLogger
+        stop = stopLogger
+    E.bracket_ run stop $ body ops
 
 {- FOURMOLU_DISABLE -}
 -- | Creating logger based on 'Handle'.

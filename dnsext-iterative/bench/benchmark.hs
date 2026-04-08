@@ -3,7 +3,7 @@
 
 module Main where
 
-import Control.Concurrent (forkIO, getNumCapabilities, killThread)
+import Control.Concurrent (forkIO, getNumCapabilities)
 import Control.Concurrent.Async (concurrently_)
 import Control.DeepSeq (deepseq)
 import Control.Monad (replicateM, unless, (>=>))
@@ -154,9 +154,7 @@ runBenchmark
     -> Int
     -- ^ Request size
     -> IO ()
-runBenchmark conf@Config{..} noop gplot size = do
-    (Log.Ops{..}, Log.LowOps{..}) <- Log.newStdLogger logOutput logLevel
-    tid <- forkIO runLogger
+runBenchmark conf@Config{..} noop gplot size = Log.withStdLogger "bench" logOutput logLevel $ \Log.Ops{..} -> do
     env <- getEnv conf putLines
 
     (workers, enqueueReq, dequeueResp) <- benchServer pipelines env noop
@@ -188,8 +186,6 @@ runBenchmark conf@Config{..} noop gplot size = do
             putStrLn $ "requests: " ++ show size
             putStrLn $ "elapsed: " ++ show (toDouble elapsed) ++ " (sec)"
             putStrLn $ "rate: " ++ show (toDouble rate)
-    killThread tid
-    stopLogger
 
 {- FOURMOLU_DISABLE -}
 getEnv :: Config -> Log.PutLines IO -> IO Env
