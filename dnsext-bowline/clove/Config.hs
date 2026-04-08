@@ -22,10 +22,10 @@ data Config = Config
 defaultConfig :: Config
 defaultConfig =
     Config
-        { cnf_tcp_addrs            = []
-        , cnf_tcp_port             = 53
-        , cnf_udp_addrs            = []
-        , cnf_udp_port             = 53
+        { cnf_tcp_addrs = []
+        , cnf_tcp_port  = 53
+        , cnf_udp_addrs = []
+        , cnf_udp_port  = 53
         }
 
 defaultZoneConf :: ZoneConf
@@ -44,10 +44,10 @@ defaultZoneConf =
 
 makeConfig :: Config -> [Conf] -> IO (Config, [ZoneConf])
 makeConfig def conf0 = do
-    cnf_tcp_addrs <- get "tcp-addrs"            cnf_tcp_addrs
-    cnf_tcp_port  <- get "tcp-port"             cnf_tcp_port
-    cnf_udp_addrs <- get "udp-addrs"            cnf_udp_addrs
-    cnf_udp_port  <- get "udp-port"             cnf_udp_port
+    cnf_tcp_addrs <- get "tcp-addrs" cnf_tcp_addrs
+    cnf_tcp_port  <- get "tcp-port"  cnf_tcp_port
+    cnf_udp_addrs <- get "udp-addrs" cnf_udp_addrs
+    cnf_udp_port  <- get "udp-port"  cnf_udp_port
     zonelist      <- mapM (makeZoneConf defaultZoneConf) zones
     pure (Config{..}, zonelist)
   where
