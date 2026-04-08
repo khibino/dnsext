@@ -5,6 +5,7 @@ module DNS.Log (
     newStdLogger,
     withStdLogger,
     newHandleLogger,
+    withHandleLogger,
     Ops (..),
     LowOps (..),
     --
@@ -124,6 +125,25 @@ newHandleLogger
     -> IO a
 newHandleLogger = makeHandleLogger queueBound
 {- FOURMOLU_ENABLE -}
+
+withHandleLogger
+    :: String
+    -- ^ Logger name
+    -> IO ShowS
+    -- ^ Getting log source
+    -> IO Handle
+    -- ^ Open
+    -> (Handle -> IO ())
+    -- ^ Close
+    -> Level
+    -- ^ Log level
+    -> (Ops -> IO a)
+    -> IO a
+withHandleLogger name getM open close loggerLevel body = do
+    (ops, LowOps{..}) <- makeHandleLogger queueBound getM open close loggerLevel $ \o lo -> pure (o, lo)
+    let run = void $ TStat.forkIO name runLogger
+        stop = stopLogger
+    E.bracket_ run stop $ body ops
 
 stdHandle :: StdHandle -> Handle
 stdHandle Stdout = stdout
