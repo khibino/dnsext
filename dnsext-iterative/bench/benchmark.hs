@@ -155,7 +155,7 @@ runBenchmark
     -- ^ Request size
     -> IO ()
 runBenchmark conf@Config{..} noop gplot size = do
-    Log.LogUtils{..} <- Log.newStdLogger logOutput logLevel
+    (Log.Ops{..}, Log.LowOps{..}) <- Log.newStdLogger logOutput logLevel
     tid <- forkIO runLogger
     env <- getEnv conf putLines
 
@@ -189,7 +189,7 @@ runBenchmark conf@Config{..} noop gplot size = do
             putStrLn $ "elapsed: " ++ show (toDouble elapsed) ++ " (sec)"
             putStrLn $ "rate: " ++ show (toDouble rate)
     killThread tid
-    killLogger
+    stopLogger
 
 {- FOURMOLU_DISABLE -}
 getEnv :: Config -> Log.PutLines IO -> IO Env

@@ -158,7 +158,7 @@ main = do
         exitSuccess
     ------------------------
     deprecated
-    (at, port, qs, Log.LogUtils{..}, putLnSTM) <- cookOpts args opts1
+    (at, port, qs, Log.Ops{..}, Log.LowOps{..}, putLnSTM) <- cookOpts args opts1
     when (null qs) $ do
         putStrLn "Usage: dug [options] [@server]* [name [query-type] [query-control]*]+"
         exitFailure
@@ -180,7 +180,7 @@ main = do
             recursiveQuery ips port putLnSTM putLinesSTM qs opts tq
     ------------------------
     when (optFormat `notElem` [Short, JSONstyle]) $ putTime t0 putLines'
-    killLogger
+    stopLogger
     sentinel tq
     deprecated
     exitSuccess
@@ -235,16 +235,17 @@ cookOpts
         ( [String]
         , PortNumber
         , [(Question, QueryControls)]
-        , Log.LogUtils
+        , Log.Ops
+        , Log.LowOps
         , DNSMessage -> STM ()
         )
 cookOpts args opt@Options{..} = do
     let (at, dtq) = partition ("@" `isPrefixOf`) args
     qs <- getQueries dtq
     port <- getPort optPort optDoX
-    lu@Log.LogUtils{..} <- Log.newStdLogger Log.Stdout (logLevel opt)
+    (ops@Log.Ops{..}, lowOps) <- Log.newStdLogger Log.Stdout (logLevel opt)
     let putLn = mkPutline optFormat putLinesSTM
-    return (at, port, qs, lu, putLn)
+    return (at, port, qs, ops, lowOps, putLn)
 
 ----------------------------------------------------------------
 
