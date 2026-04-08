@@ -131,12 +131,12 @@ withHandleLogger qsize getM open close loggerLevel k = do
     k lu reopen
   where
     killLogger inQ mvar = do
-        atomically                              $ writeTBQueue inQ $ \bk _  _  -> bk
+        atomically $ writeTBQueue inQ $ \bk _  _  -> bk
         takeMVar mvar
 
     reopenLogger colorize inQ = do
         putLinesIO_ colorize inQ INFO Nothing ["re-opening log."]
-        atomically                              $ writeTBQueue inQ $ \_  rk _  -> rk
+        atomically $ writeTBQueue inQ $ \_  rk _  -> rk
 
     putLinesSTM_  = putLines_ (pure id) id
     putLinesIO_   = putLines_  getM     atomically
@@ -147,7 +147,7 @@ withHandleLogger qsize getM open close loggerLevel k = do
       where
         withColor ~c = when (loggerLevel <= lv) $ do
             mdfy <- getM'
-            toM                                 $ writeTBQueue inQ $ \_  _  ck -> ck c (map mdfy xs)
+            toM    $ writeTBQueue inQ $ \_  _  ck -> ck c (map mdfy xs)
 
     loggerLoop inQ mvar = loop
       where
