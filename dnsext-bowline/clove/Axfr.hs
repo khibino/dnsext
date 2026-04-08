@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Axfr (
     server,
@@ -25,10 +26,11 @@ import Types
 ----------------------------------------------------------------
 
 server
-    :: ZoneAlist
+    :: Env
+    -> ZoneAlist
     -> Socket
     -> IO ()
-server zoneAlist sock = do
+server _env zoneAlist sock = do
     sa <- getPeerName sock
     equery <- decode <$> recvVC (32 * 1024) (recvTCP sock)
     case equery of
@@ -64,17 +66,17 @@ makeReply db query
 
 ----------------------------------------------------------------
 
-client :: Serial -> IP -> Domain -> IO [ResourceRecord]
-client serial0 ip dom = do
-    mserial <- serialQuery ip dom
+client :: Env -> Serial -> IP -> Domain -> IO [ResourceRecord]
+client env serial0 ip dom = do
+    mserial <- serialQuery env ip dom
     case mserial of
         Nothing -> return []
         Just serial
-            | serial /= serial0 -> axfrQuery ip dom
+            | serial /= serial0 -> axfrQuery env ip dom
             | otherwise -> return []
 
-serialQuery :: IP -> Domain -> IO (Maybe Serial)
-serialQuery ip dom = do
+serialQuery :: Env -> IP -> Domain -> IO (Maybe Serial)
+serialQuery Env{..} ip dom = do
     emsg <- fmap replyDNSMessage <$> resolve renv q qctl
     case emsg of
         Left _ -> return Nothing
@@ -87,7 +89,7 @@ serialQuery ip dom = do
     riActions =
         defaultResolveActions
             { ractionTimeoutTime = 3000000
-            , ractionLog = \_lvl _mclr ss -> mapM_ putStrLn ss
+            , ractionLog = envPutLines
             }
     ris =
         [ defaultResolveInfo
@@ -107,8 +109,8 @@ serialQuery ip dom = do
     q = Question dom SOA IN
     qctl = rdFlag FlagClear <> doFlag FlagClear
 
-axfrQuery :: IP -> Domain -> IO [ResourceRecord]
-axfrQuery ip dom = do
+axfrQuery :: Env -> IP -> Domain -> IO [ResourceRecord]
+axfrQuery Env{..} ip dom = do
     emsg <- fmap replyDNSMessage <$> resolve renv q qctl
     case emsg of
         Left _ -> return []
@@ -117,7 +119,7 @@ axfrQuery ip dom = do
     riActions =
         defaultResolveActions
             { ractionTimeoutTime = 30000000
-            , ractionLog = \_lvl _mclr ss -> mapM_ putStrLn ss
+            , ractionLog = envPutLines
             }
     ris =
         [ defaultResolveInfo

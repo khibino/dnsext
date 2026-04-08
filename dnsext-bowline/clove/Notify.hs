@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Notify where
 
@@ -9,8 +10,10 @@ import DNS.Do53.Client
 import DNS.Do53.Internal
 import DNS.Types
 
-notify :: Domain -> IP -> IO (Maybe DNSMessage)
-notify dom ip = do
+import Types
+
+notify :: Env -> Domain -> IP -> IO (Maybe DNSMessage)
+notify Env{..} dom ip = do
     emsg <- fmap replyDNSMessage <$> resolve renv q qctl
     case emsg of
         Left _ -> return Nothing
@@ -19,7 +22,7 @@ notify dom ip = do
     riActions =
         defaultResolveActions
             { ractionTimeoutTime = 3000000
-            , ractionLog = \_lvl _mclr ss -> mapM_ putStrLn ss
+            , ractionLog = envPutLines
             }
     ris =
         [ defaultResolveInfo
