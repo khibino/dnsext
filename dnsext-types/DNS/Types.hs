@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module DNS.Types (
     -- * DNS message
     DNSMessage (..),
@@ -267,6 +269,9 @@ module DNS.Types (
     -- ** Seconds
     Seconds (..),
 
+    -- ** VCLimit
+    VCLimit (unVCLimit),
+
     -- * Extension
     InitIO,
     runInitIO,
@@ -309,3 +314,5 @@ fromDNSMessage ans conv = case rcode ans of
     BadVers -> Left BadOptRecord
     BadRCODE -> Left $ DecodeError "Malformed EDNS message"
     _ -> Left UnknownDNSError
+
+newtype VCLimit = VCLimit {unVCLimit :: Int} deriving (Eq, Ord, Num, Show)
