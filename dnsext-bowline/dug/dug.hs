@@ -5,7 +5,6 @@
 
 module Main (main) where
 
-import Control.Concurrent (forkIO)
 import Control.Concurrent.STM (STM, atomically, newTQueueIO, tryReadTQueue)
 import Control.Monad (unless, when)
 import DNS.Do53.Client (
@@ -158,32 +157,32 @@ main = do
         exitSuccess
     ------------------------
     deprecated
-    (at, port, qs, Log.LogUtils{..}, putLnSTM) <- cookOpts args opts1
-    when (null qs) $ do
-        putStrLn "Usage: dug [options] [@server]* [name [query-type] [query-control]*]+"
-        exitFailure
-    let putLn = atomically . putLnSTM
-        putLines' a b c = atomically $ putLinesSTM a b c
-    void $ forkIO runLogger
-    t0 <- T.getUnixTime
-    tq <- newTQueueIO
-    ------------------------
-    if optIterative
-        then do
-            target <- checkIterative at qs
-            opts <- checkFallbackV4 opts1 =<< getRootV6
-            iterativeQuery putLn putLines' target opts
-        else do
-            let mserver = map (drop 1) at
-            ips <- resolveServers opts1 mserver
-            opts <- checkFallbackV4 opts1 [(ip, 53) | (ip, _) <- ips]
-            recursiveQuery ips port putLnSTM putLinesSTM qs opts tq
-    ------------------------
-    when (optFormat `notElem` [Short, JSONstyle]) $ putTime t0 putLines'
-    killLogger
-    sentinel tq
-    deprecated
-    exitSuccess
+    (at, port, qs) <- cookOpts args opts1
+    Log.withStdLogger "dug logger" Log.Stdout (logLevel opts1) $ \Log.Ops{..} -> do
+        when (null qs) $ do
+            putStrLn "Usage: dug [options] [@server]* [name [query-type] [query-control]*]+"
+            exitFailure
+        let putLnSTM = mkPutline optFormat putLinesSTM
+            putLn = atomically . putLnSTM
+            putLines' a b c = atomically $ putLinesSTM a b c
+        t0 <- T.getUnixTime
+        tq <- newTQueueIO
+        ------------------------
+        if optIterative
+            then do
+                target <- checkIterative at qs
+                opts <- checkFallbackV4 opts1 =<< getRootV6
+                iterativeQuery putLn putLines' target opts
+            else do
+                let mserver = map (drop 1) at
+                ips <- resolveServers opts1 mserver
+                opts <- checkFallbackV4 opts1 [(ip, 53) | (ip, _) <- ips]
+                recursiveQuery ips port putLnSTM putLinesSTM qs opts tq
+        ------------------------
+        when (optFormat `notElem` [Short, JSONstyle]) $ putTime t0 putLines'
+        sentinel tq
+        deprecated
+        exitSuccess
   where
     sentinel tq = do
         xs <- readQ
@@ -235,16 +234,12 @@ cookOpts
         ( [String]
         , PortNumber
         , [(Question, QueryControls)]
-        , Log.LogUtils
-        , DNSMessage -> STM ()
         )
-cookOpts args opt@Options{..} = do
+cookOpts args Options{..} = do
     let (at, dtq) = partition ("@" `isPrefixOf`) args
     qs <- getQueries dtq
     port <- getPort optPort optDoX
-    lu@Log.LogUtils{..} <- Log.newStdLogger Log.Stdout (logLevel opt)
-    let putLn = mkPutline optFormat putLinesSTM
-    return (at, port, qs, lu, putLn)
+    return (at, port, qs)
 
 ----------------------------------------------------------------
 

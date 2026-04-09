@@ -3,8 +3,11 @@
 
 module DNS.Log (
     newStdLogger,
+    withStdLogger,
     newHandleLogger,
-    LogUtils (..),
+    withHandleLogger,
+    Ops (..),
+    LowOps (..),
     --
     Level (..),
     pattern DEMO,
@@ -15,13 +18,14 @@ module DNS.Log (
     stdHandle,
     Logger,
     PutLines,
-    KillLogger,
+    StopLogger,
     ReopenLogger,
 ) where
 
 -- GHC packages
 import Control.Concurrent
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Control.Monad (when)
 import Data.Functor
 import Numeric.Natural
@@ -39,6 +43,8 @@ import System.Console.ANSI (hSetSGR, hSupportsANSIColor)
 import System.Console.ANSI.Types
 
 -- this package
+
+import qualified DNS.ThreadStats as TStat
 
 {- FOURMOLU_DISABLE -}
 data Level
@@ -76,33 +82,68 @@ instance Show StdHandle where
     show Stdout = "<stdout>"
     show Stderr = "<stderr>"
 
-data LogUtils = LogUtils
-    { runLogger :: IO Logger
-    , putLinesSTM :: PutLines STM
+data Ops = Ops
+    { putLinesSTM :: PutLines STM
     , putLines :: PutLines IO
-    , killLogger :: IO KillLogger
+    , reopenLogger :: IO ReopenLogger
+    }
+
+data LowOps = LowOps
+    { runLogger :: IO Logger
+    , stopLogger :: IO StopLogger
     }
 
 type Logger = ()
 type PutLines m = Level -> Maybe Color -> [String] -> m ()
-type KillLogger = ()
+type StopLogger = ()
 type ReopenLogger = ()
 
--- | Creating 'LogUtils' for stdout or stderr.
-newStdLogger :: StdHandle -> Level -> IO LogUtils
-newStdLogger oh lv = newHandleLogger (pure id) (pure $ stdHandle oh) (\_ -> pure ()) lv (\lu _ -> pure lu)
+-- | Creating 'Ops' for stdout or stderr.
+newStdLogger :: StdHandle -> Level -> IO (Ops, LowOps)
+newStdLogger oh lv = newHandleLogger (pure id) (pure $ stdHandle oh) (\_ -> pure ()) lv (\ops lowOps -> pure (ops, lowOps))
+
+withStdLogger
+    :: String
+    -> StdHandle
+    -> Level
+    -> (Ops -> IO a)
+    -> IO a
+withStdLogger name oh lv body = do
+    (ops, LowOps{..}) <- newStdLogger oh lv
+    let run = void $ TStat.forkIO name runLogger
+        stop = stopLogger
+    E.bracket_ run stop $ body ops
 
 {- FOURMOLU_DISABLE -}
 -- | Creating logger based on 'Handle'.
 newHandleLogger
-    :: IO ShowS           -- ^ Getting log source
-    -> IO Handle          -- ^ Open
-    -> (Handle -> IO ())  -- ^ Close
-    -> Level              -- ^ Log level
-    -> (LogUtils -> IO ReopenLogger -> IO a) -- ^ Function which typically return 'LogUtils'
+    :: IO ShowS                -- ^ Getting log source
+    -> IO Handle               -- ^ Open
+    -> (Handle -> IO ())       -- ^ Close
+    -> Level                   -- ^ Log level
+    -> (Ops -> LowOps -> IO a) -- ^ Function which typically return 'Ops' and 'LowOps'
     -> IO a
-newHandleLogger = withHandleLogger queueBound
+newHandleLogger = makeHandleLogger queueBound
 {- FOURMOLU_ENABLE -}
+
+withHandleLogger
+    :: String
+    -- ^ Logger name
+    -> IO ShowS
+    -- ^ Getting log source
+    -> IO Handle
+    -- ^ Open
+    -> (Handle -> IO ())
+    -- ^ Close
+    -> Level
+    -- ^ Log level
+    -> (Ops -> IO a)
+    -> IO a
+withHandleLogger name getM open close loggerLevel body = do
+    (ops, LowOps{..}) <- makeHandleLogger queueBound getM open close loggerLevel $ \o lo -> pure (o, lo)
+    let run = void $ TStat.forkIO name runLogger
+        stop = stopLogger
+    E.bracket_ run stop $ body ops
 
 stdHandle :: StdHandle -> Handle
 stdHandle Stdout = stdout
@@ -113,53 +154,62 @@ queueBound :: Natural
 queueBound = 8
 
 {- FOURMOLU_DISABLE -}
-withHandleLogger
-    :: Natural -> IO ShowS -> IO Handle -> (Handle -> IO ()) -> Level
-    -> (LogUtils -> IO ReopenLogger -> IO a) -> IO a
-withHandleLogger qsize getM open close loggerLevel k = do
+makeHandleLogger
+    :: Natural
+    -> IO ShowS
+    -> IO Handle
+    -> (Handle -> IO ())
+    -> Level
+    -> (Ops -> LowOps -> IO a)
+    -> IO a
+makeHandleLogger qsize getM open close loggerLevel k = do
     outFh <- open'
-    colorize  <- hSupportsANSIColor outFh
-    inQ       <- newTBQueueIO qsize
-    mvar      <- newEmptyMVar
-    let lu = LogUtils
-                { runLogger = loggerLoop inQ mvar outFh
-                , putLinesSTM = putLinesSTM_ colorize inQ
-                , putLines = putLinesIO_  colorize inQ
-                , killLogger = killLogger inQ mvar
+    colorize <- hSupportsANSIColor outFh
+    inQ <- newTBQueueIO qsize
+    mvar <- newEmptyMVar
+    let ops =
+            Ops
+                { putLinesSTM = putLinesSTM_ colorize inQ
+                , putLines = putLinesIO_ colorize inQ
+                , reopenLogger = reopen colorize inQ
                 }
-        reopen  = reopenLogger colorize inQ
-    k lu reopen
+        lowOps =
+            LowOps
+                { runLogger = run inQ mvar outFh
+                , stopLogger = stop inQ mvar
+                }
+    k ops lowOps
   where
-    killLogger inQ mvar = do
-        atomically                              $ writeTBQueue inQ $ \bk _  _  -> bk
+    stop inQ mvar = do
+        atomically $ writeTBQueue inQ $ \bk _ _ -> bk
         takeMVar mvar
 
-    reopenLogger colorize inQ = do
+    reopen colorize inQ = do
         putLinesIO_ colorize inQ INFO Nothing ["re-opening log."]
-        atomically                              $ writeTBQueue inQ $ \_  rk _  -> rk
+        atomically $ writeTBQueue inQ $ \_ rk _ -> rk
 
-    putLinesSTM_  = putLines_ (pure id) id
-    putLinesIO_   = putLines_  getM     atomically
+    putLinesSTM_ = putLines_ (pure id) id
+    putLinesIO_ = putLines_ getM atomically
 
     putLines_ getM' toM colorize inQ lv ~color ~xs
-        | colorize   = withColor color
-        | otherwise  = withColor Nothing
+        | colorize = withColor color
+        | otherwise = withColor Nothing
       where
         withColor ~c = when (loggerLevel <= lv) $ do
             mdfy <- getM'
-            toM                                 $ writeTBQueue inQ $ \_  _  ck -> ck c (map mdfy xs)
+            toM $ writeTBQueue inQ $ \_ _ ck -> ck c (map mdfy xs)
 
-    loggerLoop inQ mvar = loop
+    run inQ mvar = loop
       where
         loop outFh = do
             me <- atomically (readTBQueue inQ)
-            let close'   = close outFh >> putMVar mvar ()
-                reopen'  = close outFh >> open' >>= loop
+            let close' = close outFh >> putMVar mvar ()
+                reopen' = close outFh >> open' >>= loop
             me close' reopen' $ \c xs -> logit outFh c xs >> loop outFh
 
     open' = open >>= \outFh -> hSetBuffering outFh LineBuffering $> outFh
 
-    logit outFh Nothing  xs = mapM_ (hPutStrLn outFh) xs
+    logit outFh Nothing xs = mapM_ (hPutStrLn outFh) xs
     logit outFh (Just c) xs = do
         hSetSGR outFh [SetColor Foreground Vivid c]
         mapM_ (hPutStrLn outFh) xs

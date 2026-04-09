@@ -65,9 +65,9 @@ spec = do
     debug <- getEnvBool "QTEST_DEBUG"
     runIO $ DNS.runInitIO DNS.addResourceDataForDNSSEC
     let debugLog = do
-            Log.LogUtils{..} <- Log.newStdLogger Log.Stdout Log.DEBUG
+            (Log.Ops{..}, Log.LowOps{..}) <- Log.newStdLogger Log.Stdout Log.DEBUG
             void $ forkIO runLogger -- fixme
-            pure (\lv c xs -> putLines lv c [show lv ++ ": " ++ x | x <- xs], killLogger)
+            pure (\lv c xs -> putLines lv c [show lv ++ ": " ++ x | x <- xs], stopLogger)
         quiet = (\_ _ _ -> pure (), pure ())
     (putLines, flush) <- if debug then runIO debugLog else pure quiet
     envSpec

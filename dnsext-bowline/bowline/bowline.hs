@@ -98,7 +98,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
             putStrLn $ "loading root-hints: " ++ path
             readRootHint path
     disable_v6_ns <- check_for_v6_ns
-    (runLogger, putLines, killLogger, reopenLog0) <- getLogger ruid conf tcache
+    (runLogger, putLines, stopLogger, reopenLog0) <- getLogger ruid conf tcache
     (runSSLKeyLogger, putSSLKeyLog, killSSLKeyLogger) <- getSSLKeyLogger ruid conf
     --
     let rootpriv = do
@@ -171,7 +171,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
         `finally` do
             mapM_ maybeKill [tidA, tidW]
             killSSLKeyLogger
-            killLogger
+            stopLogger
             killSM
     threadDelay 500000 -- avoiding address already in use
   where
@@ -271,17 +271,18 @@ getLogger :: UserID -> Config -> TimeCache -> IO (IO (), Log.PutLines IO, IO (),
 getLogger ruid conf@Config{..} TimeCache{..}
     | cnf_log = do
         let getpts
-                | cnf_log_timestamp  = getTimeStr <&> (. (' ' :))
-                | otherwise          = pure id
-            result hreop Log.LogUtils{..} r = return (void $ TStat.forkIO "bw.logger" runLogger, putLines, killLogger, hreop r)
-            lk open close fr = Log.newHandleLogger getpts open close cnf_log_level (result fr)
-            handle   = lk (pure $ Log.stdHandle cnf_log_output)         (\_ -> pure ()) (\_ -> pure ())
-            file fn  = lk (withRoot ruid conf $ openFile fn AppendMode)  hClose         id
+                | cnf_log_timestamp = getTimeStr <&> (. (' ' :))
+                | otherwise = pure id
+            result hreop Log.Ops{..} Log.LowOps{..} = return (void $ TStat.forkIO "bw.logger" runLogger, putLines, stopLogger, hreop reopenLogger)
+            lk open close fr = Log.newHandleLogger getpts open close cnf_log_level $ result fr
+            handle = lk (pure $ Log.stdHandle cnf_log_output) (\_ -> pure ()) (\_ -> pure ())
+            file fn = lk (withRoot ruid conf $ openFile fn AppendMode) hClose id
         maybe handle file cnf_log_file
     | otherwise = do
         let p _ _ ~_ = return ()
             n = return ()
         return (return (), p, n, n)
+
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -292,7 +293,7 @@ getSSLKeyLogger ruid conf =
     mkLogger fn = either left pure =<< tryIOError (logger' fn)
     left e = putStrLn ("sslkey-logfile: logger open failed: " ++ show e) $> nolog
     logger' fn = Log.newHandleLogger (pure id) (open fn) hClose Log.INFO $
-        \Log.LogUtils{..} _ -> pure (void $ TStat.forkIO "bw.sslkey" runLogger, \s -> putLines Log.INFO Nothing [s], killLogger)
+        \Log.Ops{..} Log.LowOps{..} -> pure (void $ TStat.forkIO "bw.sslkey" runLogger, \s -> putLines Log.INFO Nothing [s], stopLogger)
     open fn = do
         fh <- withRoot ruid conf $ openFile fn AppendMode
         hSetBuffering fh LineBuffering
