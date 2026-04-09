@@ -17,6 +17,7 @@ import Network.Socket
 import DNS.Auth.Algorithm
 import DNS.Do53.Client
 import DNS.Do53.Internal
+import DNS.Log
 import DNS.Types
 import DNS.Types.Decode
 import DNS.Types.Encode
@@ -30,7 +31,7 @@ server
     -> ZoneAlist
     -> Socket
     -> IO ()
-server _env zoneAlist sock = do
+server Env{..} zoneAlist sock = do
     sa <- getPeerName sock
     equery <- decode <$> recvVC (32 * 1024) (recvTCP sock)
     case equery of
@@ -44,7 +45,12 @@ server _env zoneAlist sock = do
                     if accessControl zone sa
                         then do
                             let db = zoneDB zone
-                            let reply = makeReply db query
+                                reply = makeReply db query
+                                (ip, port) = fromJust $ fromSockAddr sa
+                            envPutLines
+                                NOTICE
+                                Nothing
+                                ["    axfr @" ++ show ip ++ "#" ++ show port ++ "/TCP \"" ++ toRepresentation (zoneName zone) ++ "\""]
                             sendVC (sendTCP sock) $ encode reply
                         else replyRefused query
   where
