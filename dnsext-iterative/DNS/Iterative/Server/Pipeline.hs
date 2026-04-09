@@ -50,7 +50,6 @@ import GHC.Event (TimeoutKey, TimerManager, getSystemTimerManager, registerTimeo
 -- libs
 
 -- dnsext packages
-import DNS.Do53.Internal (VCLimit)
 import qualified DNS.Log as Log
 import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOH, DOQ, DOT))
 import qualified DNS.TAP.Schema as DNSTAP
