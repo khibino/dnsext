@@ -17,7 +17,6 @@ import Data.Functor
 
 -- dnsext-*
 import DNS.ThreadStats (forkIO)
-import DNS.Types (DNSError (NetworkFailure))
 
 -- $setup
 -- >>> :seti -XNumericUnderscores
