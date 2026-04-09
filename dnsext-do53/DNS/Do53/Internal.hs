@@ -30,7 +30,6 @@ module DNS.Do53.Internal (
     ResolveInfo (..),
     defaultResolveInfo,
     UDPRetry,
-    VCLimit (..),
     ResolveActions (..),
     defaultResolveActions,
 

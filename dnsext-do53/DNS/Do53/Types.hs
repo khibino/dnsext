@@ -9,7 +9,6 @@ module DNS.Do53.Types (
     LookupConf (..),
     defaultLookupConf,
     UDPRetry,
-    VCLimit (unVCLimit),
     LookupEnv (..),
 
     -- ** Specifying DNS servers
