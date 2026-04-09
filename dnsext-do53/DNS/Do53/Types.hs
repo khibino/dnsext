@@ -102,8 +102,6 @@ defaultCacheConf = CacheConf 300 0 10
 
 newtype UDPRetry = UDPRetry Int deriving (Eq, Num, Show)
 
-newtype VCLimit = VCLimit {unVCLimit :: Int} deriving (Eq, Ord, Num, Show)
-
 -- | Type for resolver configuration.
 --  Use 'defaultLookupConf' to create a new value.
 --
