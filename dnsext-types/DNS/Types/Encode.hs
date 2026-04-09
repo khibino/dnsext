@@ -11,7 +11,10 @@ module DNS.Types.Encode (
     encodeRData,
     encodeDomain,
     encodeMailbox,
+    encodeVCLength,
 ) where
+
+import qualified Data.ByteString as BS
 
 import DNS.Types.Domain
 import DNS.Types.EDNS
@@ -59,3 +62,11 @@ encodeDomain d = runBuilder (domainSize d) $ putDomainRFC1035 Original d
 -- | Encode a mailbox name with name compression.
 encodeMailbox :: Mailbox -> ByteString
 encodeMailbox m = runBuilder (mailboxSize m) $ putMailboxRFC1035 Original m
+
+-- | Encapsulate an encoded 'DNSMessage' buffer for transmission over a VC
+-- virtual circuit.  With VC the buffer needs to start with an explicit
+-- length (the length is implicit with UDP).
+encodeVCLength :: Int -> ByteString
+encodeVCLength len = BS.pack [fromIntegral u, fromIntegral l]
+  where
+    (u, l) = len `divMod` 256
