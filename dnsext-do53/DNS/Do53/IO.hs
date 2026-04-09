@@ -6,12 +6,10 @@ module DNS.Do53.IO (
     -- * Receiving DNS messages
     recvTCP,
     recvVC,
-    decodeVCLength,
 
     -- * Sending pre-encoded messages
     sendTCP,
     sendVC,
-    encodeVCLength,
 
     -- * Misc
     makeAddrInfo,
@@ -22,6 +20,8 @@ import qualified Control.Exception as E
 import DNS.Do53.Imports
 import DNS.Do53.Types
 import DNS.Types hiding (Seconds)
+import DNS.Types.Decode (decodeVCLength)
+import DNS.Types.Encode (encodeVCLength)
 import qualified Data.ByteString as BS
 import Network.Socket (
     AddrInfo (..),
@@ -86,12 +86,6 @@ recvVC lim rcv = do
         then E.throwIO $ DecodeError "message length is not enough"
         else return bs
 
--- | Decoding the length from the first two bytes.
-decodeVCLength :: BS -> Int
-decodeVCLength bs = case BS.unpack bs of
-    [hi, lo] -> 256 * fromIntegral hi + fromIntegral lo
-    _ -> 0 -- never reached
-
 -- | Receiving data from a TCP socket.
 recvTCP :: Socket -> IO BS
 recvTCP sock = recv sock 2048
@@ -112,11 +106,3 @@ sendVC writev bs = do
 -- | Sending data to a TCP socket.
 sendTCP :: Socket -> [BS] -> IO ()
 sendTCP = NSB.sendMany
-
--- | Encapsulate an encoded 'DNSMessage' buffer for transmission over a VC
--- virtual circuit.  With VC the buffer needs to start with an explicit
--- length (the length is implicit with UDP).
-encodeVCLength :: Int -> BS
-encodeVCLength len = BS.pack [fromIntegral u, fromIntegral l]
-  where
-    (u, l) = len `divMod` 256
