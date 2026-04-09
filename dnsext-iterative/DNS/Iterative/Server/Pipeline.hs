@@ -41,7 +41,7 @@ module DNS.Iterative.Server.Pipeline (
 
 -- GHC packages
 import Control.Concurrent.STM
-import Control.Exception (SomeAsyncException (..), SomeException (..), bracket, handle, throwIO, try)
+import Control.Exception (SomeException (..), bracket, throwIO)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.IntSet as Set
