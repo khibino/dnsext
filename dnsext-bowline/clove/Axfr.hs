@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Axfr (
     server,
@@ -16,6 +17,7 @@ import Network.Socket
 import DNS.Auth.Algorithm
 import DNS.Do53.Client
 import DNS.Do53.Internal
+import DNS.Log
 import DNS.Types
 import DNS.Types.Decode
 import DNS.Types.Encode
@@ -25,10 +27,11 @@ import Types
 ----------------------------------------------------------------
 
 server
-    :: ZoneAlist
+    :: Env
+    -> ZoneAlist
     -> Socket
     -> IO ()
-server zoneAlist sock = do
+server Env{..} zoneAlist sock = do
     sa <- getPeerName sock
     equery <- decode <$> recvVC (32 * 1024) (recvTCP sock)
     case equery of
@@ -42,7 +45,12 @@ server zoneAlist sock = do
                     if accessControl zone sa
                         then do
                             let db = zoneDB zone
-                            let reply = makeReply db query
+                                reply = makeReply db query
+                                (ip, port) = fromJust $ fromSockAddr sa
+                            envPutLines
+                                NOTICE
+                                Nothing
+                                ["    axfr @" ++ show ip ++ "#" ++ show port ++ "/TCP \"" ++ toRepresentation (zoneName zone) ++ "\""]
                             sendVC (sendTCP sock) $ encode reply
                         else replyRefused query
   where
@@ -64,17 +72,17 @@ makeReply db query
 
 ----------------------------------------------------------------
 
-client :: Serial -> IP -> Domain -> IO [ResourceRecord]
-client serial0 ip dom = do
-    mserial <- serialQuery ip dom
+client :: Env -> Serial -> IP -> Domain -> IO [ResourceRecord]
+client env serial0 ip dom = do
+    mserial <- serialQuery env ip dom
     case mserial of
         Nothing -> return []
         Just serial
-            | serial /= serial0 -> axfrQuery ip dom
+            | serial /= serial0 -> axfrQuery env ip dom
             | otherwise -> return []
 
-serialQuery :: IP -> Domain -> IO (Maybe Serial)
-serialQuery ip dom = do
+serialQuery :: Env -> IP -> Domain -> IO (Maybe Serial)
+serialQuery Env{..} ip dom = do
     emsg <- fmap replyDNSMessage <$> resolve renv q qctl
     case emsg of
         Left _ -> return Nothing
@@ -87,7 +95,7 @@ serialQuery ip dom = do
     riActions =
         defaultResolveActions
             { ractionTimeoutTime = 3000000
-            , ractionLog = \_lvl _mclr ss -> mapM_ putStrLn ss
+            , ractionLog = envPutLines
             }
     ris =
         [ defaultResolveInfo
@@ -107,8 +115,8 @@ serialQuery ip dom = do
     q = Question dom SOA IN
     qctl = rdFlag FlagClear <> doFlag FlagClear
 
-axfrQuery :: IP -> Domain -> IO [ResourceRecord]
-axfrQuery ip dom = do
+axfrQuery :: Env -> IP -> Domain -> IO [ResourceRecord]
+axfrQuery Env{..} ip dom = do
     emsg <- fmap replyDNSMessage <$> resolve renv q qctl
     case emsg of
         Left _ -> return []
@@ -117,7 +125,7 @@ axfrQuery ip dom = do
     riActions =
         defaultResolveActions
             { ractionTimeoutTime = 30000000
-            , ractionLog = \_lvl _mclr ss -> mapM_ putStrLn ss
+            , ractionLog = envPutLines
             }
     ris =
         [ defaultResolveInfo

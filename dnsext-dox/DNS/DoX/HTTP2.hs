@@ -139,7 +139,7 @@ doHTTPOneshot tag ident ri@ResolveInfo{..} q qctl sendRequest _aux = do
     ractionLog rinfoActions Log.DEMO Nothing [qtag]
     withTimeout ri $ resolv tag ident ri sendRequest q qctl
   where
-    ~qtag = queryTag q tag
+    ~qtag = queryTag q tag qctl
 
 clientDoHHeaders :: Int -> RequestHeaders
 clientDoHHeaders len =

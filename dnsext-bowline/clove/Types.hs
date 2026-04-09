@@ -6,6 +6,7 @@ import Data.IP.RouteTable
 import Data.Word
 
 import DNS.Auth.Algorithm
+import DNS.Log
 import DNS.Types
 
 ----------------------------------------------------------------
@@ -51,3 +52,9 @@ data Zone = Zone
     }
 
 type ZoneAlist = [(Domain, IORef Zone)]
+
+----------------------------------------------------------------
+
+data Env = Env
+    { envPutLines :: PutLines IO
+    }

@@ -42,10 +42,10 @@ readSource s
 
 ----------------------------------------------------------------
 
-loadSource :: Domain -> Serial -> Source -> IO (Maybe DB)
-loadSource zone serial source = case source of
-    FromUpstream4 ip4 -> toDB <$> Axfr.client serial (IPv4 ip4) zone
-    FromUpstream6 ip6 -> toDB <$> Axfr.client serial (IPv6 ip6) zone
+loadSource :: Env -> Domain -> Serial -> Source -> IO (Maybe DB)
+loadSource env zone serial source = case source of
+    FromUpstream4 ip4 -> toDB <$> Axfr.client env serial (IPv4 ip4) zone
+    FromUpstream6 ip6 -> toDB <$> Axfr.client env serial (IPv6 ip6) zone
     FromFile fn -> loadDB zone fn
   where
     toDB [] = Nothing
@@ -63,14 +63,14 @@ toZoneAlist zones = do
   where
     names = map zoneName zones
 
-newZones :: [ZoneConf] -> IO [Zone]
-newZones zcs = mapM newZone zcs
+newZones :: Env -> [ZoneConf] -> IO [Zone]
+newZones env zcs = mapM (newZone env) zcs
 
 ----------------------------------------------------------------
 
-newZone :: ZoneConf -> IO Zone
-newZone ZoneConf{..} = do
-    mdb <- loadSource zone 0 source
+newZone :: Env -> ZoneConf -> IO Zone
+newZone env ZoneConf{..} = do
+    mdb <- loadSource env zone 0 source
     let (db, ready) = case mdb of
             Nothing -> (emptyDB, False)
             Just db' -> (db', True)
@@ -104,11 +104,11 @@ shouldReload _ = True
 
 ----------------------------------------------------------------
 
-updateZone :: IORef Zone -> IO ()
-updateZone zoneref = do
+updateZone :: Env -> IORef Zone -> IO ()
+updateZone env zoneref = do
     Zone{..} <- readIORef zoneref
     let serial = soa_serial $ dbSOA zoneDB
-    mdb <- loadSource zoneName serial zoneSource
+    mdb <- loadSource env zoneName serial zoneSource
     case mdb of
         Nothing -> return ()
         Just db -> atomicModifyIORef' zoneref $ modify db

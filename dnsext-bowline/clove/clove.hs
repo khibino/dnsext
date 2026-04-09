@@ -14,6 +14,7 @@ import System.Environment (getArgs)
 import System.Posix (Handler (Catch), installHandler, sigHUP)
 
 import DNS.Auth.Algorithm
+import DNS.Log
 import DNS.Types
 import DNS.Types.Decode
 import DNS.Types.Encode
@@ -33,40 +34,43 @@ main = do
     -- Initialization
     [conffile] <- getArgs
     (Config{..}, zonelist) <- loadConfig conffile
-    zones <- newZones zonelist
-    zoneAlist <- toZoneAlist zones
-    -- Notify
-    let (_, zonerefs) = unzip zoneAlist
-    _ <- forkIO $ do
-        threadDelay 1000000
-        mapM_ notifyWithZone zonerefs
-    -- Zone updators
-    let wakeupAll = sequence_ $ map zoneWakeUp zones
-    void $ installHandler sigHUP (Catch wakeupAll) Nothing
-    mapM_ (void . forkIO . syncZone) zonerefs
-    -- AXFR servers: TCP
-    let as = map (axfrServer zoneAlist (show cnf_tcp_port)) cnf_tcp_addrs
-    -- Authoritative servers: UDP
-    ss <- mapM (serverSocket cnf_udp_port) cnf_udp_addrs
-    let cs = map (authServer zoneAlist) ss
-    -- Run servers
-    foldr1 concurrently_ $ as ++ cs
+    withStdLogger "dug logger" Stdout INFO $ \Ops{..} -> do
+        let env = Env{envPutLines = putLines}
+        zones <- newZones env zonelist
+        zoneAlist <- toZoneAlist zones
+        -- Notify
+        let (_, zonerefs) = unzip zoneAlist
+        _ <- forkIO $ do
+            threadDelay 1000000
+            mapM_ (notifyWithZone env) zonerefs
+        -- Zone updators
+        let wakeupAll = sequence_ $ map zoneWakeUp zones
+        void $ installHandler sigHUP (Catch wakeupAll) Nothing
+        mapM_ (void . forkIO . syncZone env) zonerefs
+        -- AXFR servers: TCP
+        let as = map (axfrServer env zoneAlist (show cnf_tcp_port)) cnf_tcp_addrs
+        -- Authoritative servers: UDP
+        ss <- mapM (serverSocket cnf_udp_port) cnf_udp_addrs
+        let cs = map (authServer env zoneAlist) ss
+        -- Run servers
+        foldr1 concurrently_ $ as ++ cs
 
 ----------------------------------------------------------------
 
 axfrServer
-    :: ZoneAlist
+    :: Env
+    -> ZoneAlist
     -> ServiceName
     -> HostName
     -> IO ()
-axfrServer zoneAlist port addr =
+axfrServer env zoneAlist port addr =
     runTCPServer 10 (Just addr) port $
-        \_ _ s -> Axfr.server zoneAlist s
+        \_ _ s -> Axfr.server env zoneAlist s
 
 ----------------------------------------------------------------
 
-authServer :: ZoneAlist -> Socket -> IO ()
-authServer zoneAlist s = loop
+authServer :: Env -> ZoneAlist -> Socket -> IO ()
+authServer _env zoneAlist s = loop
   where
     loop = do
         (bs, sa) <- NSB.recvFrom s 2048
@@ -117,8 +121,8 @@ replyRefused s sa query = void $ NSB.sendTo s bs sa
 
 ----------------------------------------------------------------
 
-syncZone :: IORef Zone -> IO ()
-syncZone zoneref = loop
+syncZone :: Env -> IORef Zone -> IO ()
+syncZone env zoneref = loop
   where
     loop = do
         Zone{..} <- readIORef zoneref
@@ -128,12 +132,12 @@ syncZone zoneref = loop
                 | otherwise = fromIntegral $ soa_refresh $ dbSOA zoneDB
         zoneWait tm
         -- reading zone source
-        updateZone zoneref
+        updateZone env zoneref
         -- notify
-        notifyWithZone zoneref
+        notifyWithZone env zoneref
         loop
 
-notifyWithZone :: IORef Zone -> IO ()
-notifyWithZone zoneref = do
+notifyWithZone :: Env -> IORef Zone -> IO ()
+notifyWithZone env zoneref = do
     Zone{..} <- readIORef zoneref
-    mapM_ (notify $ dbZone zoneDB) $ zoneNotifyAddrs
+    mapM_ (notify env $ dbZone zoneDB) $ zoneNotifyAddrs
