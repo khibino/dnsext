@@ -36,7 +36,7 @@ server env@Env{..} proto@Proto{..} zoneAlist = loop
                     envPutLines
                         DEBUG
                         Nothing
-                        ["    received \"" ++ toRepresentation dom ++ "\" " ++ show typ ++ " from " ++ show ip ++ "/" ++ protoName]
+                        ["\"" ++ toRepresentation dom ++ "\" " ++ show typ ++ " from " ++ show ip ++ "/" ++ protoName]
                     if typ == AXFR || typ == IXFR
                         then do
                             -- RFC 1995 Sec 4
