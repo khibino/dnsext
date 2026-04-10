@@ -32,7 +32,7 @@ main = do
     -- Initialization
     [conffile] <- getArgs
     (Config{..}, zonelist) <- loadConfig conffile
-    withStdLogger "dug logger" Stdout INFO $ \Ops{..} -> do
+    withStdLogger "dug logger" Stdout (read cnf_log_level) $ \Ops{..} -> do
         let env = Env{envPutLines = putLines}
         zones <- newZones env zonelist
         zoneAlist <- toZoneAlist zones
