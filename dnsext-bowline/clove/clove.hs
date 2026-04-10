@@ -15,7 +15,10 @@ import System.Posix (Handler (Catch), installHandler, sigHUP)
 
 import DNS.Auth.Algorithm
 import DNS.Log
+import qualified DNS.SEC as DNS
+import qualified DNS.SVCB as DNS
 import DNS.Types
+import qualified DNS.Types as DNS
 import Data.IORef
 
 import qualified Auth
@@ -29,6 +32,9 @@ import Zone
 
 main :: IO ()
 main = do
+    DNS.runInitIO $ do
+        DNS.addResourceDataForDNSSEC
+        DNS.addResourceDataForSVCB
     -- Initialization
     [conffile] <- getArgs
     (Config{..}, zonelist) <- loadConfig conffile
