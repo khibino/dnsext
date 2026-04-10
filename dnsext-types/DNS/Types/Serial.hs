@@ -19,4 +19,4 @@ instance Ord Serial where
         i1 = fromIntegral s1
         i2 :: Word64
         i2 = fromIntegral s2
-        mx = 2 ^ (32 :: Int) - 1
+        mx = 2 ^ (31 :: Int)
