@@ -36,7 +36,7 @@
 --   >>> :seti -XOverloadedStrings
 --   >>>
 --   >>> withLookupConf defaultLookupConf (\env -> lookupA env "mew.org")
---   Right [202.238.220.92]
+--   Right [133.159.73.125]
 --
 --   The only error that we can easily cause is a timeout. We do this
 --   by creating and utilizing a 'LookupConf' which has a timeout of
@@ -131,7 +131,7 @@ lookupAAAA = lookupX AAAA
 --   The domain \"mew.org\" does however have a single MX:
 --
 --   >>> withLookupConf defaultLookupConf $ \env -> lookupMX env "mew.org"
---   Right [10 mail.mew.org.]
+--   Right [0 .]
 --
 --   Also note that all hostnames are returned with a trailing dot to
 --   indicate the DNS root.
@@ -139,8 +139,8 @@ lookupAAAA = lookupX AAAA
 --   However the MX host itself has no need for an MX record, so its MX RRset
 --   is empty.  But, \"no results\" is still a successful result.
 --
---   >>> withLookupConf defaultLookupConf $ \env -> lookupMX env "mail.mew.org"
---   Right []
+--   >>> withLookupConf defaultLookupConf $ \env -> lookupMX env "iij.ad.jp"
+--   Right [10 omgi.iij.ad.jp.]
 lookupMX :: LookupEnv -> Domain -> IO (Either DNSError [RD_MX])
 lookupMX = lookupX MX
 
@@ -151,9 +151,9 @@ lookupMX = lookupX MX
 --   Examples:
 --
 --   >>> import Data.List (sort)
---   >>> ips <- withLookupConf defaultLookupConf $ \env -> lookupAviaMX env "mew.org"
+--   >>> ips <- withLookupConf defaultLookupConf $ \env -> lookupAviaMX env "iij.ad.jp"
 --   >>> fmap sort ips
---   Right [202.238.220.92]
+--   Right [202.32.171.213,202.232.173.185]
 --
 --   Since there is more than one result, it is necessary to sort the
 --   list in order to check for equality.
@@ -241,7 +241,7 @@ lookupNSAuth = lookupAuthX NS
 --   example, we find the SPF record for \"mew.org\":
 --
 --   >>> withLookupConf defaultLookupConf $ \env -> lookupTXT env "mew.org"
---   Right ["v=spf1 +mx -all"]
+--   Right ["v=spf1 -all"]
 lookupTXT :: LookupEnv -> Domain -> IO (Either DNSError [RD_TXT])
 lookupTXT = lookupX TXT
 
