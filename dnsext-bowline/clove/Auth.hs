@@ -3,21 +3,23 @@
 module Auth (server, tcpAllowAXFR) where
 
 import Data.ByteString (ByteString)
+import Data.IORef
 import Data.IP
+import Data.Maybe
 import Network.Socket
 
 import DNS.Auth.Algorithm
+import DNS.Log
 import DNS.Types
 import DNS.Types.Decode
 import DNS.Types.Encode
-import Data.IORef
 
 import Axfr
 import Types
 import Zone
 
 server :: Env -> Proto -> ZoneAlist -> IO ()
-server env proto@Proto{..} zoneAlist = loop
+server env@Env{..} proto@Proto{..} zoneAlist = loop
   where
     loop = do
         (bs, sa) <- recvQuery
@@ -30,6 +32,11 @@ server env proto@Proto{..} zoneAlist = loop
                     let q = question query
                         dom = qname q
                         typ = qtype q
+                        (ip, _port) = fromJust $ fromSockAddr sa
+                    envPutLines
+                        DEBUG
+                        Nothing
+                        ["    received \"" ++ toRepresentation dom ++ "\" " ++ show typ ++ " from " ++ show ip ++ "/" ++ protoName]
                     case typ of
                         AXFR -> do
                             mx <- allowAXFR sa dom zoneAlist

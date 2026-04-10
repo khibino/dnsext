@@ -65,4 +65,5 @@ data Proto = Proto
     { recvQuery :: IO (ByteString, SockAddr)
     , sendReply :: SockAddr -> ByteString -> IO ()
     , allowAXFR :: SockAddr -> Domain -> ZoneAlist -> IO (Maybe Zone)
+    , protoName :: String
     }
