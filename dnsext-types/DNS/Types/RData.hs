@@ -21,6 +21,7 @@ import DNS.Types.Opaque.Internal (
  )
 import qualified DNS.Types.Opaque.Internal as Opaque
 import DNS.Types.Seconds
+import DNS.Types.Serial
 import DNS.Types.Type
 import DNS.Wire
 
@@ -173,7 +174,7 @@ data RD_SOA = RD_SOA
     -- ^ Setter/getter for mname
     , soa_rname   :: Mailbox
     -- ^ Setter/getter for rname
-    , soa_serial  :: Word32
+    , soa_serial  :: Serial
     -- ^ Setter/getter for serial
     , soa_refresh :: Seconds
     -- ^ Setter/getter for refresh
@@ -194,7 +195,7 @@ instance ResourceData RD_SOA where
     putResourceData cf RD_SOA{..} = \wbuf ref -> do
         putDomainRFC1035  cf soa_mname   wbuf ref
         putMailboxRFC1035 cf soa_rname   wbuf ref
-        put32 wbuf           soa_serial
+        put32 wbuf           $ unSerial soa_serial
         putSeconds           soa_refresh wbuf ref
         putSeconds           soa_retry   wbuf ref
         putSeconds           soa_expire  wbuf ref
@@ -206,7 +207,7 @@ get_soa :: Int -> Parser RD_SOA
 get_soa _ rbuf ref = do
     soa_mname   <- getDomainRFC1035 rbuf ref
     soa_rname   <- getMailboxRFC1035 rbuf ref
-    soa_serial  <- get32 rbuf
+    soa_serial  <- Serial <$> get32 rbuf
     soa_refresh <- getSeconds rbuf ref
     soa_retry   <- getSeconds rbuf ref
     soa_expire  <- getSeconds rbuf ref
@@ -217,7 +218,7 @@ get_soa _ rbuf ref = do
 -- | Smart constructor.
 rd_soa
     :: Domain -> Mailbox -> Word32 -> Seconds -> Seconds -> Seconds -> Seconds -> RData
-rd_soa a b c d e f g = toRData $ RD_SOA a b c d e f g
+rd_soa a b c d e f g = toRData $ RD_SOA a b (Serial c) d e f g
 
 ----------------------------------------------------------------
 

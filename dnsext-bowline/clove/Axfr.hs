@@ -78,7 +78,7 @@ client env serial0 ip dom = do
     case mserial of
         Nothing -> return []
         Just serial
-            | serial /= serial0 -> axfrQuery env ip dom
+            | serial > serial0 -> axfrQuery env ip dom
             | otherwise -> return []
 
 serialQuery :: Env -> IP -> Domain -> IO (Maybe Serial)

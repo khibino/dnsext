@@ -70,7 +70,7 @@ newZones env zcs = mapM (newZone env) zcs
 
 newZone :: Env -> ZoneConf -> IO Zone
 newZone env ZoneConf{..} = do
-    mdb <- loadSource env zone 0 source
+    mdb <- loadSource env zone (Serial 0) source
     let (db, ready) = case mdb of
             Nothing -> (emptyDB, False)
             Just db' -> (db', True)
