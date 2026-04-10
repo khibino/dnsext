@@ -37,14 +37,21 @@ server env@Env{..} proto@Proto{..} zoneAlist = loop
                         DEBUG
                         Nothing
                         ["    received \"" ++ toRepresentation dom ++ "\" " ++ show typ ++ " from " ++ show ip ++ "/" ++ protoName]
-                    case typ of
-                        AXFR -> do
+                    if typ == AXFR || typ == IXFR
+                        then do
+                            -- RFC 1995 Sec 4
+                            -- If incremental zone transfer is not
+                            -- available, the entire zone is returned.
+                            -- The first and the last RR of the response
+                            -- is the SOA record of the zone.  I.e. the
+                            -- behavior is the same as an AXFR response
+                            -- except the query type is IXFR.
                             mx <- allowAXFR sa dom zoneAlist
                             case mx of
                                 Nothing -> sendReply sa $ replyRefused query
                                 Just zone -> transfer env proto zone sa query
-                        IXFR -> sendReply sa $ replyRefused query
-                        _ -> response proto zoneAlist sa query dom
+                        else
+                            response proto zoneAlist sa query dom
                 _ -> sendReply sa $ replyRefused query
         loop
 
