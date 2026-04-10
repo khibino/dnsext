@@ -4,7 +4,6 @@ import Data.ByteString (ByteString)
 import Data.IORef
 import Data.IP
 import Data.IP.RouteTable
-import Data.Word
 import Network.Socket
 
 import DNS.Auth.Algorithm
