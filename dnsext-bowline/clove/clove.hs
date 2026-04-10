@@ -6,6 +6,7 @@ module Main where
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Monad
+import DNS.Do53.Internal
 import Network.Run.TCP.Timeout
 import Network.Socket
 import qualified Network.Socket.ByteString as NSB
@@ -18,7 +19,6 @@ import DNS.Types
 import Data.IORef
 
 import qualified Auth
-import qualified Axfr
 import Config
 import Net
 import Notify
@@ -46,35 +46,46 @@ main = do
         void $ installHandler sigHUP (Catch wakeupAll) Nothing
         mapM_ (void . forkIO . syncZone env) zonerefs
         -- AXFR servers: TCP
-        let as = map (axfrServer env zoneAlist (show cnf_tcp_port)) cnf_tcp_addrs
+        let as = map (tcpServer env zoneAlist (show cnf_tcp_port)) cnf_tcp_addrs
         -- Authoritative servers: UDP
         ss <- mapM (serverSocket cnf_udp_port) cnf_udp_addrs
-        let cs = map (authServer env zoneAlist) ss
+        let cs = map (udpServer env zoneAlist) ss
         -- Run servers
         foldr1 concurrently_ $ as ++ cs
 
 ----------------------------------------------------------------
 
-authServer :: Env -> ZoneAlist -> Socket -> IO ()
-authServer env zoneAlist s = Auth.server proto zoneAlist env
+udpServer :: Env -> ZoneAlist -> Socket -> IO ()
+udpServer env zoneAlist s = Auth.server env proto zoneAlist
   where
     proto =
-        Auth.Proto
+        Proto
             { recvQuery = NSB.recvFrom s 2048
             , sendReply = \sa bs -> void $ NSB.sendTo s bs sa
+            , allowAXFR = \_ _ _ -> return Nothing
             }
 
 ----------------------------------------------------------------
 
-axfrServer
+tcpServer
     :: Env
     -> ZoneAlist
     -> ServiceName
     -> HostName
     -> IO ()
-axfrServer env zoneAlist port addr =
+tcpServer env zoneAlist port addr =
     runTCPServer 10 (Just addr) port $
-        \_ _ s -> Axfr.server env zoneAlist s
+        \_tmgr _h s -> do
+            let proto =
+                    Proto
+                        { recvQuery = do
+                            bs <- recvVC (32 * 1024) $ recvTCP s
+                            sa <- getPeerName s
+                            return (bs, sa)
+                        , sendReply = \_sa bs -> sendVC (sendTCP s) bs
+                        , allowAXFR = Auth.tcpAllowAXFR
+                        }
+            Auth.server env proto zoneAlist
 
 ----------------------------------------------------------------
 
