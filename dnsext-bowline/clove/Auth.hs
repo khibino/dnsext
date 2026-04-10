@@ -36,7 +36,7 @@ server env proto@Proto{..} zoneAlist = loop
                             case mx of
                                 Nothing -> sendReply sa $ replyRefused query
                                 Just zone -> transfer env proto zone sa query
-                        IXFR -> undefined
+                        IXFR -> sendReply sa $ replyRefused query
                         _ -> response proto zoneAlist sa query dom
                 _ -> sendReply sa $ replyRefused query
         loop
