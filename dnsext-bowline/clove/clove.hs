@@ -6,7 +6,6 @@ module Main where
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Async (concurrently_)
 import Control.Monad
-import Data.IP
 import Network.Run.TCP.Timeout
 import Network.Socket
 import qualified Network.Socket.ByteString as NSB
@@ -16,10 +15,9 @@ import System.Posix (Handler (Catch), installHandler, sigHUP)
 import DNS.Auth.Algorithm
 import DNS.Log
 import DNS.Types
-import DNS.Types.Decode
-import DNS.Types.Encode
 import Data.IORef
 
+import qualified Auth
 import qualified Axfr
 import Config
 import Net
@@ -57,6 +55,17 @@ main = do
 
 ----------------------------------------------------------------
 
+authServer :: Env -> ZoneAlist -> Socket -> IO ()
+authServer env zoneAlist s = Auth.server proto zoneAlist env
+  where
+    proto =
+        Auth.Proto
+            { recvQuery = NSB.recvFrom s 2048
+            , sendReply = \sa bs -> void $ NSB.sendTo s bs sa
+            }
+
+----------------------------------------------------------------
+
 axfrServer
     :: Env
     -> ZoneAlist
@@ -66,58 +75,6 @@ axfrServer
 axfrServer env zoneAlist port addr =
     runTCPServer 10 (Just addr) port $
         \_ _ s -> Axfr.server env zoneAlist s
-
-----------------------------------------------------------------
-
-authServer :: Env -> ZoneAlist -> Socket -> IO ()
-authServer _env zoneAlist s = loop
-  where
-    loop = do
-        (bs, sa) <- NSB.recvFrom s 2048
-        case decode bs of
-            -- fixme: which RFC?
-            Left _e -> return ()
-            Right query -> case opcode query of
-                OP_NOTIFY -> handleNotify sa query
-                OP_STD -> do
-                    let dom = qname $ question query
-                    case findZoneAlist dom zoneAlist of -- isSubDomainOf
-                        Nothing -> replyRefused s sa query
-                        Just (_, zoneref) -> do
-                            zone <- readIORef zoneref
-                            replyQuery (zoneDB zone) s sa query
-                _ -> replyRefused s sa query
-        loop
-    handleNotify sa query = case lookup dom zoneAlist of -- exact match
-        Nothing -> replyRefused s sa query
-        Just zoneref -> do
-            Zone{..} <- readIORef zoneref
-            case fromSockAddr sa of
-                Nothing -> replyRefused s sa query
-                Just (ip, _)
-                    | ip `elem` zoneAllowNotifyAddrs -> do
-                        replyNotice s sa query
-                        zoneWakeUp
-                    | otherwise -> replyRefused s sa query
-      where
-        dom = qname $ question query
-
-replyNotice :: Socket -> SockAddr -> DNSMessage -> IO ()
-replyNotice s sa query = void $ NSB.sendTo s bs sa
-  where
-    flgs = (flags query){isResponse = True}
-    bs = encode $ query{flags = flgs}
-
-replyQuery :: DB -> Socket -> SockAddr -> DNSMessage -> IO ()
-replyQuery db s sa query = void $ NSB.sendTo s bs sa
-  where
-    bs = encode $ getAnswer db query
-
-replyRefused :: Socket -> SockAddr -> DNSMessage -> IO ()
-replyRefused s sa query = void $ NSB.sendTo s bs sa
-  where
-    flgs = (flags query){isResponse = True}
-    bs = encode $ query{rcode = Refused, flags = flgs}
 
 ----------------------------------------------------------------
 

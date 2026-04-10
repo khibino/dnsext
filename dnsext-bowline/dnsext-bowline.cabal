@@ -148,7 +148,8 @@ executable ddrd
 executable clove
     main-is:          clove.hs
     hs-source-dirs:   clove
-    other-modules:    Axfr
+    other-modules:    Auth
+                      Axfr
                       Config
                       Net
                       Notify
@@ -161,6 +162,7 @@ executable clove
         -- GHC bundled
         base,
         async,
+        bytestring,
         network,
         -- dnsext packages
         dnsext-auth,
