@@ -10,9 +10,9 @@ instance Show Serial where
     show (Serial n) = show n
 
 instance Ord Serial where
-    Serial s1 <= Serial s2 =
-        s1 == s2
-            || (s1 < s2 && (s2 - s1) < mx)
-            || (s1 > s2 && (s1 - s2) > mx)
+    Serial i1 <= Serial i2 =
+        i1 == i2
+            || (i1 < i2 && (i2 - i1) < mx)
+            || (i1 > i2 && (i1 - i2) > mx)
       where
         mx = 2 ^ (31 :: Int)
