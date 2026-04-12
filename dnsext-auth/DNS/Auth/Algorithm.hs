@@ -75,9 +75,9 @@ processPositive db@DB{..} q@Question{..} reply = case M.lookup qname dbAnswer of
                     add = if qtype == NS then findAdditional db ans else []
                  in makeAnswer ans add
             [c] | length rs == 1 -> case fromRData $ rdata c of
-                Nothing -> error "processPositive: never reached"
+                Nothing -> makeReply reply [] [] [] ServFail False
                 Just cname -> processCNAME db q reply c $ cname_domain cname
-            _ -> error "processPositive: multiple CNAMEs"
+            _ -> makeReply reply [] [] [] ServFail False
   where
     -- RFC2308 Sec 2.2 No Data
     makeAnswer ans add = makeReply reply ans auth add NoErr True
