@@ -71,9 +71,9 @@ import DNS.Iterative.Server.TCP
 import DNS.Iterative.Server.TLS
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Server.UDP
-import DNS.Iterative.Server.WorkerStats
 import DNS.Iterative.Stats
 import DNS.Iterative.Types
+import DNS.Iterative.WorkerStats
 import DNS.RRCache (RRCache, RRCacheConf (..), RRCacheOps (..), newRRCache, newRRCacheOps)
 import qualified DNS.RRCache as RRCache
 import DNS.TimeCache

@@ -66,10 +66,10 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseIterative)
 import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
-import DNS.Iterative.Server.WorkerStats hiding (setWorkerStat)
-import qualified DNS.Iterative.Server.WorkerStats as WStat
 import DNS.Iterative.Stats
 import DNS.Iterative.Types
+import DNS.Iterative.WorkerStats hiding (setWorkerStat)
+import qualified DNS.Iterative.WorkerStats as WStat
 
 ----------------------------------------------------------------
 
