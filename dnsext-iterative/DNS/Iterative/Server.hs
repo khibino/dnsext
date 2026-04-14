@@ -5,6 +5,7 @@ module DNS.Iterative.Server (
     -- * Types
     module DNS.Iterative.Query.Env,
     module DNS.Iterative.Server.Types,
+    module DNS.Iterative.Types,
     module DNS.RRCache,
     module DNS.TimeCache,
 
@@ -72,6 +73,7 @@ import DNS.Iterative.Server.Types
 import DNS.Iterative.Server.UDP
 import DNS.Iterative.Server.WorkerStats
 import DNS.Iterative.Stats
+import DNS.Iterative.Types
 import DNS.RRCache (RRCache, RRCacheConf (..), RRCacheOps (..), newRRCache, newRRCacheOps)
 import qualified DNS.RRCache as RRCache
 import DNS.TimeCache

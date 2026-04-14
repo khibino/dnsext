@@ -18,6 +18,7 @@ import Network.Socket
 import DNS.Iterative.Internal
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
+import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
