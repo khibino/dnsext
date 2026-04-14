@@ -53,6 +53,7 @@ library
         DNS.Iterative.Server.UDP
         DNS.Iterative.Server.WorkerStats
         DNS.Iterative.Stats
+        DNS.Iterative.Types
 
     default-language: Haskell2010
     ghc-options:      -Wall
