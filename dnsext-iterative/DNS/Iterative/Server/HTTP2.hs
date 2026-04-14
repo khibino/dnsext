@@ -32,6 +32,7 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsDoH2, incStatsDoH2C, sessionStatsDoH2, sessionStatsDoH2C)
+import DNS.Iterative.Types
 
 http2Servers :: VcServerConfig -> ServerActions
 http2Servers conf env toCacher ss =
