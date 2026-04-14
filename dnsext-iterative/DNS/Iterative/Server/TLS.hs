@@ -31,6 +31,7 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsDoT, sessionStatsDoT)
+import DNS.Iterative.Types
 
 tlsServers :: VcServerConfig -> ServerActions
 tlsServers conf env toCacher ss =
