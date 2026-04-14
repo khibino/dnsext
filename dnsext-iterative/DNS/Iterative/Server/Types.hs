@@ -41,6 +41,7 @@ import DNS.Types.Time (EpochTimeUsec)
 
 -- this package
 import DNS.Iterative.Query (Env)
+import DNS.Iterative.Types (DoX (..))
 
 data SuperStream = StreamH2 H2I.Stream | StreamQUIC QUIC.Stream deriving (Show)
 
@@ -63,16 +64,6 @@ data VcPendingOp
     { vpReqNum :: ReqNum
     , vpDelete :: IO ()
     }
-
-data DoX
-    = UDP
-    | TCP
-    | DoT
-    | H2
-    | H2C
-    | H3
-    | DoQ
-    deriving (Eq, Show)
 
 data Input a = Input
     { inputQuery :: a
