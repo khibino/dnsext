@@ -100,10 +100,11 @@ processCNAME DB{..} Question{..} reply c cname = makeReply reply ans auth [] cod
   where
     (ans, auth, code)
         | cname `isSubDomainOf` dbZone = case M.lookup cname dbAnswer of
-            -- RFC 2308 Sec 2.1 - Name Error
+            -- RFC 2308 Sec 2.1 Name Error
             Nothing -> ([c], [dbSOArr], NXDomain)
             Just rs ->
                 let ans' = filter (\r -> rrtype r == qtype) rs
+                    -- RFC2308 Sec 2.2 No Data
                     auth'
                         | null ans' = [dbSOArr]
                         | otherwise = []
