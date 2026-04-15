@@ -80,7 +80,11 @@ processPositive db@DB{..} q@Question{..} reply = case M.lookup qname dbAnswer of
             _ -> error "processPositive: multiple CNAMEs"
   where
     -- RFC2308 Sec 2.2 No Data
-    makeAnswer ans add = makeReply reply ans [] add NoErr True
+    makeAnswer ans add = makeReply reply ans auth add NoErr True
+      where
+        auth
+            | null ans = [dbSOArr]
+            | otherwise = []
 
 -- RFC 1912 Sec 2.4 CNAME records
 -- This function does not follow CNAME of CNAME.
@@ -92,14 +96,20 @@ processCNAME DB{..} Question{..} reply c cname
         | cname `isSubDomainOf` dbZone =
             fromMaybe [] $ M.lookup cname dbAdditional
         | otherwise = []
-processCNAME DB{..} Question{..} reply c cname = makeReply reply ans [] [] code True
+processCNAME DB{..} Question{..} reply c cname = makeReply reply ans auth [] code True
   where
-    (ans, code)
+    (ans, auth, code)
         | cname `isSubDomainOf` dbZone = case M.lookup cname dbAnswer of
-            -- RFC 2308 Sec 2.1 - Name Error
-            Nothing -> ([c], NXDomain)
-            Just rs -> ([c] ++ filter (\r -> rrtype r == qtype) rs, NoErr)
-        | otherwise = ([c], NoErr)
+            -- RFC 2308 Sec 2.1 Name Error
+            Nothing -> ([c], [dbSOArr], NXDomain)
+            Just rs ->
+                let ans' = filter (\r -> rrtype r == qtype) rs
+                    -- RFC2308 Sec 2.2 No Data
+                    auth'
+                        | null ans' = [dbSOArr]
+                        | otherwise = []
+                 in (c : ans', auth', NoErr)
+        | otherwise = ([c], [], NoErr)
 
 findAuthority
     :: DB
