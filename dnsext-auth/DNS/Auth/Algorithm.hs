@@ -98,15 +98,17 @@ processCNAME DB{..} Question{..} reply c cname
         | otherwise = []
 processCNAME DB{..} Question{..} reply c cname = makeReply reply ans auth [] code True
   where
-    (ans, code)
+    (ans, auth, code)
         | cname `isSubDomainOf` dbZone = case M.lookup cname dbAnswer of
             -- RFC 2308 Sec 2.1 - Name Error
-            Nothing -> ([c], NXDomain)
-            Just rs -> ([c] ++ filter (\r -> rrtype r == qtype) rs, NoErr)
-        | otherwise = ([c], NoErr)
-    auth
-        | code == NXDomain = [dbSOArr]
-        | otherwise = []
+            Nothing -> ([c], [dbSOArr], NXDomain)
+            Just rs ->
+                let ans' = filter (\r -> rrtype r == qtype) rs
+                    auth'
+                        | null ans' = [dbSOArr]
+                        | otherwise = []
+                 in (c : ans', auth', NoErr)
+        | otherwise = ([c], [], NoErr)
 
 findAuthority
     :: DB
