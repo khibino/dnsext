@@ -92,7 +92,7 @@ processCNAME DB{..} Question{..} reply c cname
         | cname `isSubDomainOf` dbZone =
             fromMaybe [] $ M.lookup cname dbAdditional
         | otherwise = []
-processCNAME DB{..} Question{..} reply c cname = makeReply reply ans [] [] code True
+processCNAME DB{..} Question{..} reply c cname = makeReply reply ans auth [] code True
   where
     (ans, code)
         | cname `isSubDomainOf` dbZone = case M.lookup cname dbAnswer of
@@ -100,6 +100,9 @@ processCNAME DB{..} Question{..} reply c cname = makeReply reply ans [] [] code 
             Nothing -> ([c], NXDomain)
             Just rs -> ([c] ++ filter (\r -> rrtype r == qtype) rs, NoErr)
         | otherwise = ([c], NoErr)
+    auth
+        | code == NXDomain = [dbSOArr]
+        | otherwise = []
 
 findAuthority
     :: DB
