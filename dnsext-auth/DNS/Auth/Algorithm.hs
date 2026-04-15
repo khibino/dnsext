@@ -80,7 +80,11 @@ processPositive db@DB{..} q@Question{..} reply = case M.lookup qname dbAnswer of
             _ -> error "processPositive: multiple CNAMEs"
   where
     -- RFC2308 Sec 2.2 No Data
-    makeAnswer ans add = makeReply reply ans [] add NoErr True
+    makeAnswer ans add = makeReply reply ans auth add NoErr True
+      where
+        auth
+            | null ans = [dbSOArr]
+            | otherwise = []
 
 -- RFC 1912 Sec 2.4 CNAME records
 -- This function does not follow CNAME of CNAME.
