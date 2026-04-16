@@ -51,7 +51,6 @@ library
         DNS.Iterative.Server.TLS
         DNS.Iterative.Server.Types
         DNS.Iterative.Server.UDP
-        DNS.Iterative.Server.WorkerStats
         DNS.Iterative.Stats
         DNS.Iterative.Types
         DNS.Iterative.WorkerStats
