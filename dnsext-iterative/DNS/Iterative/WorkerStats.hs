@@ -87,6 +87,44 @@ instance Show WorkerStat where
       where pprQ (Question n t c) = " " ++ show n ++ " " ++  show t ++ " " ++ show c
 {- FOURMOLU_ENABLE -}
 
+------------------------------------------------------------
+
+{- FOURMOLU_DISABLE -}
+data BkStat
+    = BsBlocking
+    | BsUnblocked
+    deriving Eq
+
+instance Show BkStat where
+    show BsBlocking   = " blocking"
+    show BsUnblocked  = "unblocked"
+
+data BkCause
+    = BcInit
+    | BcEnqueue
+    | BcDequeue
+    | BcIO
+    deriving Eq
+
+instance Show BkCause where
+    show BcInit     = "<initial>"
+    show BcEnqueue  = "enqueue"
+    show BcDequeue  = "dequeue"
+    show BcIO       = "I/O"
+
+data BkContext
+    = BkContext BkCause String
+    deriving Eq
+
+instance Show BkContext where
+    show (BkContext cause note) = show cause ++ ": " ++ note
+{- FOURMOLU_ENABLE -}
+
+pprBlockingState :: BkStat -> BkContext -> String
+pprBlockingState bstate context = show bstate ++ ": " ++ show context
+
+------------------------------------------------------------
+
 {- FOURMOLU_DISABLE -}
 data WorkerStatOP =
     WorkerStatOP
