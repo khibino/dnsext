@@ -187,6 +187,16 @@ data WorkerStatOP =
 
 data WStatStore = WSStore WorkerStat TimeStamp
 
+data WBStatStore = WBStatStore BlockingStat TimeStamp
+
+{- FOURMOLU_DISABLE -}
+data WBlockingStore =
+    WBStore
+    { wbkStatRef  :: IORef WBStatStore  -- consistently access, stat and timestamp pair
+    , wbkContext  :: BlockingContext
+    }
+{- FOURMOLU_ENABLE -}
+
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
     ref <- newIORef =<< mkStore WWaitDequeue
