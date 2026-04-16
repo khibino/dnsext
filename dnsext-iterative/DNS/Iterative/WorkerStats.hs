@@ -87,6 +87,96 @@ instance Show WorkerStat where
       where pprQ (Question n t c) = " " ++ show n ++ " " ++  show t ++ " " ++ show c
 {- FOURMOLU_ENABLE -}
 
+------------------------------------------------------------
+
+{- FOURMOLU_DISABLE -}
+data BlockingStat
+    = StatBlocking
+    | StatUnblocked
+    deriving Eq
+
+instance Show BlockingStat where
+    show StatBlocking   = " blocking"
+    show StatUnblocked  = "unblocked"
+
+data BlockingCause
+    = CauseEnqueue
+    | CauseLog
+    | CauseIO
+    deriving Eq
+
+instance Show BlockingCause where
+    show CauseEnqueue   = "enqueue"
+    show CauseLog       = "logging"
+    show CauseIO        = "I/O"
+
+-- |
+--  BlockingContext transition in worker/cacher
+--
+--    +---------+         +---------+         +---------+
+--    |  Init   |  ---->  | Request |  ---->  |  Query  |
+--    +---------+         +---------+         +----+----+
+--                             ^                   |
+--                             |    worker loop    |
+--                             +-------------------+
+--
+--   --------------------------------------------------------------
+--
+--   e.g. internal transition under ContextRequest
+--   +------------------------------------------+
+--   |  Request                                 |
+--   |    (ContextRequest)                      |
+--   |                                          |
+--   |  BlockingStat transition                 |
+--   |    +-----------+       +-----------+     |
+--   |    | Blocking  | ----> | Unblocked |     |
+--   |    +-----------+       +-----------+     |
+--   |                                          |
+--   +------------------------------------------+
+--
+--   e.g. internal transition under ContextQuery with CauseEnqueue
+--   +------------------------------------------+
+--   |  Query                                   |
+--   |    (ContextQuery ... CauseEnqueue ...)   |
+--   |                                          |
+--   |  BlockingStat transition                 |
+--   |    +-----------+       +-----------+     |
+--   |    | Blocking  | ----> | Unblocked |     |
+--   |    +-----------+       +-----------+     |
+--   |                                          |
+--   +------------------------------------------+
+--
+data BlockingContext
+    = ContextInit
+    | ContextRequest
+    | ContextQuery DoX Question BlockingCause String
+    deriving Eq
+
+-- |
+-- >>> import Data.String
+-- >>> import DNS.Types
+-- >>> ContextQuery DoT (Question (fromString "example.com") A IN) CauseEnqueue "<note>"
+-- enqueue: DoT: "example.com." A IN: <note>
+instance Show BlockingContext where
+    show  ContextInit                     = "<blocking stat unused>"
+    show  ContextRequest                  = "dequeue: request"
+    show (ContextQuery dox q cause note)  = show cause ++ ": " ++ show dox ++ ": " ++ showQ q ++ npp note
+      where
+        showQ (Question qn ty cls) = unwords [show qn, show ty, show cls]
+        npp s
+            | null s     = ""
+            | otherwise  = ": " ++ s
+{- FOURMOLU_ENABLE -}
+
+pprBlockingStat :: (BlockingStat, BlockingContext, DiffTime) -> String
+pprBlockingStat (bstate, context, diff) = pad ++ diffStr ++ ": " ++ show bstate ++ ": " ++ show context
+  where
+    diffStr = showDiffSec1 diff
+    pad = replicate (width - length diffStr) ' '
+    width = 7
+
+------------------------------------------------------------
+
 {- FOURMOLU_DISABLE -}
 data WorkerStatOP =
     WorkerStatOP
