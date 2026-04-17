@@ -3,6 +3,7 @@
 module DNS.Iterative.WorkerStats where
 
 -- GHC packages
+import Control.Exception (bracket_)
 import Data.IORef
 import Data.List (sortBy)
 import Data.Ord (comparing)
@@ -183,6 +184,9 @@ getWorkerStatOP = do
         WBStatStore bstat ts0 <- readIORef ref
         now <- getTimeStamp
         return (bstat , now `diffTimeStamp` ts0, context)
+
+bracketBlocking :: WorkerStatOP -> BkContext -> IO a -> IO a
+bracketBlocking wstat context = bracket_ (setBlocking wstat context) (setUnblocked wstat)
 
 ------------------------------------------------------------
 
