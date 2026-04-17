@@ -183,8 +183,13 @@ pprBlockingStat (bstate, context, cause, diff) =
 {- FOURMOLU_DISABLE -}
 data WorkerStatOP =
     WorkerStatOP
-    { setWorkerStat :: WorkerStat -> IO ()
-    , getWorkerStat :: IO (WorkerStat, DiffTime)
+    { setWorkerStat    :: WorkerStat -> IO ()
+    , getWorkerStat    :: IO (WorkerStat, DiffTime)
+    , setQuery         :: DoX -> Question -> IO ()
+    , setRequest       :: IO ()
+    , setBlocking      :: BlockingCause -> IO ()
+    , setUnblocked     :: IO ()
+    , getBlockingStat  :: IO (BlockingStat, BlockingContext, BlockingCause, DiffTime)
     }
 {- FOURMOLU_ENABLE -}
 
@@ -200,13 +205,21 @@ data WBlockingStore =
     }
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
-    ref <- newIORef =<< mkStore WWaitDequeue
+    ref     <- newIORef =<< mkStore WWaitDequeue
+    ctxRef  <- newIORef     ContextRequest
+    blkRef  <- newIORef =<< newBlkStore CauseUndef
     return
         WorkerStatOP
-        { setWorkerStat = setStat ref
-        , getWorkerStat = getStat ref
+        { setWorkerStat    = setStat ref
+        , getWorkerStat    = getStat ref
+        , setQuery         = \dox q -> writeIORef ctxRef $ ContextQuery dox q
+        , setRequest       = writeIORef ctxRef ContextRequest
+        , setBlocking      = blocking  blkRef
+        , setUnblocked     = unblocked blkRef
+        , getBlockingStat  = getBlkStat ctxRef blkRef
         }
   where
     mkStore stat = WSStore stat <$> getTimeStamp
@@ -215,6 +228,24 @@ getWorkerStatOP = do
         WSStore stat ts0 <- readIORef ref
         now <- getTimeStamp
         return (stat, now `diffTimeStamp` ts0)
+    --
+    mkBsStore bstat = WBStatStore bstat <$> getTimeStamp
+    newBlkStore cause = do
+        ref <- newIORef =<< mkBsStore StatBlocking
+        return WBStore{wbkStatRef = ref, wbkCause = cause}
+    blocking blkRef cause = do
+        store <- newBlkStore cause
+        writeIORef blkRef store
+    unblocked bkRef = do
+        WBStore{wbkStatRef = ref} <- readIORef bkRef
+        writeIORef ref =<< mkBsStore StatUnblocked
+    getBlkStat ctxRef blkRef = do
+        context <- readIORef ctxRef
+        WBStore{wbkStatRef = ref, wbkCause = cause} <- readIORef blkRef
+        WBStatStore bstat ts0 <- readIORef ref
+        now <- getTimeStamp
+        return (bstat, context, cause, now `diffTimeStamp` ts0)
+{- FOURMOLU_ENABLE -}
 
 ------------------------------------------------------------
 
