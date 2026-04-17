@@ -3,6 +3,7 @@
 module DNS.Iterative.WorkerStats where
 
 -- GHC packages
+import Control.Exception (bracket_)
 import Data.IORef
 import Data.List (sortBy)
 import Data.Ord (comparing)
@@ -153,6 +154,18 @@ data WBlockingStore =
     }
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
+noopWorkerStat :: WorkerStatOP
+noopWorkerStat =
+    WorkerStatOP
+    { setWorkerStat    = const $ return ()
+    , getWorkerStat    = return (WWaitDequeue, DiffT (-1))
+    , setBlocking      = const $ return()
+    , setUnblocked     = return ()
+    , getBlockingStat  = return (BsBlocking, BkContext BcDequeueReq "<noop>", DiffT (-1))
+    }
+{- FOURMOLU_ENABLE -}
+
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
     ref    <- newIORef =<< mkStore WWaitDequeue
@@ -188,6 +201,15 @@ getWorkerStatOP = do
         WBStatStore bstat ts0 <- readIORef ref
         now <- getTimeStamp
         return (bstat, context, now `diffTimeStamp` ts0)
+
+bracketBlocking :: WorkerStatOP -> BkContext -> IO a -> IO a
+bracketBlocking wstat context = bracket_ (setBlocking wstat context) (setUnblocked wstat)
+
+bracketDequeueReq :: WorkerStatOP -> IO a -> IO a
+bracketDequeueReq wstat = bracketBlocking wstat (BkContext BcDequeueReq "")
+
+bracketEnqueue :: WorkerStatOP -> Question -> DoX -> String -> IO a -> IO a
+bracketEnqueue wstat q dox note = bracketBlocking wstat (BkContext (BcEnqueue q dox) note)
 
 ------------------------------------------------------------
 
