@@ -180,8 +180,11 @@ pprBlockingStat (bstate, context, diff) = pad ++ diffStr ++ ": " ++ show bstate 
 {- FOURMOLU_DISABLE -}
 data WorkerStatOP =
     WorkerStatOP
-    { setWorkerStat :: WorkerStat -> IO ()
-    , getWorkerStat :: IO (WorkerStat, DiffTime)
+    { setWorkerStat    :: WorkerStat -> IO ()
+    , getWorkerStat    :: IO (WorkerStat, DiffTime)
+    , setBlocking      :: BlockingContext -> IO ()
+    , setUnblocked     :: IO ()
+    , getBlockingStat  :: IO (BlockingStat, BlockingContext, DiffTime)
     }
 {- FOURMOLU_ENABLE -}
 
@@ -199,11 +202,15 @@ data WBlockingStore =
 
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
-    ref <- newIORef =<< mkStore WWaitDequeue
+    ref    <- newIORef =<< mkStore WWaitDequeue
+    bkRef  <- newIORef =<< newBlocking ContextInit
     return
         WorkerStatOP
         { setWorkerStat = setStat ref
         , getWorkerStat = getStat ref
+        , setBlocking = blocking bkRef
+        , setUnblocked = unblocked bkRef
+        , getBlockingStat = getBlocking bkRef
         }
   where
     mkStore stat = WSStore stat <$> getTimeStamp
@@ -212,6 +219,22 @@ getWorkerStatOP = do
         WSStore stat ts0 <- readIORef ref
         now <- getTimeStamp
         return (stat, now `diffTimeStamp` ts0)
+    --
+    mkBsStore bstat = WBStatStore bstat <$> getTimeStamp
+    newBlocking context = do
+        ref <- newIORef =<< mkBsStore StatBlocking
+        return WBStore{wbkStatRef = ref, wbkContext = context}
+    blocking bkRef context = do
+        store <- newBlocking context
+        writeIORef bkRef store
+    unblocked bkRef = do
+        WBStore{wbkStatRef = ref} <- readIORef bkRef
+        writeIORef ref =<< mkBsStore StatUnblocked
+    getBlocking bkRef = do
+        WBStore{wbkStatRef = ref, wbkContext = context} <- readIORef bkRef
+        WBStatStore bstat ts0 <- readIORef ref
+        now <- getTimeStamp
+        return (bstat, context, now `diffTimeStamp` ts0)
 
 ------------------------------------------------------------
 
