@@ -128,8 +128,11 @@ pprBlockingState bstate context = show bstate ++ ": " ++ show context
 {- FOURMOLU_DISABLE -}
 data WorkerStatOP =
     WorkerStatOP
-    { setWorkerStat :: WorkerStat -> IO ()
-    , getWorkerStat :: IO (WorkerStat, DiffTime)
+    { setWorkerStat    :: WorkerStat -> IO ()
+    , getWorkerStat    :: IO (WorkerStat, DiffTime)
+    , setBlocking      :: BkContext -> IO ()
+    , setUnblocked     :: IO ()
+    , getBlockingStat  :: IO (BkStat, DiffTime, BkContext)
     }
 {- FOURMOLU_ENABLE -}
 
@@ -147,11 +150,15 @@ data WBlockingStore =
 
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
-    ref <- newIORef =<< mkStore WWaitDequeue
+    ref    <- newIORef =<< mkStore WWaitDequeue
+    bkRef  <- newIORef =<< mkBkStore :: IO (IORef WBlockingStore)
     return
         WorkerStatOP
         { setWorkerStat = setStat ref
         , getWorkerStat = getStat ref
+        , setBlocking = blocking bkRef
+        , setUnblocked = unblocked bkRef
+        , getBlockingStat = getBlocking bkRef
         }
   where
     mkStore stat = WSStore stat <$> getTimeStamp
@@ -160,6 +167,22 @@ getWorkerStatOP = do
         WSStore stat ts0 <- readIORef ref
         now <- getTimeStamp
         return (stat, now `diffTimeStamp` ts0)
+    --
+    mkBsStore bstat = WBStatStore bstat <$> getTimeStamp
+    mkBkStore = do
+        ref <- newIORef =<< mkBsStore BsUnblocked
+        return WBStore{wbkStatRef = ref, wbkContext = BkContext BcInit ""}
+    blocking bkRef context = do
+        ref <- newIORef =<< mkBsStore BsBlocking
+        writeIORef bkRef WBStore{wbkStatRef = ref, wbkContext = context}
+    unblocked bkRef = do
+        WBStore{wbkStatRef = ref} <- readIORef bkRef
+        writeIORef ref =<< mkBsStore BsUnblocked
+    getBlocking bkRef = do
+        WBStore{wbkStatRef = ref, wbkContext = context} <- readIORef bkRef
+        WBStatStore bstat ts0 <- readIORef ref
+        now <- getTimeStamp
+        return (bstat , now `diffTimeStamp` ts0, context)
 
 ------------------------------------------------------------
 
