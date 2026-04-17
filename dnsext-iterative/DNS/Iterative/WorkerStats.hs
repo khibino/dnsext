@@ -3,6 +3,7 @@
 module DNS.Iterative.WorkerStats where
 
 -- GHC packages
+import Control.Exception (bracket_)
 import Data.IORef
 import Data.List (sortBy)
 import Data.Ord (comparing)
@@ -206,6 +207,20 @@ data WBlockingStore =
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+noopWorkerStat :: WorkerStatOP
+noopWorkerStat =
+    WorkerStatOP
+    { setWorkerStat    = const $ return ()
+    , getWorkerStat    = return (WWaitDequeue, DiffT (-1))
+    , setQuery         = \_ _ -> return ()
+    , setRequest       = return ()
+    , setBlocking      = \_ -> return ()
+    , setUnblocked     = return ()
+    , getBlockingStat  = return (StatBlocking, ContextRequest, CauseUndef, DiffT (-1))
+    }
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
     ref     <- newIORef =<< mkStore WWaitDequeue
@@ -246,6 +261,30 @@ getWorkerStatOP = do
         now <- getTimeStamp
         return (bstat, context, cause, now `diffTimeStamp` ts0)
 {- FOURMOLU_ENABLE -}
+
+contextSetQuery :: WorkerStatOP -> DoX -> Question -> IO ()
+contextSetQuery = setQuery
+
+contextClear :: WorkerStatOP -> IO ()
+contextClear = setRequest
+
+bracketBlocking :: WorkerStatOP -> BlockingCause -> IO a -> IO a
+bracketBlocking wstat cause = bracket_ (setBlocking wstat cause) (setUnblocked wstat)
+
+blockingRequest :: WorkerStatOP -> IO a -> IO a
+blockingRequest wstat = bracketBlocking wstat CauseRequest
+
+blockingResponse :: WorkerStatOP -> IO a -> IO a
+blockingResponse wstat = bracketBlocking wstat CauseResponse
+
+blockingEnqueue :: WorkerStatOP -> String -> IO a -> IO a
+blockingEnqueue wstat note = bracketBlocking wstat (CauseEnqueue note)
+
+blockingLog :: WorkerStatOP -> String -> IO a -> IO a
+blockingLog wstat note = bracketBlocking wstat (CauseLog note)
+
+blockingIO :: WorkerStatOP -> String -> IO a -> IO a
+blockingIO wstat note = bracketBlocking wstat (CauseIO note)
 
 ------------------------------------------------------------
 
