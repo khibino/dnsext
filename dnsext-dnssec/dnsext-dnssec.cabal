@@ -31,14 +31,14 @@ library
         DNS.SEC.PubAlg
         DNS.SEC.Time
         DNS.SEC.Types
-        DNS.SEC.Verify.SHA
         DNS.SEC.Verify.ECDSA
         DNS.SEC.Verify.EdDSA
-        DNS.SEC.Verify.RSA
         DNS.SEC.Verify.N3SHA
         DNS.SEC.Verify.NSEC
         DNS.SEC.Verify.NSEC3
         DNS.SEC.Verify.NSECxRange
+        DNS.SEC.Verify.RSA
+        DNS.SEC.Verify.SHA
         DNS.SEC.Verify.Verify
 
     default-language: Haskell2010
