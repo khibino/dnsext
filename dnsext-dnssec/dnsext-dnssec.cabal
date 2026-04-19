@@ -29,7 +29,6 @@ library
         DNS.SEC.Imports
         DNS.SEC.Opts
         DNS.SEC.PubAlg
-        DNS.SEC.PubKey
         DNS.SEC.Time
         DNS.SEC.Types
         DNS.SEC.Verify.SHA

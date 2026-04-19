@@ -8,11 +8,11 @@ import DNS.SEC.Flags
 import DNS.SEC.HashAlg
 import DNS.SEC.Imports
 import DNS.SEC.PubAlg
-import DNS.SEC.PubKey
 import DNS.SEC.Time
 import DNS.Types
 import DNS.Types.Internal
 import qualified DNS.Types.Opaque as Opaque
+import Data.IORef
 
 import Data.Array
 import Data.Array.ST
@@ -231,6 +231,17 @@ rd_nsec a b = toRData $ RD_NSEC a b
 
 ----------------------------------------------------------------
 
+newtype PubKey = PubKey {fromPubkey :: Opaque} deriving (Eq, Ord, Show)
+
+toPubKey :: Opaque -> PubKey
+toPubKey = PubKey
+
+putPubKey :: PubKey -> WriteBuffer -> IORef BState -> IO ()
+putPubKey (PubKey o) wbuf ref = putOpaque o wbuf ref
+
+getPubKey :: Int -> ReadBuffer -> IORef PState -> IO PubKey
+getPubKey len rbuf ref = PubKey <$> getOpaque len rbuf ref
+
 {- FOURMOLU_DISABLE -}
 -- | DNSKEY (RFC4034)
 data RD_DNSKEY = RD_DNSKEY
@@ -245,7 +256,7 @@ data RD_DNSKEY = RD_DNSKEY
 instance ResourceData RD_DNSKEY where
     resourceDataType _ = DNSKEY
     resourceDataSize RD_DNSKEY{..} =
-        2 + 1 + 1 + Opaque.length (fromPubKey dnskey_public_key)
+        2 + 1 + 1 + Opaque.length (fromPubkey dnskey_public_key)
     putResourceData _ RD_DNSKEY{..} = \wbuf ref -> do
         putDNSKEYflags dnskey_flags wbuf ref
         put8 wbuf dnskey_protocol
@@ -258,7 +269,7 @@ get_dnskey len rbuf ref = do
     dnskey_flags      <- getDNSKEYflags rbuf ref
     dnskey_protocol   <- get8 rbuf
     dnskey_pubalg     <- getPubAlg rbuf ref
-    dnskey_public_key <- getPubKey dnskey_pubalg (len - 4) rbuf ref
+    dnskey_public_key <- getPubKey (len - 4) rbuf ref
     return RD_DNSKEY{..}
 {- FOURMOLU_ENABLE -}
 
@@ -412,7 +423,7 @@ data RD_CDNSKEY = RD_CDNSKEY
 instance ResourceData RD_CDNSKEY where
     resourceDataType _ = CDNSKEY
     resourceDataSize RD_CDNSKEY{..} =
-        2 + 1 + 1 + Opaque.length (fromPubKey cdnskey_public_key)
+        2 + 1 + 1 + Opaque.length (fromPubkey cdnskey_public_key)
     putResourceData _ RD_CDNSKEY{..} = \wbuf ref -> do
         putDNSKEYflags cdnskey_flags wbuf ref
         put8 wbuf cdnskey_protocol
@@ -425,7 +436,7 @@ get_cdnskey len rbuf ref = do
     cdnskey_flags      <- getDNSKEYflags rbuf ref
     cdnskey_protocol   <- get8 rbuf
     cdnskey_pubalg     <- getPubAlg rbuf ref
-    cdnskey_public_key <- getPubKey cdnskey_pubalg (len - 4) rbuf ref
+    cdnskey_public_key <- getPubKey (len - 4) rbuf ref
     return RD_CDNSKEY {..}
 {- FOURMOLU_ENABLE -}
 
