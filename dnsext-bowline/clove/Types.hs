@@ -1,8 +1,10 @@
 module Types where
 
+import Data.ByteString (ByteString)
 import Data.IORef
 import Data.IP
 import Data.IP.RouteTable
+import Network.Socket
 
 import DNS.Auth.Algorithm
 import DNS.Log
@@ -54,4 +56,13 @@ type ZoneAlist = [(Domain, IORef Zone)]
 
 data Env = Env
     { envPutLines :: PutLines IO
+    }
+
+----------------------------------------------------------------
+
+data Proto = Proto
+    { recvQuery :: IO (ByteString, SockAddr)
+    , sendReply :: SockAddr -> ByteString -> IO ()
+    , allowAXFR :: SockAddr -> Domain -> ZoneAlist -> IO (Maybe Zone)
+    , protoName :: String
     }
