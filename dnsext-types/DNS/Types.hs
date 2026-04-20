@@ -79,6 +79,7 @@ module DNS.Types (
     soa_retry,
     soa_expire,
     soa_minimum,
+    Serial (..),
 
     -- *** NULL RR
     RD_NULL,
@@ -268,6 +269,7 @@ import DNS.Types.Message
 import DNS.Types.Opaque
 import DNS.Types.RData
 import DNS.Types.Seconds
+import DNS.Types.Serial
 import DNS.Types.Type
 
 ----------------------------------------------------------------

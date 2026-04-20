@@ -3,7 +3,6 @@ module Types where
 import Data.IORef
 import Data.IP
 import Data.IP.RouteTable
-import Data.Word
 
 import DNS.Auth.Algorithm
 import DNS.Log
@@ -29,8 +28,6 @@ data ZoneConf = ZoneConf
     , cnf_allow_transfer_addrs :: [String]
     }
     deriving (Show)
-
-type Serial = Word32
 
 ----------------------------------------------------------------
 

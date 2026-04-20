@@ -40,6 +40,7 @@ library
         DNS.Types.Parser
         DNS.Types.RData
         DNS.Types.Seconds
+        DNS.Types.Serial
         DNS.Types.ShortBuilder
         DNS.Types.ShortParser
         DNS.Types.Type
