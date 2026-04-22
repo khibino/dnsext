@@ -3,9 +3,9 @@ module DNS.SEC.Verify.N3SHA (
 )
 where
 
--- memory
+-- ram
 
--- cryptonite
+-- crypton
 import Crypto.Hash (HashAlgorithm, hashWith)
 import Crypto.Hash.Algorithms (SHA1 (..))
 import DNS.SEC.Verify.Types

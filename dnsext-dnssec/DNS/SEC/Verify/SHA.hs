@@ -5,9 +5,9 @@ module DNS.SEC.Verify.SHA (
 )
 where
 
--- memory
+-- ram
 
--- cryptonite
+-- crypton
 import Crypto.Hash (HashAlgorithm, hashWith)
 import Crypto.Hash.Algorithms (SHA1 (..), SHA256 (..), SHA384 (..))
 import DNS.SEC.Verify.Types
