@@ -7,7 +7,7 @@ where
 import Crypto.Error (CryptoFailable, onCryptoFailure)
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Crypto.PubKey.Ed448 as Ed448
-import DNS.SEC.PubKey
+import DNS.SEC.Types (PubKey (..))
 import DNS.SEC.Verify.Types
 import DNS.Types
 import qualified DNS.Types.Opaque as Opaque
@@ -41,11 +41,9 @@ eddsaDecodePubKey
     -> (ByteString -> CryptoFailable pubkey)
     -> PubKey
     -> Either String pubkey
-eddsaDecodePubKey algName consPublicKey (PubKey_Opaque ks) =
+eddsaDecodePubKey algName consPublicKey (PubKey ks) =
     eitherCryptoFailable (algName ++ ".publicKey") . consPublicKey $
         Opaque.toByteString ks
-eddsaDecodePubKey _ _ _ = do
-    Left "eddsaDecodePubKey: not EdDSA pubkey format"
 
 eddsaDecodeSignature
     :: String -> (ByteString -> CryptoFailable sig) -> Opaque -> Either String sig

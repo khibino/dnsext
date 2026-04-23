@@ -98,7 +98,6 @@ module DNS.SEC (
     -- * Public keys
     PubKey (..),
     toPubKey,
-    fromPubKey,
 
     -- * Digest algorithms
     DigestAlg (
@@ -137,7 +136,6 @@ import DNS.SEC.Flags
 import DNS.SEC.HashAlg
 import DNS.SEC.Opts
 import DNS.SEC.PubAlg
-import DNS.SEC.PubKey
 import DNS.SEC.Time
 import DNS.SEC.Types
 import DNS.Types

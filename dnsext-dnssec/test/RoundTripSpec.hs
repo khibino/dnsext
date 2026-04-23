@@ -11,6 +11,7 @@ import DNS.Types.Decode
 import DNS.Types.Encode
 import qualified DNS.Types.Opaque as Opaque
 import qualified Data.ByteString as BS
+import Data.Either
 import Data.String (fromString)
 import Data.Word
 import GHC.Exts (groupWith, the)
@@ -25,12 +26,12 @@ spec = do
         let bs = encodeResourceRecord rr
         decodeResourceRecord bs `shouldBe` Right rr
         fmap encodeResourceRecord (decodeResourceRecord bs) `shouldBe` Right bs
-    prop "PubKey_RSA - PubKey iso" . forAll genPubKey_RSA $ \pubkey -> do
-        let o = fromPubKey pubkey
-        toPubKey_RSA o `shouldSatisfy` (== pubkey)
     prop "PubKey_RSA - bin iso" . forAll genPubKey_RSA_bin $ \o -> do
-        let pubkey = toPubKey_RSA o
-        fromPubKey pubkey `shouldSatisfy` (== o)
+        let pubkey = fromRight (error "rsaDecodePubKey") $ rsaDecodePubKey o
+            o' = rsaEncodePubKey pubkey
+            pubkey' = fromRight (error "rsaDecodePubKey") $ rsaDecodePubKey o'
+        o' `shouldBe` o
+        pubkey' `shouldBe` pubkey
 
 genResourceRecord :: Gen ResourceRecord
 genResourceRecord =
@@ -75,20 +76,13 @@ mkRData typ =
                 groupWith
             ]
 
-genPubKey_RSA :: Gen PubKey
-genPubKey_RSA = pubKey_RSA <$> genBSize <*> genE
-  where
-    pubKey_RSA bsize e = PubKey_RSA (bsize * 8) e (fromString $ replicate bsize '\xff')
-    genBSize = elements [64, 128, 256]
-    genE =
-        elements ["\x01\x00\x01", fromString $ "\x01" <> replicate 255 '\x00' <> "\x01"]
-
-genPubKey_RSA_bin :: Gen Opaque
+genPubKey_RSA_bin :: Gen PubKey
 genPubKey_RSA_bin =
-    frequency
-        [ (1, pubKey_RSA_bin1 <$> genBSize <*> genE1)
-        , (1, pubKey_RSA_bin2 <$> genBSize <*> genE2)
-        ]
+    toPubKey
+        <$> frequency
+            [ (1, pubKey_RSA_bin1 <$> genBSize <*> genE1)
+            , (1, pubKey_RSA_bin2 <$> genBSize <*> genE2)
+            ]
   where
     genE1 = example_estring <$> frequency [(1, pure 1), (1, pure 255), (3, choose (2, 254))]
     genE2 = example_estring <$> frequency [(1, pure 256), (3, choose (257, 65535))]

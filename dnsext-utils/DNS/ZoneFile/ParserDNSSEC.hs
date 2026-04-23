@@ -40,7 +40,7 @@ rdataDNSKEY :: MonadParser Token s m => m RData
 rdataDNSKEY = do
     mkRD  <- rd_dnskey <$> keyflags <*> (blank *> proto)
     alg   <- blank *> pubalg
-    pkey  <- blank *> (toPubKey alg <$> keyB64)
+    pkey  <- blank *> (toPubKey <$> keyB64)
     pure $ mkRD alg pkey
   where
     keyflags = toDNSKEYflags <$> readCString "dnskey.flags"

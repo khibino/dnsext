@@ -6,8 +6,7 @@ module DNS.SEC.Verify.Types where
 
 -- this package
 import DNS.SEC.Imports
-import DNS.SEC.PubKey
-import DNS.SEC.Types (RD_NSEC, RD_NSEC3)
+import DNS.SEC.Types (PubKey, RD_NSEC, RD_NSEC3)
 import DNS.Types
 
 {- FOURMOLU_DISABLE -}

@@ -12,8 +12,6 @@ module DNS.SEC.Internal (
     get_n3u,
     putPubAlg,
     getPubAlg,
-    putPubKey,
-    getPubKey,
     putDigestAlg,
     getDigestAlg,
     putHashAlg,
@@ -24,7 +22,8 @@ module DNS.SEC.Internal (
     getNSEC3flags,
     putDNSTime,
     getDNSTime,
-    toPubKey_RSA,
+    rsaDecodePubKey,
+    rsaEncodePubKey,
 )
 where
 
@@ -32,6 +31,6 @@ import DNS.SEC.Flags
 import DNS.SEC.HashAlg
 import DNS.SEC.Opts
 import DNS.SEC.PubAlg
-import DNS.SEC.PubKey
 import DNS.SEC.Time
 import DNS.SEC.Types
+import DNS.SEC.Verify.RSA

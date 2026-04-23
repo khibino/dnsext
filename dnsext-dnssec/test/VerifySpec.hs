@@ -1141,7 +1141,7 @@ nsecRFC4035WildcardNoData = (("example.", rdatas, "a.z.w.example.", AAAA), expec
 
 rd_dnskey' :: Word16 -> Word8 -> Word8 -> String -> RData
 rd_dnskey' kflags proto walg pubkey =
-    rd_dnskey (toDNSKEYflags kflags) proto alg $ toPubKey alg $ opaqueFromB64 pubkey
+    rd_dnskey (toDNSKEYflags kflags) proto alg $ toPubKey $ opaqueFromB64 pubkey
   where
     alg = toPubAlg walg
 
