@@ -18,15 +18,17 @@ import DNS.Iterative.Types (DoX (..))
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
-    stats <- zip [1 :: Int ..] <$> mapM getWorkerStat ops
-    let isStat p = p . fst . snd
+    stats <- zip3 [1 :: Int ..] <$> mapM getWorkerStat ops <*> mapM getBlockingStat ops
+    let getWS (_n, ws, _bks) = fst ws
+        isStat p = p . getWS
         isEnqueue WWaitEnqueue{}  = True
         isEnqueue _               = False
         qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
-        sorted = sortBy (comparing $ (\(DiffT int) -> int) . snd . snd) qs
+        getDiffT (_n, (_ws, diff), _wbs) = diff
+        sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) qs
         deqs = filter (isStat (== WWaitDequeue)) stats
-        pprEnq  p (wn, (WWaitEnqueue _qs dox tg, ds))
+        pprEnq  p (wn, (WWaitEnqueue _qs dox tg, ds), _bks)
             | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
         pprEnq _p  _  = id
         pprEnqs
@@ -37,7 +39,7 @@ pprWorkerStats _pn ops = do
                 xs  = foldr (pprEnq (\x -> x /= H2 && x /= DoT)) [] stats
                 pp = unwords (h2 ++ dot ++ xs)
 
-        pprq (wn, st) = showDec3 wn ++ ": " ++ pprWorkerStat st
+        pprq (wn, st, _bks) = showDec3 wn ++ ": " ++ pprWorkerStat st
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
         pprenq = " waiting enqueues: " ++ pprEnqs
 
