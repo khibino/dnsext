@@ -21,6 +21,7 @@ import qualified DNS.Types as DNS
 
 -- this package
 import DNS.Iterative.Imports hiding (local)
+import DNS.Iterative.WorkerStats (WorkerStatOP)
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Helpers
 import DNS.Iterative.Query.Local (takeLocalResult)
@@ -31,15 +32,15 @@ import DNS.Iterative.Query.Utils (logLn, pprMessage)
 -----
 
 -- | Folding a response corresponding to a query. The cache is maybe updated.
-foldResponseIterative :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> DNSMessage -> IO a
-foldResponseIterative deny reply env@Env{..} reqM@DNSMessage{..} =
-    foldResponse "resp-queried" deny reply env reqM (resolveStub reply nsid_ identifier question ednsHeader)
+foldResponseIterative :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
+foldResponseIterative deny reply env@Env{..} wstat reqM@DNSMessage{..} =
+    foldResponse "resp-queried" deny reply env wstat reqM (resolveStub reply nsid_ identifier question ednsHeader)
 
 -- | Folding a response corresponding to a query, from questions and control flags. The cache is maybe updated.
 foldResponseIterative'
-    :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> Identifier -> Question -> QueryControls -> IO a
-foldResponseIterative' deny reply env@Env{..} ident q =
-    queryControls' $ \fl eh -> foldResponse' "resp-queried'" deny reply env ident q fl eh (resolveStub reply nsid_ ident q eh)
+    :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> Identifier -> Question -> QueryControls -> IO a
+foldResponseIterative' deny reply env@Env{..} wstat ident q =
+    queryControls' $ \fl eh -> foldResponse' "resp-queried'" deny reply env wstat ident q fl eh (resolveStub reply nsid_ ident q eh)
 
 resolveStub :: MonadQuery m => (VResult -> DNSMessage -> a) -> Maybe OD_NSID -> Identifier -> Question -> EDNSheader -> m a
 resolveStub reply nsid ident q eh = do
@@ -49,8 +50,8 @@ resolveStub reply nsid ident q eh = do
     pure $ either (\(rc, vans, vauth) -> result rc vans vauth) (\(msg, vans, vauth) -> result (rcode msg) vans vauth) etm
 
 -- | Folding a response corresponding to a query from the cache.
-foldResponseCached :: DNSQuery a -> (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> DNSMessage -> IO a
-foldResponseCached misshit deny reply env@Env{..} reqM@DNSMessage{..} = foldResponse "resp-cached" deny reply env reqM $ do
+foldResponseCached :: DNSQuery a -> (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
+foldResponseCached misshit deny reply env@Env{..} wstat reqM@DNSMessage{..} = foldResponse "resp-cached" deny reply env wstat reqM $ do
     ((cnrrs, _rn), m) <- resolveByCache =<< asksQP origQuestion_
     reqDO <- asksQP requestDO_
     let hit (rc, vans, vauth) = replyMessage reqDO cnrrs rc vans vauth identifier question ednsHeader nsid_ reply
@@ -69,23 +70,23 @@ replyMessage reqDO cnrrs rc vans vauth ident q eh nsid k = withResolvedRRs reqDO
 {- FOURMOLU_DISABLE -}
 foldResponse
     :: String -> (String -> a) -> (VResult -> DNSMessage -> a)
-    -> Env -> DNSMessage -> DNSQuery a -> IO a
-foldResponse name deny reply env@Env{..} reqM@DNSMessage{question=q0@(Question bn typ cls),identifier=ident,flags=reqF,ednsHeader=reqEH} qaction =
+    -> Env -> WorkerStatOP -> DNSMessage -> DNSQuery a -> IO a
+foldResponse name deny reply env@Env{..} wstat reqM@DNSMessage{question=q0@(Question bn typ cls),identifier=ident,flags=reqF,ednsHeader=reqEH} qaction =
     handleRequest env prefix reqM (pure . deny) ereply  result
   where
     ereply rc = pure $ reply VR_Insecure $ replyDNSMessage reqEH nsid_ ident q0 rc resFlags [] []
-    result q = foldResponse' name deny reply env ident q reqF reqEH qaction
+    result q = foldResponse' name deny reply env wstat ident q reqF reqEH qaction
     prefix = name ++ ": orig-query " ++ show bn ++ " " ++ show typ ++ " " ++ show cls ++ ": "
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
 foldResponse'
     :: String -> (String -> a) -> (VResult -> DNSMessage -> a)
-    -> Env -> Identifier -> Question -> DNSFlags -> EDNSheader -> DNSQuery a -> IO a
-foldResponse' name deny reply env@Env{..} ident q@(Question bn typ cls) reqF reqEH qaction  =
+    -> Env -> WorkerStatOP -> Identifier -> Question -> DNSFlags -> EDNSheader -> DNSQuery a -> IO a
+foldResponse' name deny reply env@Env{..} wstat ident q@(Question bn typ cls) reqF reqEH qaction  =
     takeLocalResult env q (pure $ deny "local-zone: query-denied") query (pure . local)
   where
-    query = either eresult pure =<< runDNSQuery (logQueryErrors prefix qaction) env qparam
+    query = either eresult pure =<< runDNSQuery (logQueryErrors prefix qaction) env wstat qparam
     eresult = queryErrorReply reqEH nsid_ ident q (pure . deny) ereplace
     {- replace response-code only when query, not replace for request-error or local-result -}
     ereplace vr resM = replaceRCODE env "query-error" (rcode resM) <&> \rc1 -> reply vr resM{rcode = rc1}
