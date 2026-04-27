@@ -22,6 +22,7 @@ import qualified DNS.Types as DNS
 
 -- this package
 import DNS.Iterative.Imports
+import DNS.Iterative.WorkerStats (noopWorkerStat)
 import DNS.Iterative.Query.Cache
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Helpers
@@ -35,7 +36,7 @@ runResolve
     -> Question
     -> QueryControls
     -> IO (Either QueryError (([RRset], Domain), Either ResultRRS (ResultRRS' DNSMessage)))
-runResolve cxt q qctl = runDNSQuery (resolve q) cxt $ queryParam q qctl
+runResolve cxt q qctl = runDNSQuery (resolve q) cxt noopWorkerStat $ queryParam q qctl
 
 resolveByCache :: MonadContext m => Question -> m (([RRset], Domain), Maybe ResultRRS)
 resolveByCache = resolveLogic "cache" Just (const Nothing) (\_ -> pure ((), [], [])) (\_ _ -> pure $ Right ((), [], []))
