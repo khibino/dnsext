@@ -43,6 +43,7 @@ import System.Console.ANSI.Types
 
 -- this package
 import DNS.Iterative.Imports
+import DNS.Iterative.WorkerStats (noopWorkerStat)
 import DNS.Iterative.Query.Cache
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Delegation
@@ -106,7 +107,7 @@ runResolveExact
     -> TYPE
     -> QueryControls
     -> IO (Either QueryError (DNSMessage, Delegation))
-runResolveExact cxt n typ cd = runDNSQuery (resolveExact n typ) cxt $ queryParamIN n typ cd
+runResolveExact cxt n typ cd = runDNSQuery (resolveExact n typ) cxt noopWorkerStat $ queryParamIN n typ cd
 
 {-# DEPRECATED resolveJust "use resolveExact instead of this" #-}
 resolveJust :: MonadQuery m => Domain -> TYPE -> m (DNSMessage, Delegation)
@@ -158,7 +159,7 @@ runIterative
     -> Domain
     -> QueryControls
     -> IO (Either QueryError Delegation)
-runIterative cxt sa n cd = runDNSQuery (snd <$> iterative 0 sa (DNS.superDomains n)) cxt $ queryParamIN n A cd
+runIterative cxt sa n cd = runDNSQuery (snd <$> iterative 0 sa (DNS.superDomains n)) cxt noopWorkerStat $ queryParamIN n A cd
 
 {- FOURMOLU_DISABLE -}
 -- | iterative queries
