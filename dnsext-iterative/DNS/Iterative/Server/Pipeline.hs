@@ -126,6 +126,7 @@ inputAddr Input{..} = show inputPeerInfo ++ " -> " ++ show inputMysa
 cacherLogic :: Env -> WorkerStatOP -> IO FromReceiver -> (ToWorker -> IO ()) -> IO ()
 cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
     let setWorkerStat = setWorkerStatEV wstat
+        bracketEnqueue_ tag = bracketEnqueue wstat $ "cacher: " ++ tag
     setWorkerStat WWaitDequeue
     inpBS@Input{..} <- fromReceiver
     case DNS.decode inputQuery of
@@ -140,7 +141,7 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
             case cres of
                 CResultMissHit -> do
                     setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultMissHit")
-                    toWorker inp
+                    bracketEnqueue_ "miss-hit to-worker" $ toWorker inp
                 CResultHit vr replyMsg -> do
                     setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase $ "CResultHit" ++ show vr)
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
@@ -148,9 +149,9 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
                     let bs = encodeWithTC env inputPeerInfo (ednsHeader queryMsg) replyMsg
                     setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
-                    record env inp replyMsg bs
+                    bracketEnqueue_ "hit dnstap" $ record env inp replyMsg bs
                     setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
-                    inputToSender $ Output bs inputPendingOp inputPeerInfo
+                    bracketEnqueue_ "hit to-sender" $ inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
                     setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultDenied")
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
@@ -164,6 +165,7 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
 workerLogic :: Env -> WorkerStatOP -> IO FromCacher -> IO ()
 workerLogic env wstat fromCacher = handledLoop env "worker" $ do
     let setWorkerStat = setWorkerStatEV wstat
+        bracketEnqueue_ tag = bracketEnqueue wstat $ "worker: " ++ tag
     setWorkerStat WWaitDequeue
     inp@Input{..} <- fromCacher
     let qs = question inputQuery
@@ -177,9 +179,9 @@ workerLogic env wstat fromCacher = handledLoop env "worker" $ do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
             let bs = encodeWithTC env inputPeerInfo (ednsHeader inputQuery) replyMsg
             setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
-            record env inp replyMsg bs
+            bracketEnqueue_ "dnstap" $ record env inp replyMsg bs
             setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
-            inputToSender $ Output bs inputPendingOp inputPeerInfo
+            bracketEnqueue_ "to-sender" $ inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
     setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
