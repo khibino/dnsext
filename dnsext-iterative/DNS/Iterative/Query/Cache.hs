@@ -59,7 +59,7 @@ import DNS.Iterative.Query.TestEnv
 -- >>> :seti -Wno-orphans
 -- >>> import DNS.RRCache
 -- >>> import Control.Monad.Trans.Reader (ReaderT)
--- >>> instance MonadIO m => MonadEnv (ReaderT Env m) where { asksEnv = asks }
+-- >>> instance MonadIO m => MonadEnv (ReaderT Env m) where { asksEnv = asks; asksWS f = pure (f testWorkerStat) }
 
 _newTestEnv :: IO Env
 _newTestEnv = newTestEnv (const $ pure ()) False 2048

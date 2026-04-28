@@ -52,6 +52,8 @@ type DNSQuery = QueryT IO
 instance MonadIO m => MonadEnv (QueryT m) where
     asksEnv = lift . asks
     {-# INLINEABLE asksEnv #-}
+    asksWS = lift . lift . asks
+    {-# INLINEABLE asksWS #-}
 
 instance MonadIO m => MonadContext (QueryT m) where
     asksQP = lift . lift . lift . asks
