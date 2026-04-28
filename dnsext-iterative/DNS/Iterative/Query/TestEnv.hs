@@ -12,6 +12,7 @@ import DNS.Types.Time
 
 -- this package
 import DNS.Iterative.Imports hiding (insert)
+import DNS.Iterative.WorkerStats (noopWorkerStat)
 import DNS.Iterative.Query.Class (Address)
 import DNS.Iterative.Query.Env (Env (..), newEmptyEnv)
 import DNS.Iterative.Query.Norec (norec)
@@ -38,4 +39,4 @@ newTestEnv putLines disableV6NS cacheSize = do
     pure $ env0{logLines_ = \_ _ -> putLines, disableV6NS_ = disableV6NS, insert_ = insert, getCache_ = getCache}
 
 testNorec :: MonadIO m => Env -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
-testNorec = norec
+testNorec env = norec env noopWorkerStat

@@ -25,14 +25,16 @@ import DNS.Types
 
 -- this package
 import DNS.Iterative.Imports
+import DNS.Iterative.WorkerStats
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.SteppedWait (steppedWait)
 
 {- FOURMOLU_DISABLE -}
-norec :: MonadIO m => Env -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
-norec cxt dnssecOK aservers name typ =
-    liftIO $ steppedWait TimeoutExpired RetryLimitExceeded 250_000 actions
+norec :: MonadIO m => Env -> WorkerStatOP -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
+norec cxt wstat dnssecOK aservers name typ =
+    liftIO $ bracketBlocking_ $ steppedWait TimeoutExpired RetryLimitExceeded 250_000 actions
   where
+    bracketBlocking_ = bracketBlocking wstat $ BkContext BcIO (show name ++ " " ++ show typ ++ ": " ++ tag)
     actions = [(tag ++ ".q1", action), (tag ++ ".q2", action)]
     tag = let (a:|as) = aservers in show (a:as)
     action = norec_ 500_000 cxt dnssecOK aservers name typ
