@@ -179,9 +179,9 @@ runIterative cxt sa n cd = runDNSQuery (snd <$> iterative 0 sa (DNS.superDomains
 --
 -- >>> testIterative dom = do { root <- refreshRoot; iterative 0 root (DNS.superDomains dom) }
 -- >>> env <- _newTestEnv _findConsumed
--- >>> runDNSQuery (testIterative "mew.org.") env (queryParamIN "mew.org." A mempty) $> ()  {- fill-action is not called -}
+-- >>> runDNSQuery (testIterative "mew.org.") env noopWorkerStat (queryParamIN "mew.org." A mempty) $> ()  {- fill-action is not called -}
 --
--- >>> runDNSQuery (testIterative "arpa.") env (queryParamIN "arpa." NS mempty) $> ()  {- fill-action is called for `ServsChildZone` -}
+-- >>> runDNSQuery (testIterative "arpa.") env noopWorkerStat (queryParamIN "arpa." NS mempty) $> ()  {- fill-action is called for `ServsChildZone` -}
 -- consume message found
 --
 -- fst: last response message for not delegated last domain
@@ -324,7 +324,7 @@ getCheckEnabled = noCD <$> asksQP requestCD_
 -- >>> mkChild ds = withNS2 "mew.org." "ns1.mew.org." "202.238.220.92" "ns2.mew.org." "210.155.141.200" ds
 -- >>> isFilled d = case (delegationDS d) of { NotFilledDS {} -> False; FilledDS {} -> True; AnchorSEP {} -> True }
 -- >>> env <- _newTestEnv _noLogging
--- >>> runChild child = runDNSQuery (fillDelegationDS 0 parent child) env (queryParamIN "ns1.mew.org." A mempty)
+-- >>> runChild child = runDNSQuery (fillDelegationDS 0 parent child) env noopWorkerStat (queryParamIN "ns1.mew.org." A mempty)
 -- >>> fmap isFilled <$> (runChild $ mkChild $ NotFilledDS CachedDelegation)
 -- Right True
 -- >>> fmap isFilled <$> (runChild $ mkChild $ NotFilledDS ServsChildZone)
@@ -551,10 +551,10 @@ delegationFallbacks dc dnssecOK ah d0 name typ = do
 -- >>> dnsMsg name typ rds = defaultResponse{answer = rdRRs name typ rds}
 -- >>> lkCase0    aas name typ cs = [r | (ip, nm, ty, r) <- cs, let a:|as = aas, (ia, _) <- a:as, nm == name, ty == typ, ip == ia]
 -- >>> lkCase dok as  name typ cs = case [r | r@Right{} <- xs] ++ [l | l@Left{} <- xs] of { [] -> qnorec dok as name typ; x:_ -> pure $ dnsMsg name typ <$> x } where xs = lkCase0 as name typ cs
--- >>> qlookup dok as name typ = do { cs <- lift $ lift $ lift $ lift ask ; lkCase dok as name typ cs }
+-- >>> qlookup dok as name typ = do { cs <- lift $ lift $ lift $ lift $ lift ask ; lkCase dok as name typ cs }
 -- >>> instance MonadQuery TestIO where { queryNorec = qlookup }
 -- >>> --
--- >>> runF0 zone nss dom typ cs = runReaderT (evalQueryT (fallbacks (delegation zone nss) dom typ) env (qparam dom typ)) (cs :: [Case])
+-- >>> runF0 zone nss dom typ cs = runReaderT (evalQueryT (fallbacks (delegation zone nss) dom typ) env noopWorkerStat (qparam dom typ)) (cs :: [Case])
 -- >>> runF  zone nss dom typ cs = fmap (map rdata . filter ((== typ) . rrtype) . answer . fst) <$> runF0 zone nss dom typ cs
 -- >>> nssG2 = ("ns1.example.", ["192.0.2.17"]) :| [("ns2.example.", ["192.0.2.33"])]
 -- >>> casesG2 = [("192.0.2.17", "a.ts.reasonings.cc.", A, Left RetryLimitExceeded), ("192.0.2.33", "a.ts.reasonings.cc.", A, Right [rd_a "198.51.100.33"])]

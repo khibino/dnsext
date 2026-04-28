@@ -68,7 +68,10 @@ instance MonadIO m => MonadContext (QueryT m) where
     {-# INLINEABLE catchQuery #-}
 
 instance MonadQuery DNSQuery where
-    queryNorec dnssecOK aservers name typ = asksEnv id >>= \env -> norec env dnssecOK aservers name typ
+    queryNorec dnssecOK aservers name typ = do
+        env <- asksEnv id
+        wstat <- asksWS id
+        norec env wstat dnssecOK aservers name typ
     {-# INLINEABLE queryNorec #-}
 
 runQueryT :: MonadIO m => QueryT m a -> Env -> WorkerStatOP -> QueryParam -> m (Either QueryError a, QueryState)
