@@ -64,6 +64,7 @@ import qualified DNS.Types as DNS
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Stats (Stats)
+import DNS.Iterative.WorkerStats (WorkerStatOP)
 
 ----------
 -- tagless-final effect interfaces
@@ -72,6 +73,7 @@ class MonadIO m => MonadEnv m where
     asksEnv :: (Env -> a) -> m a
 
 class MonadEnv m => MonadContext m where
+    asksWS :: (WorkerStatOP -> a) -> m a
     asksQP :: (QueryParam -> a) -> m a
     localQP :: (QueryParam -> QueryParam) -> m a -> m a
     asksQS :: (QueryState -> a) -> m a
