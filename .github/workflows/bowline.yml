@@ -26,7 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         os:  [ 'ubuntu-latest' ]
-        debian_rev: [ 'bookworm' ]
+        debian_rev: [ 'trixie', 'bookworm' ]
 
     steps:
     - name: Setup tmate session
