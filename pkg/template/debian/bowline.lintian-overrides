@@ -1,1 +1,2 @@
 bowline binary: dir-or-file-in-opt
+bowline binary: missing-systemd-service-for-init.d-script
