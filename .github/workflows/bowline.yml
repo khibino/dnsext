@@ -81,8 +81,9 @@ jobs:
             cp ../{bowline,dug,dump} ./work/bowline-${{ env.pkg_version }}/bin/ ;\
             ./pkgctl.sh pkgs ${{ env.pkg_version }} ;\
             "
-        PACKAGE_FILENAME=$(cd pkg/work/ && ls -1 *.deb | head -1) ; export PACKAGE_FILENAME
-        mv pkg/work/${PACKAGE_FILENAME} ./${PACKAGE_FILENAME}
+        PKG_FN=$(cd pkg/work/ && ls -1 *.deb | head -1) ; export PKG_FN
+        PACKAGE_FILENAME=${{ matrix.debian_rev }}.${PKG_FN} ; export PACKAGE_FILENAME
+        mv pkg/work/${PKG_FN} ./${PACKAGE_FILENAME}
         dpkg --contents ${PACKAGE_FILENAME}
         echo "PACKAGE_FILENAME=${PACKAGE_FILENAME}" >> $GITHUB_ENV
 
