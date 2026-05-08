@@ -81,10 +81,10 @@ jobs:
             cp ../{bowline,dug,dump} ./work/bowline-${{ env.pkg_version }}/bin/ ;\
             ./pkgctl.sh pkgs ${{ env.pkg_version }} ;\
             "
-        mv pkg/work/*.deb ./
-        echo "PACKAGE_FILENAME="$(ls *.deb) >> $GITHUB_ENV
-        export PACKAGE_FILENAME=$(ls *.deb)
+        PACKAGE_FILENAME=$(cd pkg/work/ && ls -1 *.deb | head -1) ; export PACKAGE_FILENAME
+        mv pkg/work/${PACKAGE_FILENAME} ./${PACKAGE_FILENAME}
         dpkg --contents ${PACKAGE_FILENAME}
+        echo "PACKAGE_FILENAME=${PACKAGE_FILENAME}" >> $GITHUB_ENV
 
     - name: .deb installation
       run: |
