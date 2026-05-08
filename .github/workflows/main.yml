@@ -27,7 +27,7 @@ jobs:
 
     env:
       cache-name: cabal-ghc
-      build-targets: --disable-benchmarks all:libs all:exes all:tests
+      build-targets: all:libs all:exes all:tests --disable-benchmarks
       ## doctest version constraint, to preserve stable behavior
       ## e.g. avoiding errors on doctest-0.25.0 like "doctest: unrecognized option '--make'"
       install-doctest-param: --ignore-project --overwrite-policy=always --constraint='doctest<0.25'
@@ -78,11 +78,12 @@ jobs:
       id: inst-dep
       shell: bash
       run: |
-        if cabal v2-build --offline --only-dependencies ${{ env.build-targets }}
+        set -x
+        if cabal v2-build ${{ env.build-targets }} --only-dependencies --offline
         then
           echo "installed=false" >> "$GITHUB_OUTPUT"
         else
-          cabal v2-build --only-dependencies ${{ env.build-targets }}
+          cabal v2-build ${{ env.build-targets }} --only-dependencies
           echo "installed=true" >> "$GITHUB_OUTPUT"
         fi
 
