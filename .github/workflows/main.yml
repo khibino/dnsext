@@ -61,11 +61,13 @@ jobs:
       if: ${{ runner.os == 'Linux' }}
       shell: bash
       run: |
-        if cabal v2-install --offline --overwrite-policy=always doctest
+        if cabal v2-install doctest --overwrite-policy=always --constraint='doctest<0.25' --offline
         then
           echo "installed=false" >> "$GITHUB_OUTPUT"
         else
-          cabal v2-install doctest --overwrite-policy=always
+          ## doctest version constraint, to preserve stable behavior
+          ## e.g. avoiding errors on doctest-0.25.0 like "doctest: unrecognized option '--make'"
+          cabal v2-install doctest --overwrite-policy=always --constraint='doctest<0.25'
           echo "installed=true" >> "$GITHUB_OUTPUT"
         fi
         set -x
