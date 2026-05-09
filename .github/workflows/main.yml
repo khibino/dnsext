@@ -28,6 +28,9 @@ jobs:
     env:
       cache-name: cabal-ghc
       build-targets: --disable-benchmarks all:libs all:exes all:tests
+      ## doctest version constraint, to preserve stable behavior
+      ## e.g. avoiding errors on doctest-0.25.0 like "doctest: unrecognized option '--make'"
+      install-doctest-param: --overwrite-policy=always --constraint='doctest<0.25'
 
     steps:
     - run: git config --global core.autocrlf false
@@ -61,16 +64,14 @@ jobs:
       if: ${{ runner.os == 'Linux' }}
       shell: bash
       run: |
-        if cabal v2-install doctest --overwrite-policy=always --constraint='doctest<0.25' --offline
+        set -x
+        if cabal v2-install doctest ${{ env.install-doctest-param }} --offline
         then
           echo "installed=false" >> "$GITHUB_OUTPUT"
         else
-          ## doctest version constraint, to preserve stable behavior
-          ## e.g. avoiding errors on doctest-0.25.0 like "doctest: unrecognized option '--make'"
-          cabal v2-install doctest --overwrite-policy=always --constraint='doctest<0.25'
+          cabal v2-install doctest ${{ env.install-doctest-param }}
           echo "installed=true" >> "$GITHUB_OUTPUT"
         fi
-        set -x
         doctest --version
 
     - name: Install dependencies
