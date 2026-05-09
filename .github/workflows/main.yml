@@ -68,6 +68,8 @@ jobs:
           cabal v2-install doctest --overwrite-policy=always
           echo "installed=true" >> "$GITHUB_OUTPUT"
         fi
+        set -x
+        doctest --version
 
     - name: Install dependencies
       id: inst-dep
