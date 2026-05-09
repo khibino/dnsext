@@ -30,7 +30,7 @@ jobs:
       build-targets: --disable-benchmarks all:libs all:exes all:tests
       ## doctest version constraint, to preserve stable behavior
       ## e.g. avoiding errors on doctest-0.25.0 like "doctest: unrecognized option '--make'"
-      install-doctest-param: --overwrite-policy=always --constraint='doctest<0.25'
+      install-doctest-param: --ignore-project --overwrite-policy=always --constraint='doctest<0.25'
 
     steps:
     - run: git config --global core.autocrlf false
