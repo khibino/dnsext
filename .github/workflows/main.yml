@@ -31,6 +31,7 @@ jobs:
       ## doctest version constraint, to preserve stable behavior
       ## e.g. avoiding errors on doctest-0.25.0 like "doctest: unrecognized option '--make'"
       install-doctest-param: --ignore-project --overwrite-policy=always --constraint='doctest<0.25'
+      repl-doctest-param: --with-compiler=doctest --disable-benchmarks
 
     steps:
     - run: git config --global core.autocrlf false
@@ -104,11 +105,12 @@ jobs:
       if: ${{ runner.os == 'Linux' }}
       shell: bash
       run: |
+        set -x
         for package in $(cat cabal.project | sed 's/packages://g' | sed 's/dnsext-bowline//g')
         do
-          env DISABLE_V6_NS=1 cabal v2-repl --with-ghc=doctest $package
+          DISABLE_V6_NS=1 cabal v2-repl $package               ${{ env.repl-doctest-param }}
         done
-        env   DISABLE_V6_NS=1 cabal v2-repl --with-ghc=doctest dnsext-bowline:bowline
+        DISABLE_V6_NS=1   cabal v2-repl dnsext-bowline:bowline ${{ env.repl-doctest-param }}
 
     - name: Install
       if: matrix.ghc == '9.6'
