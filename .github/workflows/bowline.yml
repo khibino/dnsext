@@ -81,11 +81,14 @@ jobs:
             cp ../{bowline,dug,dump} ./work/bowline-${{ env.pkg_version }}/bin/ ;\
             ./pkgctl.sh pkgs ${{ env.pkg_version }} ;\
             "
-        PKG_FN=$(cd pkg/work/ && ls -1 *.deb | head -1) ; export PKG_FN
-        PACKAGE_FILENAME=${{ matrix.debian_rev }}.${PKG_FN} ; export PACKAGE_FILENAME
-        mv pkg/work/${PKG_FN} ./${PACKAGE_FILENAME}
+        PACKAGE_FILENAME=$(cd pkg/work/ && ls -1 *.deb | head -1) ; export PACKAGE_FILENAME
+        ARTIFACT_FILENAME=${{ matrix.debian_rev }}.${PACKAGE_FILENAME} ; export ARTIFACT_FILENAME
+        set -x
+        mv pkg/work/${PACKAGE_FILENAME} ./
+        cp -a ${PACKAGE_FILENAME} ${ARTIFACT_FILENAME}
         dpkg --contents ${PACKAGE_FILENAME}
         echo "PACKAGE_FILENAME=${PACKAGE_FILENAME}" >> $GITHUB_ENV
+        echo "ARTIFACT_FILENAME=${ARTIFACT_FILENAME}" >> $GITHUB_ENV
 
     - name: .deb installation
       run: |
@@ -132,7 +135,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         path: ${{ env.PACKAGE_FILENAME }}
-        name: ${{ env.PACKAGE_FILENAME }}
+        name: ${{ env.ARTIFACT_FILENAME }}
     - name: login to ghcr.io
       uses: docker/login-action@v3
       with:
@@ -153,7 +156,7 @@ jobs:
         prerelease: true
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |
-          ${{ env.PACKAGE_FILENAME }}
+          ${{ env.ARTIFACT_FILENAME }}
     - name: release to cloudsmith
       if: gitHub.event_name == 'release' && runner.os == 'linux'
       id: push
