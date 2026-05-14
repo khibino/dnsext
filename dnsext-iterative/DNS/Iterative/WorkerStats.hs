@@ -21,6 +21,10 @@ pprWorkerStats _pn ops = do
     stats <- zip3 [1 :: Int ..] <$> mapM getWorkerStat ops <*> mapM getBlockingStat ops
     let getWS (_n, ws, _bks) = fst ws
         isStat p = p . getWS
+        isBkStat p (_n, _ws, (bks, _bcx, _diff)) = p bks
+        blockings  = filter (isBkStat (== BsBlocking))  stats
+        runnings   = filter (isBkStat (== BsUnblocked)) stats
+        isBkCause p (_n, _ws, (_bks, BkContext bkc _note, _diff)) = p bkc
         isEnqueue WWaitEnqueue{}  = True
         isEnqueue _               = False
         qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
