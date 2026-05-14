@@ -19,16 +19,14 @@ import DNS.Iterative.Types (DoX (..))
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
     stats <- zip3 [1 :: Int ..] <$> mapM getWorkerStat ops <*> mapM getBlockingStat ops
-    let getWS (_n, ws, _bks) = fst ws
-        isStat p = p . getWS
-        isBkStat p (_n, _ws, (bks, _bcx, _diff)) = p bks
+    let isBkStat p (_n, _ws, (bks, _bcx, _diff)) = p bks
         blockings  = filter (isBkStat (== BsBlocking))  stats
         runnings   = filter (isBkStat (== BsUnblocked)) stats
         isBkCause p (_n, _ws, (_bks, BkContext bkc _note, _diff)) = p bkc
         {- sorted by query span -}
         getDiffT (_n, _ws, (_bks, _bcx, diff)) = diff
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) runnings
-        deqs = filter (isStat (== WWaitDequeue)) stats
+        deqs = filter (isBkCause (== BcDequeueReq)) blockings
         pprEnq  p (wn, (WWaitEnqueue _qs dox tg, ds), _bks)
             | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
         pprEnq _p  _  = id
