@@ -28,12 +28,9 @@ pprWorkerStats _pn ops = do
         requests    = filter (isBkCause (== CauseRequest))  ablockings
         responses   = filter (isBkCause (== CauseResponse)) ablockings
         blockings   = filter (isBkCause (`notElem` [CauseRequest, CauseResponse])) ablockings
-        isEnqueue WWaitEnqueue{}  = True
-        isEnqueue _               = False
-        qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
-        getDiffT (_n, (_ws, diff), _wbs) = diff
-        sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) qs
+        getDiffT (_n, _ws, (_bks, _ctx, _cause, diff)) = diff
+        sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) $ runnings ++ blockings
         deqs = filter (isStat (== WWaitDequeue)) stats
         pprEnq  p (wn, (WWaitEnqueue _qs dox tg, ds), _bks)
             | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
@@ -46,7 +43,7 @@ pprWorkerStats _pn ops = do
                 xs  = foldr (pprEnq (\x -> x /= H2 && x /= DoT)) [] stats
                 pp = unwords (h2 ++ dot ++ xs)
 
-        pprq (wn, st, _bks) = showDec3 wn ++ ": " ++ pprWorkerStat st
+        pprq (wn, _st, bks) = showDec3 wn ++ ": " ++ pprBlockingStat bks
         pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
         pprenq = " waiting enqueues: " ++ pprEnqs
 
