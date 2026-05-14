@@ -19,9 +19,7 @@ import DNS.Iterative.Types (DoX (..))
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
     stats <- zip3 [1 :: Int ..] <$> mapM getWorkerStat ops <*> mapM getBlockingStat ops
-    let getWS (_n, ws, _bks) = fst ws
-        isStat p = p . getWS
-        isBkStat p (_n, _ws, (bks, _ctx, _cause, _diff)) = p bks
+    let isBkStat p (_n, _ws, (bks, _ctx, _cause, _diff)) = p bks
         ablockings  = filter (isBkStat (== StatBlocking))  stats
         runnings    = filter (isBkStat (== StatUnblocked)) stats
         isBkCause p (_n, _ws, (_bks, _ctx, cause, _diff)) = p cause
@@ -31,7 +29,6 @@ pprWorkerStats _pn ops = do
         {- sorted by query span -}
         getDiffT (_n, _ws, (_bks, _ctx, _cause, diff)) = diff
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) $ runnings ++ blockings
-        deqs = filter (isStat (== WWaitDequeue)) stats
         pprEnq  p (wn, (WWaitEnqueue _qs dox tg, ds), _bks)
             | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
         pprEnq _p  _  = id
@@ -44,7 +41,7 @@ pprWorkerStats _pn ops = do
                 pp = unwords (h2 ++ dot ++ xs)
 
         pprq (wn, _st, bks) = showDec3 wn ++ ": " ++ pprBlockingStat bks
-        pprdeq = " waiting dequeues: " ++ show (length deqs) ++ " workers"
+        pprdeq = " waiting dequeues: " ++ show (length requests) ++ " workers"
         pprenq = " waiting enqueues: " ++ pprEnqs
 
     return $ map pprq sorted ++ [pprdeq, pprenq]
