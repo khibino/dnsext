@@ -25,12 +25,9 @@ pprWorkerStats _pn ops = do
         blockings  = filter (isBkStat (== BsBlocking))  stats
         runnings   = filter (isBkStat (== BsUnblocked)) stats
         isBkCause p (_n, _ws, (_bks, BkContext bkc _note, _diff)) = p bkc
-        isEnqueue WWaitEnqueue{}  = True
-        isEnqueue _               = False
-        qs = filter (isStat ((&&) <$> (/= WWaitDequeue) <*> not . isEnqueue)) stats
         {- sorted by query span -}
-        getDiffT (_n, (_ws, diff), _wbs) = diff
-        sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) qs
+        getDiffT (_n, _ws, (_bks, _bcx, diff)) = diff
+        sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) runnings
         deqs = filter (isStat (== WWaitDequeue)) stats
         pprEnq  p (wn, (WWaitEnqueue _qs dox tg, ds), _bks)
             | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
