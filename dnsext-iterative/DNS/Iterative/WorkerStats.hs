@@ -29,15 +29,15 @@ pprWorkerStats _pn ops = do
         {- sorted by query span -}
         getDiffT (_n, _ws, (_bks, _ctx, _cause, diff)) = diff
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) $ runnings ++ blockings
-        pprEnq  p (wn, (WWaitEnqueue _qs dox tg, ds), _bks)
-            | p dox  = ((show wn ++ ":" ++ show dox ++ ":" ++ show tg ++ ":" ++ showDiffSec1 ds) :)
+        pprEnq  p (wn, _ws, wbs@(_, ContextQuery dox _q, _, _))
+            | p dox  = ((show wn ++ ":" ++ pprBlockingStat wbs) :)
         pprEnq _p  _  = id
         pprEnqs
             | null pp    = "no workers"
             | otherwise  = pp
-          where h2  = foldr (pprEnq (== H2))  [] stats
-                dot = foldr (pprEnq (== DoT)) [] stats
-                xs  = foldr (pprEnq (\x -> x /= H2 && x /= DoT)) [] stats
+          where h2  = foldr (pprEnq (== H2))  [] responses
+                dot = foldr (pprEnq (== DoT)) [] responses
+                xs  = foldr (pprEnq (\x -> x /= H2 && x /= DoT)) [] responses
                 pp = unwords (h2 ++ dot ++ xs)
 
         pprq (wn, _st, bks) = showDec3 wn ++ ": " ++ pprBlockingStat bks
