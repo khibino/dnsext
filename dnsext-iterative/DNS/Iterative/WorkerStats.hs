@@ -62,13 +62,13 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 {- FOURMOLU_DISABLE -}
 data WorkerStat
     = WWaitDequeue
-    | WRun Question
+    | WRun Question DoX
     deriving Eq
 
 instance Show WorkerStat where
     show st = case st of
         WWaitDequeue  -> "waiting dequeue - WWaitDequeue"
-        WRun q        -> "querying" ++ pprQ q ++ " - WRun"
+        WRun q dox    -> "querying" ++ pprQ q ++ " - " ++ show dox ++ " - WRun"
       where pprQ (Question n t c) = " " ++ show n ++ " " ++  show t ++ " " ++ show c
 {- FOURMOLU_ENABLE -}
 
