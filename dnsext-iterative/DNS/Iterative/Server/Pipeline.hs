@@ -127,7 +127,7 @@ cacherLogic :: Env -> WorkerStatOP -> IO FromReceiver -> (ToWorker -> IO ()) -> 
 cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
     let setWorkerStat = setWorkerStatEV wstat
     setWorkerStat WWaitDequeue
-    inpBS@Input{..} <- fromReceiver
+    inpBS@Input{..} <- bracketDequeueReq wstat fromReceiver
     case DNS.decode inputQuery of
         Left e -> logLn env Log.WARN $ "cacher.decode-error: " ++ inputAddr inpBS ++ " : " ++ show e
         Right queryMsg -> do
@@ -165,7 +165,7 @@ workerLogic :: Env -> WorkerStatOP -> IO FromCacher -> IO ()
 workerLogic env wstat fromCacher = handledLoop env "worker" $ do
     let setWorkerStat = setWorkerStatEV wstat
     setWorkerStat WWaitDequeue
-    inp@Input{..} <- fromCacher
+    inp@Input{..} <- bracketDequeueReq wstat fromCacher
     let qs = question inputQuery
     setWorkerStat (WRun qs)
     ex <- foldResponseIterative Left (curry Right) env inputQuery
