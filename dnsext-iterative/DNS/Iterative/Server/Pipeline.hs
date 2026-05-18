@@ -137,28 +137,21 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
             setWorkerStat (WRun qs)
             let inp = inpBS{inputQuery = queryMsg}
             cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env wstat queryMsg
-            setWorkerStat $ WWaitEnqueue qs inputDoX EnBegin
             case cres of
-                CResultMissHit -> do
-                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultMissHit")
+                CResultMissHit ->
                     bracketEnqueue_ "to-worker - miss-hit" $ toWorker inp
                 CResultHit vr replyMsg -> do
-                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase $ "CResultHit" ++ show vr)
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
                     let bs = encodeWithTC env inputPeerInfo (ednsHeader queryMsg) replyMsg
-                    setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
                     bracketEnqueue_ "dnstap - hit"     $ record env inp replyMsg bs
-                    setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
                     bracketEnqueue_ "to-sender - hit"  $ inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
-                    setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultDenied")
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     logicDenied env inp
                     vpDelete inputPendingOp
-            setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
 ----------------------------------------------------------------
 
@@ -173,17 +166,13 @@ workerLogic env wstat fromCacher = handledLoop env "worker" $ do
     ex <- foldResponseIterative Left (curry Right) env wstat inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
-    setWorkerStat $ WWaitEnqueue qs inputDoX EnBegin
     case ex of
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
             let bs = encodeWithTC env inputPeerInfo (ednsHeader inputQuery) replyMsg
-            setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
             bracketEnqueue_ "dnstap"     $ record env inp replyMsg bs
-            setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
             bracketEnqueue_ "to-sender"  $ inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
-    setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
 ----------------------------------------------------------------
 
