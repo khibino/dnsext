@@ -60,32 +60,15 @@ pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
 ------------------------------------------------------------
 
 {- FOURMOLU_DISABLE -}
-data EnqueueTarget
-    = EnBegin
-    | EnCCase String  -- for CacheResult cases
-    | EnTap
-    | EnSend
-    | EnEnd
-    deriving Eq
-
-instance Show EnqueueTarget where
-    show  EnBegin     = "Bgn"
-    show (EnCCase s)  = "CCase " ++ s
-    show  EnTap       = "Tap"
-    show  EnSend      = "Send"
-    show  EnEnd       = "End"
-
 data WorkerStat
     = WWaitDequeue
     | WRun Question
-    | WWaitEnqueue Question DoX EnqueueTarget
     deriving Eq
 
 instance Show WorkerStat where
     show st = case st of
-        WWaitDequeue                 -> "waiting dequeue - WWaitDequeue"
-        WRun q                       -> "querying" ++ pprQ q ++ " - WRun"
-        WWaitEnqueue q dox tg        -> "waiting enqueue" ++ pprQ q ++ " " ++ show dox ++ " " ++ show tg ++ " - WWaitEnqueue"
+        WWaitDequeue  -> "waiting dequeue - WWaitDequeue"
+        WRun q        -> "querying" ++ pprQ q ++ " - WRun"
       where pprQ (Question n t c) = " " ++ show n ++ " " ++  show t ++ " " ++ show c
 {- FOURMOLU_ENABLE -}
 
