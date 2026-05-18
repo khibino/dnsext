@@ -6,6 +6,8 @@ module DNS.Iterative.Internal (
     module DNS.Iterative.Query.API,
 
     -- * testing
+    noopWorkerStat,
+    --
     newTestCache,
     runResolve,
     runResolveExact,
@@ -21,6 +23,7 @@ module DNS.Iterative.Internal (
     sepDNSKEY,
 ) where
 
+import DNS.Iterative.WorkerStats (noopWorkerStat)
 import DNS.Iterative.Query.API
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Env
