@@ -17,8 +17,9 @@ where
 import Crypto.Hash (HashAlgorithm)
 import Crypto.Hash.Algorithms (SHA1 (..), SHA256 (..), SHA512 (..))
 import Crypto.Number.Serialize (i2osp, os2ip)
-import Crypto.PubKey.RSA (PublicKey (..))
-import Crypto.PubKey.RSA.PKCS15 (HashAlgorithmASN1, verify)
+import Crypto.PubKey.RSA (PrivateKey (..), PublicKey (..))
+import Crypto.PubKey.RSA.PKCS15 (HashAlgorithmASN1, signSafer, verify)
+import Crypto.Random.Types (MonadRandom)
 import DNS.SEC.Types (PubKey (..))
 import DNS.SEC.Verify.Types
 import DNS.Types
@@ -115,3 +116,15 @@ rsaVerify
     -> Either String Bool
 rsaVerify alg pubkey sig msg =
     Right $ verify (Just alg) pubkey msg $ Opaque.toByteString sig
+
+unsafeRsaSign
+    :: (HashAlgorithm hash, HashAlgorithmASN1 hash, MonadRandom m)
+    => hash
+    -> PrivateKey
+    -> ByteString
+    -> m Signature
+unsafeRsaSign alg prikey msg = do
+    ex <- signSafer (Just alg) prikey msg
+    case ex of
+        Left _ -> return $ Opaque.fromByteString ""
+        Right s -> return $ Opaque.fromByteString s
