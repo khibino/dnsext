@@ -221,23 +221,27 @@ dsSHA384 =
 -----
 -- RRSIG cases
 
-type RRSIG_CASE = (ResourceRecord, [ResourceRecord], ResourceRecord)
+data RRSIG_CASE = RRSIG_CASE
+    { rrsig_dnskey :: ResourceRecord
+    , rrsig_targets :: [ResourceRecord]
+    , rrsig_rrsig :: ResourceRecord
+    }
 
 caseRRSIG :: RRSIG_CASE -> Expectation
-caseRRSIG (dnskeyRR, targets, rrsigRR) = either expectationFailure (const $ pure ()) $ do
-    dnskey <- takeRData "DNSKEY" dnskeyRR
-    rrsig <- takeRData "RRSIG" rrsigRR
+caseRRSIG RRSIG_CASE{..} = either expectationFailure (const $ pure ()) $ do
+    dnskey <- takeRData "DNSKEY" rrsig_dnskey
+    rrsig <- takeRData "RRSIG" rrsig_rrsig
     let ts =
             (fromDNSTime (rrsig_inception rrsig) + fromDNSTime (rrsig_expiration rrsig))
                 `div` 2
     checkKeyTag dnskey (rrsig_key_tag rrsig)
     verifyRRSIG
         (toDNSTime ts)
-        (rrname dnskeyRR)
+        (rrname rrsig_dnskey)
         dnskey
-        (rrname rrsigRR)
+        (rrname rrsig_rrsig)
         rrsig
-        targets
+        rrsig_targets
   where
     takeRData name rr = maybe (Left $ "not " ++ name ++ ": " ++ show rd) Right $ fromRData rd
       where
@@ -246,43 +250,51 @@ caseRRSIG (dnskeyRR, targets, rrsigRR) = either expectationFailure (const $ pure
 {- FOURMOLU_DISABLE -}
 rsaSHA1NSEC3SHA1 :: RRSIG_CASE
 rsaSHA1NSEC3SHA1 =
-    ( ResourceRecord
-        { rrname = "nist.gov."
-        , rrttl = 302400
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "nist.gov."
+                , rrttl = 302400
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "nist.gov."
+                , rrttl = 1800
+                , rrclass = IN
+                , rrtype = A
+                , rdata = rd_a "129.6.13.49"
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "nist.gov."
+                , rrttl = 1800
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-       [ ResourceRecord
-           { rrname = "nist.gov."
-           , rrttl = 1800
-           , rrclass = IN
-           , rrtype = A
-           , rdata = rd_a "129.6.13.49"
-           }
-       ]
-    , ResourceRecord
-        { rrname = "nist.gov."
-        , rrttl = 1800
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            256 3 7
+            256
+            3
+            7
             " AwEAAcXO18j9zWL7GHpu/2yL3X+Qo7S1XjqocD1I7fVDckTUIL5IQnzo \
             \ H2l9PPYiH9fSqQfJNuTjW1za1M7AGgRdyvXEt8Fp2fEIjWrRx4yE1KXc \
             \ mFLE2aYGCsmHzSAQPUYR2Ujw3MYQOFRbEskBvLn7fKDEAodMWJL3AXLc \
             \ vRUn9tuZ "
     sig_rd =
         rd_rrsig'
-            A 7 2
+            A
+            7
+            2
             1800
-            "20231212072832" "20231205065213"
+            "20231212072832"
+            "20231205065213"
             37700
             "nist.gov."
             " CLkk28SVyM1Ouyv4BlCJ1XcWgtehBRyX40kQSCU8uODhSE46HRgRVJYY \
@@ -293,42 +305,50 @@ rsaSHA1NSEC3SHA1 =
 -- example from https://datatracker.ietf.org/doc/html/rfc5702#section-6.1
 rsaSHA256 :: RRSIG_CASE
 rsaSHA256 =
-    ( ResourceRecord
-        { rrname = "example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = A
+                , rdata = rd_a "192.0.2.91"
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-        [ ResourceRecord
-            { rrname = "www.example.net."
-            , rrttl = 3600
-            , rrclass = IN
-            , rrtype = A
-            , rdata = rd_a "192.0.2.91"
-            }
-        ]
-    , ResourceRecord
-        { rrname = "www.example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            256 3 8
+            256
+            3
+            8
             " AwEAAcFcGsaxxdgiuuGmCkVI \
             \ my4h99CqT7jwY3pexPGcnUFtR2Fh36BponcwtkZ4cAgtvd4Qs8P \
             \ kxUdp6p/DlUmObdk= "
     sig_rd =
         rd_rrsig'
-            A 8 3
+            A
+            8
+            3
             3600
-            "20300101000000" "20000101000000"
+            "20300101000000"
+            "20000101000000"
             9033
             "example.net."
             " kRCOH6u7l0QGy9qpC9 \
@@ -341,42 +361,50 @@ rsaSHA256 =
 -- modified example from https://datatracker.ietf.org/doc/html/rfc5702#section-6.1
 rsaSHA256_RECONS :: RRSIG_CASE
 rsaSHA256_RECONS =
-    ( ResourceRecord
-        { rrname = "example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 1800 {- value different from original TTL -}
+                , rrclass = IN
+                , rrtype = A
+                , rdata = rd_a "192.0.2.91"
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 1200
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-        [ ResourceRecord
-            { rrname = "www.example.net."
-            , rrttl = 1800 {- value different from original TTL -}
-            , rrclass = IN
-            , rrtype = A
-            , rdata = rd_a "192.0.2.91"
-            }
-        ]
-    , ResourceRecord
-        { rrname = "www.example.net."
-        , rrttl = 1200
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            256 3 8
+            256
+            3
+            8
             " AwEAAcFcGsaxxdgiuuGmCkVI \
             \ my4h99CqT7jwY3pexPGcnUFtR2Fh36BponcwtkZ4cAgtvd4Qs8P \
             \ kxUdp6p/DlUmObdk= "
     sig_rd =
         rd_rrsig'
-            A 8 3
+            A
+            8
+            3
             3600 {- original TTL -}
-            "20300101000000" "20000101000000"
+            "20300101000000"
+            "20000101000000"
             9033
             "example.net."
             " kRCOH6u7l0QGy9qpC9 \
@@ -385,50 +413,58 @@ rsaSHA256_RECONS =
 
 rsaSHA256_RRset :: RRSIG_CASE
 rsaSHA256_RRset =
-    ( ResourceRecord
-        { rrname = "iij.ad.jp."
-        , rrttl = 86400
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "iij.ad.jp."
+                , rrttl = 86400
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "omgi.iij.ad.jp."
+                , rrttl = 600
+                , rrclass = IN
+                , rrtype = A
+                , rdata = rd_a "202.214.79.36"
+                }
+            , ResourceRecord
+                { rrname = "omgi.iij.ad.jp."
+                , rrttl = 600
+                , rrclass = IN
+                , rrtype = A
+                , rdata = rd_a "202.32.225.116"
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "omgi.iij.ad.jp."
+                , rrttl = 600
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-        [ ResourceRecord
-            { rrname = "omgi.iij.ad.jp."
-            , rrttl = 600
-            , rrclass = IN
-            , rrtype = A
-            , rdata = rd_a "202.214.79.36"
-            }
-        , ResourceRecord
-            { rrname = "omgi.iij.ad.jp."
-            , rrttl = 600
-            , rrclass = IN
-            , rrtype = A
-            , rdata = rd_a "202.32.225.116"
-            }
-        ]
-    , ResourceRecord
-        { rrname = "omgi.iij.ad.jp."
-        , rrttl = 600
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            256 3 8
+            256
+            3
+            8
             " AwEAAdyl8rJAwIXpgJn4HKW9mIhlJQHjLkq91UL+qcfiFkMmQoIxCuDc \
             \ RBKgSfdgSavRThrttFGn6qFHSYDr2NmbiDkQwmSksnH13UTUK+hbPUev \
             \ LOa76MchHxvA+GNkulUcHEFdp+ic2QAvGnahrzz9iMCTsA7y3UOHJS9V \
             \ sxFwoPhX "
     sig_rd =
         rd_rrsig'
-            A 8 4
+            A
+            8
+            4
             600
-            "20230330151006" "20230228151006"
+            "20230330151006"
+            "20230228151006"
             2508
             "iij.ad.jp."
             " kgV2bxld5SLc3M7kVFl1QD3cKw60T71iaI7OAgcBsgAW84vvRUY/hp0v \
@@ -439,43 +475,51 @@ rsaSHA256_RRset =
 -- example from https://datatracker.ietf.org/doc/html/rfc5702#section-6.2
 rsaSHA512 :: RRSIG_CASE
 rsaSHA512 =
-    ( ResourceRecord
-        { rrname = "example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = A
+                , rdata = rd_a "192.0.2.91"
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-        [ ResourceRecord
-            { rrname = "www.example.net."
-            , rrttl = 3600
-            , rrclass = IN
-            , rrtype = A
-            , rdata = rd_a "192.0.2.91"
-            }
-        ]
-    , ResourceRecord
-        { rrname = "www.example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            256 3 10
+            256
+            3
+            10
             " AwEAAdHoNTOW+et86KuJOWRD \
             \ p1pndvwb6Y83nSVXXyLA3DLroROUkN6X0O6pnWnjJQujX/AyhqFD \
             \ xj13tOnD9u/1kTg7cV6rklMrZDtJCQ5PCl/D7QNPsgVsMu1J2Q8g \
             \ pMpztNFLpPBz1bWXjDtaR7ZQBlZ3PFY12ZTSncorffcGmhOL "
     sig_rd =
         rd_rrsig'
-            A 10 3
+            A
+            10
+            3
             3600
-            "20300101000000" "20000101000000"
+            "20300101000000"
+            "20000101000000"
             3740
             "example.net."
             " tsb4wnjRUDnB1BUi+t \
@@ -487,41 +531,49 @@ rsaSHA512 =
 -- example from https://datatracker.ietf.org/doc/html/rfc6605#section-6.1
 ecdsaP256 :: RRSIG_CASE
 ecdsaP256 =
-    ( ResourceRecord
-        { rrname = "example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = A
+                , rdata = rd_a "192.0.2.1"
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-        [ ResourceRecord
-            { rrname = "www.example.net."
-            , rrttl = 3600
-            , rrclass = IN
-            , rrtype = A
-            , rdata = rd_a "192.0.2.1"
-            }
-        ]
-    , ResourceRecord
-        { rrname = "www.example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            257 3 13
+            257
+            3
+            13
             " GojIhhXUN/u4v54ZQqGSnyhWJwaubCvTmeexv7bR6edb \
             \ krSqQpF64cYbcB7wNcP+e+MAnLr+Wi9xMWyQLc8NAA== "
     sig_rd =
         rd_rrsig'
-            A 13 3
+            A
+            13
+            3
             3600
-            "20100909100439" "20100812100439"
+            "20100909100439"
+            "20100812100439"
             55648
             "example.net."
             " qx6wLYqmh+l9oCKTN6qIc+bw6ya+KJ8oMz0YP107epXA \
@@ -530,42 +582,50 @@ ecdsaP256 =
 -- example from https://datatracker.ietf.org/doc/html/rfc6605#section-6.2
 ecdsaP384 :: RRSIG_CASE
 ecdsaP384 =
-    ( ResourceRecord
-        { rrname = "example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = A
+                , rdata = rd_a "192.0.2.1"
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "www.example.net."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-        [ ResourceRecord
-            { rrname = "www.example.net."
-            , rrttl = 3600
-            , rrclass = IN
-            , rrtype = A
-            , rdata = rd_a "192.0.2.1"
-            }
-        ]
-    , ResourceRecord
-        { rrname = "www.example.net."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            257 3 14
+            257
+            3
+            14
             " xKYaNhWdGOfJ+nPrL8/arkwf2EY3MDJ+SErKivBVSum1 \
             \ w/egsXvSADtNJhyem5RCOpgQ6K8X1DRSEkrbYQ+OB+v8 \
             \ /uX45NBwY8rp65F6Glur8I/mlVNgF6W/qTI37m40 "
     sig_rd =
         rd_rrsig'
-            A 14 3
+            A
+            14
+            3
             3600
-            "20100909102025" "20100812102025"
+            "20100909102025"
+            "20100812102025"
             10771
             "example.net."
             " /L5hDKIvGDyI1fcARX3z65qrmPsVz73QD1Mr5CEqOiLP \
@@ -575,41 +635,49 @@ ecdsaP384 =
 -- example from https://datatracker.ietf.org/doc/html/rfc8080#section-6.1
 ed25519 :: RRSIG_CASE
 ed25519 =
-    ( ResourceRecord
-        { rrname = "example.com."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "example.com."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "example.com."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = MX
+                , rdata = rd_mx 10 "mail.example.com."
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "example.com."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-        [ ResourceRecord
-            { rrname = "example.com."
-            , rrttl = 3600
-            , rrclass = IN
-            , rrtype = MX
-            , rdata = rd_mx 10 "mail.example.com."
-            }
-        ]
-    , ResourceRecord
-        { rrname = "example.com."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            257 3 15
+            257
+            3
+            15
             " l02Woi0iS8Aa25FQkUd9RMzZHJpBoRQwAQEX1SxZJA4= "
     sig_rd =
         rd_rrsig'
             {- apply updated vector in Errata of RFC 8080 https://www.rfc-editor.org/errata/rfc8080 -}
-            MX 15 2
+            MX
+            15
+            2
             3600
-            1440021600 1438207200 {- RFC8080 has integer data! -}
+            1440021600
+            1438207200 {- RFC8080 has integer data! -}
             3613
             "example.com."
             " oL9krJun7xfBOIWcGHi7mag5/hdZrKWw15jPGrHpjQeRAvTdszaPD+QLs3f \
@@ -618,42 +686,50 @@ ed25519 =
 -- example from https://datatracker.ietf.org/doc/html/rfc8080#section-6.2
 ed448 :: RRSIG_CASE
 ed448 =
-    ( ResourceRecord
-        { rrname = "example.com."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "example.com."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "example.com."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = MX
+                , rdata = rd_mx 10 "mail.example.com."
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "example.com."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    ,
-        [ ResourceRecord
-            { rrname = "example.com."
-            , rrttl = 3600
-            , rrclass = IN
-            , rrtype = MX
-            , rdata = rd_mx 10 "mail.example.com."
-            }
-        ]
-    , ResourceRecord
-        { rrname = "example.com."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
         rd_dnskey'
-            257 3 16
+            257
+            3
+            16
             " 3kgROaDjrh0H2iuixWBrc8g2EpBBLCdGzHmn+G2MpTPhpj/OiBVHHSfPodx \
             \ 1FYYUcJKm1MDpJtIA "
     sig_rd =
         rd_rrsig'
             {- apply updated vector in Errata of RFC 8080 https://www.rfc-editor.org/errata/rfc8080 -}
-            MX 16 2
+            MX
+            16
+            2
             3600
-            1440021600 1438207200 {- RFC8080 has integer data! -}
+            1440021600
+            1438207200 {- RFC8080 has integer data! -}
             9713
             "example.com."
             " 3cPAHkmlnxcDHMyg7vFC34l0blBhuG1qpwLmjInI8w1CMB29FkEAIJUA0am \
@@ -662,73 +738,82 @@ ed448 =
 
 someRDataLength :: RRSIG_CASE
 someRDataLength =
-    ( ResourceRecord
-        { rrname = "1.in-addr.arpa."
-        , rrttl = 3600
-        , rrclass = IN
-        , rrtype = DNSKEY
-        , rdata = key_rd
+    RRSIG_CASE
+        { rrsig_dnskey =
+            ResourceRecord
+                { rrname = "1.in-addr.arpa."
+                , rrttl = 3600
+                , rrclass = IN
+                , rrtype = DNSKEY
+                , rdata = key_rd
+                }
+        , rrsig_targets =
+            [ ResourceRecord
+                { rrname = "1.in-addr.arpa."
+                , rrttl = 86400
+                , rrclass = IN
+                , rrtype = NS
+                , rdata = rd_ns "apnic1.dnsnode.net."
+                }
+            , ResourceRecord
+                { rrname = "1.in-addr.arpa."
+                , rrttl = 86400
+                , rrclass = IN
+                , rrtype = NS
+                , rdata = rd_ns "rirns.arin.net."
+                }
+            , ResourceRecord
+                { rrname = "1.in-addr.arpa."
+                , rrttl = 86400
+                , rrclass = IN
+                , rrtype = NS
+                , rdata = rd_ns "ns2.apnic.net."
+                }
+            , ResourceRecord
+                { rrname = "1.in-addr.arpa."
+                , rrttl = 86400
+                , rrclass = IN
+                , rrtype = NS
+                , rdata = rd_ns "ns3.lacnic.net."
+                }
+            , ResourceRecord
+                { rrname = "1.in-addr.arpa."
+                , rrttl = 86400
+                , rrclass = IN
+                , rrtype = NS
+                , rdata = rd_ns "apnic.authdns.ripe.net."
+                }
+            ]
+        , rrsig_rrsig =
+            ResourceRecord
+                { rrname = "1.in-addr.arpa."
+                , rrttl = 86400
+                , rrclass = IN
+                , rrtype = RRSIG
+                , rdata = sig_rd
+                }
         }
-    , [ ResourceRecord
-          { rrname = "1.in-addr.arpa."
-          , rrttl = 86400
-          , rrclass = IN
-          , rrtype = NS
-          , rdata = rd_ns "apnic1.dnsnode.net."
-          }
-      , ResourceRecord
-          { rrname = "1.in-addr.arpa."
-          , rrttl = 86400
-          , rrclass = IN
-          , rrtype = NS
-          , rdata = rd_ns "rirns.arin.net."
-          }
-      , ResourceRecord
-          { rrname = "1.in-addr.arpa."
-          , rrttl = 86400
-          , rrclass = IN
-          , rrtype = NS
-          , rdata = rd_ns "ns2.apnic.net."
-          }
-      , ResourceRecord
-          { rrname = "1.in-addr.arpa."
-          , rrttl = 86400
-          , rrclass = IN
-          , rrtype = NS
-          , rdata = rd_ns "ns3.lacnic.net."
-          }
-      , ResourceRecord
-          { rrname = "1.in-addr.arpa."
-          , rrttl = 86400
-          , rrclass = IN
-          , rrtype = NS
-          , rdata = rd_ns "apnic.authdns.ripe.net."
-          }
-      ]
-    , ResourceRecord
-        { rrname = "1.in-addr.arpa."
-        , rrttl = 86400
-        , rrclass = IN
-        , rrtype = RRSIG
-        , rdata = sig_rd
-        }
-    )
   where
     key_rd =
-      rd_dnskey'
-          256 3 13
-          " Mg+rz9zLYj22A5jXBeNUBJ0dgoFIsaJ0uxGMUQwe96SX5ZY3Rv7rsoT7 \
-          \ NxW3bz89yTEE3bsRC7ZNr3rJ6sXuvQ== "
+        rd_dnskey'
+            256
+            3
+            13
+            " Mg+rz9zLYj22A5jXBeNUBJ0dgoFIsaJ0uxGMUQwe96SX5ZY3Rv7rsoT7 \
+            \ NxW3bz89yTEE3bsRC7ZNr3rJ6sXuvQ== "
 
     sig_rd =
-      rd_rrsig'
-          NS 13 3
-          86400
-          "20230815144321" "20230731131321"
-          27138
-          "1.in-addr.arpa."
-          " orQelyK9FeIqXctGSJlavpVE3ZY1tR63RS6YXZE5wxLzj/yCo5ansthw \
-          \ vbr4qg0RNAblXlAObfERz7aE1e0z5A== "
+        rd_rrsig'
+            NS
+            13
+            3
+            86400
+            "20230815144321"
+            "20230731131321"
+            27138
+            "1.in-addr.arpa."
+            " orQelyK9FeIqXctGSJlavpVE3ZY1tR63RS6YXZE5wxLzj/yCo5ansthw \
+            \ vbr4qg0RNAblXlAObfERz7aE1e0z5A== "
 
 {- FOURMOLU_ENABLE -}
 
