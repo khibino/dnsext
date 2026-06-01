@@ -517,7 +517,7 @@ nsecxWithRanges withZippedSigs dnskeys getRanked msg nullK leftK rightK = do
 {- get not verified canonical RRset -}
 canonicalRRset :: [RR] -> (String -> a) -> (RRset -> [(Int, DNS.Builder ())] -> a) -> a
 canonicalRRset rrs leftK rightK =
-    SEC.canonicalRRsetSorted' sortedRRs leftK mkRRset
+    SEC.canonicalRRsetSorted sortedRRs leftK mkRRset
   where
     mkRRset dom typ cls ttl rds = rightK (RRset dom typ cls ttl rds notValidNoSig) sortedRDatas
     (sortedRDatas, sortedRRs) = unzip $ SEC.sortRDataCanonical rrs

@@ -229,7 +229,7 @@ validRRset dom typ cls ttl rds sigs = RRset dom typ cls ttl rds (ValidRRS sigs)
 
 cacheNoRRSIG :: MonadEnv m => [RR] -> Ranking -> m ()
 cacheNoRRSIG rrs0 rank = do
-    either crrsError insert $ SEC.canonicalRRsetSorted sortedRRs
+    either crrsError insert $ SEC.canonicalRRsetSortedEither sortedRRs
   where
     prefix = ("cacheNoRRSIG: " ++)
     plogLn lv s = logLn lv $ prefix s

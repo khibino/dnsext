@@ -18,8 +18,8 @@ module DNS.SEC.Verify.Verify (
     verifyRRSIGsorted,
     sortRDataCanonical,
     canonicalRRset,
-    canonicalRRsetSorted',
     canonicalRRsetSorted,
+    canonicalRRsetSortedEither,
 
     -- * DS
     verifyDS,
@@ -284,7 +284,7 @@ sortRDataCanonical rrs =
 {- FOURMOLU_DISABLE -}
 -- assume sorted input. generalized RRset with CPS
 -- | Checking the sorted RRSet and passing the sorted RRset to the function.
-canonicalRRsetSorted'
+canonicalRRsetSorted
     :: [ResourceRecord]
     -- ^ Sorted RRset
     -> (String -> a)
@@ -292,7 +292,7 @@ canonicalRRsetSorted'
     -> (Domain -> TYPE -> CLASS -> TTL -> [RData] -> a)
     -- ^ A function to handle sorted RRset.
     -> a
-canonicalRRsetSorted' rrs leftK rightK = either leftK id $ do
+canonicalRRsetSorted rrs leftK rightK = either leftK id $ do
     (hd, xs) <- maybe (Left "canonicalRRsetSorted: require non-empty RRset") Right $ uncons rrs
     let eqhd x =
             ((==) `on` rrname) hd x
@@ -307,10 +307,10 @@ canonicalRRsetSorted' rrs leftK rightK = either leftK id $ do
 {- FOURMOLU_ENABLE -}
 
 -- | Checking the sorted RRSet and returning a continuation.
-canonicalRRsetSorted
+canonicalRRsetSortedEither
     :: [ResourceRecord] -- Sorted RRSet
     -> Either String ((Domain -> TYPE -> CLASS -> TTL -> [RData] -> a) -> a)
-canonicalRRsetSorted rrs = canonicalRRsetSorted' rrs Left (\n ty cls ttl rd -> Right $ \h -> h n ty cls ttl rd)
+canonicalRRsetSortedEither rrs = canonicalRRsetSorted rrs Left (\n ty cls ttl rd -> Right $ \h -> h n ty cls ttl rd)
 
 {- FOURMOLU_DISABLE -}
 {- generalized RRset with CPS -}
@@ -323,7 +323,7 @@ canonicalRRset
     -> (Domain -> TYPE -> CLASS -> TTL -> [RData] -> a)
     -- ^ A function to handle sorted RRset. Sorted RRset is given.
     -> a
-canonicalRRset rrs = canonicalRRsetSorted' [rr | (_, rr) <- sortRDataCanonical rrs]
+canonicalRRset rrs = canonicalRRsetSorted [rr | (_, rr) <- sortRDataCanonical rrs]
 {- FOURMOLU_ENABLE -}
 
 -- | Verifying the signature (RRSIG) of canonicalized RRSet using the
@@ -370,7 +370,7 @@ verifyRRSIG now zone dnskey owner rrsig@RD_RRSIG{..} rrs = do
     {- The RRset MUST be sorted in canonical order.
        https://datatracker.ietf.org/doc/html/rfc4034#section-3.1.8.1 -}
     let (sortedRDatas, sortedRRs) = unzip $ sortRDataCanonical rrs
-    canonicalRRsetSorted' sortedRRs Left $
+    canonicalRRsetSorted sortedRRs Left $
         \rrset_dom typ cls _ttl _rds -> do
             unless (rrset_dom == owner) $
                 Left $
