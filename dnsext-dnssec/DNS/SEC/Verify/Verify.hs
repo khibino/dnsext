@@ -3,7 +3,51 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
-module DNS.SEC.Verify.Verify where
+module DNS.SEC.Verify.Verify (
+    -- * Supported algorithms
+    supportedDNSKEY,
+    supportedRRSIG,
+    supportedDS,
+
+    -- * Key Tag
+    keyTag,
+    checkKeyTag,
+
+    -- * RRSIG and canonicalization
+    verifyRRSIG,
+    verifyRRSIGsorted,
+    sortRDataCanonical,
+    canonicalRRset,
+    canonicalRRsetSorted',
+    canonicalRRsetSorted,
+
+    -- * DS
+    verifyDS,
+
+    -- * NSEC3
+    zipSigsNSEC3,
+    nameErrorNSEC3,
+    noDataNSEC3,
+    unsignedDelegationNSEC3,
+    wildcardExpansionNSEC3,
+    wildcardNoDataNSEC3,
+    detectWildcardExpansionNSEC3,
+    hashNSEC3,
+    hashNSEC3PARAM,
+    detectNSEC3,
+
+    -- * NSEC
+    zipSigsNSEC,
+    nameErrorNSEC,
+    noDataNSEC,
+    unsignedDelegationNSEC,
+    wildcardExpansionNSEC,
+    wildcardNoDataNSEC,
+    detectNSEC,
+
+    -- * Misc
+    withWildcard,
+) where
 
 -- GHC packages
 import qualified Data.ByteString.Internal as BS
@@ -39,11 +83,12 @@ import DNS.SEC.Verify.Types
 -- $setup
 -- >>> :seti -XOverloadedStrings
 
+-- | Calculating a Key Tag for a DNSKEY.
 keyTag :: RD_DNSKEY -> Word16
 keyTag dnskey = keyTagFromBS $ runBuilder (resourceDataSize dnskey) $ putResourceData Canonical dnskey
 
 {- FOURMOLU_DISABLE -}
--- KeyTag algorithm from https://datatracker.ietf.org/doc/html/rfc4034#appendix-B
+-- | Implementation for the Key Tag algorithm from https://datatracker.ietf.org/doc/html/rfc4034#appendix-B
 keyTagFromBS :: ByteString -> Word16
 keyTagFromBS (BS.BS ftpr (I# len#)) =
     fromIntegral $ unsafeDupablePerformIO $ withForeignPtr ftpr $ return . go 0 0
@@ -72,6 +117,7 @@ keyTagFromBS (BS.BS ftpr (I# len#)) =
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+-- | Check if the Key Tag matches the calculated Key Tag of DNSKEY.
 checkKeyTag :: RD_DNSKEY -> Word16 -> Either String ()
 checkKeyTag dnskey@RD_DNSKEY{..} tag = do
     let keyTag_ = keyTag dnskey
@@ -218,11 +264,11 @@ verifyRRSIGwith RRSIGImpl{..} now RD_DNSKEY{..} rrsig@RD_RRSIG{..} rrset_name rr
     unless good $ Left "verifyRRSIGwith: rejected on verification"
 {- FOURMOLU_ENABLE -}
 
-{- RFC 4034 Section 6.3: Canonical RR Ordering within an RRset
-   https://datatracker.ietf.org/doc/html/rfc4034#section-6.3
-   "RRs with the same owner name,
-    class, and type are sorted by treating the RDATA portion of the
-    canonical form of each RR as a left-justified unsigned octet sequence" -}
+-- | RFC 4034 Section 6.3: Canonical RR Ordering within an RRset
+--   https://datatracker.ietf.org/doc/html/rfc4034#section-6.3
+--   "RRs with the same owner name,
+--    class, and type are sorted by treating the RDATA portion of the
+--    canonical form of each RR as a left-justified unsigned octet sequence"
 sortRDataCanonical :: [ResourceRecord] -> [((Int, Builder ()), ResourceRecord)]
 sortRDataCanonical rrs =
     {- sortOn "RDATA portion of the canonical form" without RDATA length -}
@@ -236,15 +282,22 @@ sortRDataCanonical rrs =
         ]
 
 {- FOURMOLU_DISABLE -}
-{- assume sorted input. generalized RRset with CPS -}
+-- assume sorted input. generalized RRset with CPS
+-- | Checking the sorted RRSet and passing the sorted RRset to the function.
 canonicalRRsetSorted'
     :: [ResourceRecord]
-    -> (String -> a) -> (Domain -> TYPE -> CLASS -> TTL -> [RData] -> a) -> a
+    -- ^ Sorted RRset
+    -> (String -> a)
+    -- ^ A function to handle an error
+    -> (Domain -> TYPE -> CLASS -> TTL -> [RData] -> a)
+    -- ^ A function to handle sorted RRset.
+    -> a
 canonicalRRsetSorted' rrs leftK rightK = either leftK id $ do
     (hd, xs) <- maybe (Left "canonicalRRsetSorted: require non-empty RRset") Right $ uncons rrs
-    let eqhd x = ((==) `on` rrname)  hd x  &&
-                 ((==) `on` rrtype)  hd x  &&
-                 ((==) `on` rrclass) hd x
+    let eqhd x =
+            ((==) `on` rrname) hd x
+                && ((==) `on` rrtype) hd x
+                && ((==) `on` rrclass) hd x
     unless (all eqhd xs) $
         Left "canonicalRRsetSorted: requires same ( rrname, rrtype, rrclass )"
     let rds = [rdata rr | rr <- rrs]
@@ -253,26 +306,35 @@ canonicalRRsetSorted' rrs leftK rightK = either leftK id $ do
     return $ rightK (rrname hd) (rrtype hd) (rrclass hd) (rrttl hd) rds
 {- FOURMOLU_ENABLE -}
 
+-- | Checking the sorted RRSet and returning a continuation.
 canonicalRRsetSorted
-    :: [ResourceRecord]
+    :: [ResourceRecord] -- Sorted RRSet
     -> Either String ((Domain -> TYPE -> CLASS -> TTL -> [RData] -> a) -> a)
 canonicalRRsetSorted rrs = canonicalRRsetSorted' rrs Left (\n ty cls ttl rd -> Right $ \h -> h n ty cls ttl rd)
 
 {- FOURMOLU_DISABLE -}
 {- generalized RRset with CPS -}
+-- | Sorting RRSet and passing it to the function.
 canonicalRRset
     :: [ResourceRecord]
+    -- ^ Non-sorted RRset
     -> (String -> a)
-    -> ((Domain -> TYPE -> CLASS -> TTL -> [RData] -> a) -> a)
+    -- ^ A function to handle an error
+    -> (Domain -> TYPE -> CLASS -> TTL -> [RData] -> a)
+    -- ^ A function to handle sorted RRset. Sorted RRset is given.
+    -> a
 canonicalRRset rrs = canonicalRRsetSorted' [rr | (_, rr) <- sortRDataCanonical rrs]
-
 {- FOURMOLU_ENABLE -}
 
+-- | Verifying the signature (RRSIG) of canonicalized RRSet using the
+-- public key (DNSKEY).
 verifyRRSIGsorted
     :: DNSTime
+    -- ^ The current time
     -> RD_DNSKEY
     -> RD_RRSIG
     -> Domain
+    -- ^ RRSet name
     -> TYPE
     -> CLASS
     -> [(Int, Builder ())]
@@ -285,11 +347,16 @@ verifyRRSIGsorted now dnskey rrsig name typ cls sortedRDatas =
     verify impl = verifyRRSIGwith impl now dnskey rrsig name typ cls sortedRDatas
 
 {- FOURMOLU_DISABLE -}
+-- | Verifying the signature (RRSIG) of RRSet using the public key (DNSKEY).
+--   RRSet is canonicalized automatically.
 verifyRRSIG
     :: DNSTime
+    -- ^ The current time
     -> Domain
+    -- ^ Zone name
     -> RD_DNSKEY
     -> Domain
+    -- ^ RRset name
     -> RD_RRSIG
     -> [ResourceRecord]
     -> Either String ()
@@ -297,9 +364,9 @@ verifyRRSIG now zone dnskey owner rrsig@RD_RRSIG{..} rrs = do
     unless (rrsig_zone == zone) $
         Left $
             "verifyRRSIG: RRSIG zone mismatch: "
-         ++ show rrsig_zone
-         ++ " =/= "
-         ++ show zone
+                ++ show rrsig_zone
+                ++ " =/= "
+                ++ show zone
     {- The RRset MUST be sorted in canonical order.
        https://datatracker.ietf.org/doc/html/rfc4034#section-3.1.8.1 -}
     let (sortedRDatas, sortedRRs) = unzip $ sortRDataCanonical rrs
@@ -308,9 +375,9 @@ verifyRRSIG now zone dnskey owner rrsig@RD_RRSIG{..} rrs = do
             unless (rrset_dom == owner) $
                 Left $
                     "verifyRRSIG: RRset domain mismatch with owner-domain: "
-                 ++ show rrset_dom
-                 ++ " =/= "
-                 ++ show owner
+                        ++ show rrset_dom
+                        ++ " =/= "
+                        ++ show owner
             verifyRRSIGsorted now dnskey rrsig rrset_dom typ cls sortedRDatas
 
 {- FOURMOLU_ENABLE -}
@@ -348,6 +415,8 @@ dsDicts =
         , (SHA384, DS.sha384)
         ]
 
+-- | Calculating a digest from the DNSKEY and checking if it matches
+-- the DS.
 verifyDS :: Domain -> RD_DNSKEY -> RD_DS -> Either String ()
 verifyDS owner dnskey ds =
     maybe (Left $ "verifyDS: unsupported algorithm: " ++ show alg) verify $
@@ -379,9 +448,9 @@ hashNSEC3with :: NSEC3Impl -> RD_NSEC3 -> Domain -> Opaque
 hashNSEC3with impl RD_NSEC3{..} domain =
     hashNSEC3with' impl nsec3_iterations nsec3_salt domain
 
-{- `nsec3param_flags` should be checked outside.
-   https://datatracker.ietf.org/doc/html/rfc5155#section-4.1.2
-   "NSEC3PARAM RRs with a Flags field value other than zero MUST be ignored." -}
+-- | `nsec3param_flags` should be checked outside.
+--   https://datatracker.ietf.org/doc/html/rfc5155#section-4.1.2
+--   "NSEC3PARAM RRs with a Flags field value other than zero MUST be ignored."
 hashNSEC3PARAMwith :: NSEC3Impl -> RD_NSEC3PARAM -> Domain -> Opaque
 hashNSEC3PARAMwith impl RD_NSEC3PARAM{..} domain =
     hashNSEC3with' impl nsec3param_iterations nsec3param_salt domain
