@@ -27,7 +27,7 @@ import DNS.Iterative.Query.Helpers
 import DNS.Iterative.Query.Local (takeLocalResult)
 import DNS.Iterative.Query.Resolve
 import DNS.Iterative.Query.Types
-import DNS.Iterative.Query.Utils (logLn, pprMessage)
+import DNS.Iterative.Query.Utils (clogLinesIO, logLn, pprMessage)
 
 -----
 
@@ -72,7 +72,7 @@ foldResponse
     :: String -> (String -> a) -> (VResult -> DNSMessage -> a)
     -> Env -> WorkerStatOP -> DNSMessage -> DNSQuery a -> IO a
 foldResponse name deny reply env@Env{..} wstat reqM@DNSMessage{question=q0@(Question bn typ cls),identifier=ident,flags=reqF,ednsHeader=reqEH} qaction =
-    handleRequest env prefix reqM (pure . deny) ereply  result
+    handleRequest env wstat prefix reqM (pure . deny) ereply  result
   where
     ereply rc = pure $ reply VR_Insecure $ replyDNSMessage reqEH nsid_ ident q0 rc resFlags [] []
     result q = foldResponse' name deny reply env wstat ident q reqF reqEH qaction
@@ -89,7 +89,7 @@ foldResponse' name deny reply env@Env{..} wstat ident q@(Question bn typ cls) re
     query = either eresult pure =<< runDNSQuery (logQueryErrors prefix qaction) env wstat qparam
     eresult = queryErrorReply reqEH nsid_ ident q (pure . deny) ereplace
     {- replace response-code only when query, not replace for request-error or local-result -}
-    ereplace vr resM = replaceRCODE env "query-error" (rcode resM) <&> \rc1 -> reply vr resM{rcode = rc1}
+    ereplace vr resM = replaceRCODE env wstat "query-error" (rcode resM) <&> \rc1 -> reply vr resM{rcode = rc1}
     local (rc, vans, vauth) = withResolvedRRs (requestDO_ qparam) vans vauth h
       where h vres fs ans = reply vres . replyDNSMessage reqEH nsid_ ident q rc fs ans
     qparam = queryParamH q reqF reqEH
@@ -126,21 +126,21 @@ logQueryErrors prefix q = do
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-handleRequest :: Env -> String -> DNSMessage -> (String -> IO a) -> (RCODE -> IO a) -> (Question -> IO a) -> IO a
-handleRequest env prefix DNSMessage{flags = reqF,ednsHeader=reqEH,question=q} _deny ereply h
+handleRequest :: Env -> WorkerStatOP -> String -> DNSMessage -> (String -> IO a) -> (RCODE -> IO a) -> (Question -> IO a) -> IO a
+handleRequest env wstat prefix DNSMessage{flags = reqF,ednsHeader=reqEH,question=q} _deny ereply h
     | reqEH == DNS.InvalidEDNS   = ereply' DNS.ServFail   "InvalidEDNS"
     | not (DNS.recDesired reqF)  = ereply' DNS.Refused    "RD flag required"
     | otherwise                  = h q
   where
     ereply' rc s = elog s >> ereply rc
-    elog s = logLines_ env Log.INFO Nothing ["request error: " ++ prefix ++ s]
+    elog s = clogLinesIO env wstat Log.INFO Nothing ["request error: " ++ prefix ++ s]
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-replaceRCODE :: Env -> String -> RCODE -> IO RCODE
-replaceRCODE env tag rc0 = unless (rc0 == rc1) putLog $> rc1
+replaceRCODE :: Env -> WorkerStatOP -> String -> RCODE -> IO RCODE
+replaceRCODE env wstat tag rc0 = unless (rc0 == rc1) putLog $> rc1
   where
-    putLog = logLines_ env Log.INFO Nothing [tag ++ ": replace response-code for query: " ++ show rc0 ++ " -> " ++ show rc1]
+    putLog = clogLinesIO env wstat Log.INFO Nothing [tag ++ ": replace response-code for query: " ++ show rc0 ++ " -> " ++ show rc1]
     rc1 = case rc0 of
         DNS.Refused  ->  DNS.ServFail
         x            ->  x
