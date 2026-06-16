@@ -134,6 +134,7 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
             -- Input ByteString -> Input DNSMessage
             let qs = question queryMsg
                 blockingEnqueue_ tag = blockingEnqueue wstat $ "cacher: " ++ tag
+            contextSetQuery wstat inputDoX qs
             setWorkerStat (WRun qs)
             let inp = inpBS{inputQuery = queryMsg}
             cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env queryMsg
@@ -159,6 +160,7 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
                     logicDenied env inp
                     vpDelete inputPendingOp
             setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
+            contextClear wstat
 
 ----------------------------------------------------------------
 
@@ -169,6 +171,7 @@ workerLogic env wstat fromCacher = handledLoop env "worker" $ do
     inp@Input{..} <- blockingRequest wstat fromCacher
     let qs = question inputQuery
         blockingEnqueue_ tag = blockingEnqueue wstat $ "worker: " ++ tag
+    contextSetQuery wstat inputDoX qs
     setWorkerStat (WRun qs)
     ex <- foldResponseIterative Left (curry Right) env inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
@@ -184,6 +187,7 @@ workerLogic env wstat fromCacher = handledLoop env "worker" $ do
             blockingResponse wstat $ inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
     setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
+    contextClear wstat
 
 ----------------------------------------------------------------
 
