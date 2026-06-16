@@ -151,7 +151,7 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
                     setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
                     blockingEnqueue_ "dnstap - hit"     $ record env inp replyMsg bs
                     setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
-                    inputToSender $ Output bs inputPendingOp inputPeerInfo
+                    blockingResponse wstat $ inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
                     setWorkerStat $ WWaitEnqueue qs inputDoX (EnCCase "CResultDenied")
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
@@ -181,7 +181,7 @@ workerLogic env wstat fromCacher = handledLoop env "worker" $ do
             setWorkerStat $ WWaitEnqueue qs inputDoX EnTap
             blockingEnqueue_ "dnstap"     $ record env inp replyMsg bs
             setWorkerStat $ WWaitEnqueue qs inputDoX EnSend
-            inputToSender $ Output bs inputPendingOp inputPeerInfo
+            blockingResponse wstat $ inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
     setWorkerStat $ WWaitEnqueue qs inputDoX EnEnd
 
