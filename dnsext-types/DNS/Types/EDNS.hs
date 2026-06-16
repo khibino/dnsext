@@ -125,6 +125,7 @@ pattern ClientSubnet = OptCode 8
 pattern Padding :: OptCode
 pattern Padding = OptCode 12
 
+-- | Extended DNS Errors (RFC 8914)
 pattern EDNSError :: OptCode
 pattern EDNSError = OptCode 15
 
@@ -399,9 +400,39 @@ data OD_EDNSError = OD_EDNSError Word16 Opaque deriving (Eq)
 instance Show OD_EDNSError where
     show (OD_EDNSError infoc txt) =
         "EDNSError{" ++
-        " info-code=" ++ show infoc ++
+        " info-code=" ++ showInfoCode infoc ++
         " extra-text=" ++ show (Opaque.toString txt) ++ " [" ++ show txt ++ "]" ++
         " }"
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+showInfoCode :: Word16 -> String
+showInfoCode  0 = "Other Error"
+showInfoCode  1 = "Unsupported DNSKEY Algorithm"
+showInfoCode  2 = "Unsupported DS Digest Type"
+showInfoCode  3 = "Stale Answer"
+showInfoCode  4 = "Forged Answer"
+showInfoCode  5 = "DNSSEC Indeterminate"
+showInfoCode  6 = "DNSSEC Bogus"
+showInfoCode  7 = "Signature Expired"
+showInfoCode  8 = "Signature Not Yet Valid"
+showInfoCode  9 = "DNSKEY Missing"
+showInfoCode 10 = "RRSIGs Missing"
+showInfoCode 11 = "No Zone Key Bit Set"
+showInfoCode 12 = "NSEC Missing"
+showInfoCode 13 = "Cached Error"
+showInfoCode 14 = "Not Ready"
+showInfoCode 15 = "Blocked"
+showInfoCode 16 = "Censored"
+showInfoCode 17 = "Filtered"
+showInfoCode 18 = "Prohibited"
+showInfoCode 19 = "Stale NXDomain Answer"
+showInfoCode 20 = "Not Authoritative"
+showInfoCode 21 = "Not Supported"
+showInfoCode 22 = "No Reachable Authority"
+showInfoCode 23 = "Network Error"
+showInfoCode 24 = "Invalid Data"
+showInfoCode c = show c
 {- FOURMOLU_ENABLE -}
 
 instance OptData OD_EDNSError where
