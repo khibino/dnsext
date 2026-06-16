@@ -11,6 +11,7 @@ import Data.Ord (comparing)
 -- dnsext-* packages
 import DNS.Types (Question (..))
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
+import qualified DNS.ThreadStats as TStat
 
 -- this package
 import DNS.Iterative.Types (DoX (..))
@@ -271,17 +272,22 @@ contextSetQuery = setQuery
 contextClear :: WorkerStatOP -> IO ()
 contextClear = setRequest
 
+eventLogWS :: WorkerStatOP -> IO ()
+eventLogWS wstat = do
+    wspp <- pprBlockingStat <$> getBlockingStat wstat
+    TStat.eventLog $ "iter.st " ++ wspp
+
 bracketBlocking :: WorkerStatOP -> BlockingCause -> IO a -> IO a
 bracketBlocking wstat cause = bracket_ (setBlocking wstat cause) (setUnblocked wstat)
 
 blockingRequest :: WorkerStatOP -> IO a -> IO a
-blockingRequest wstat = bracketBlocking wstat CauseRequest
+blockingRequest wstat x = bracketBlocking wstat CauseRequest (eventLogWS wstat >> x)
 
 blockingResponse :: WorkerStatOP -> IO a -> IO a
-blockingResponse wstat = bracketBlocking wstat CauseResponse
+blockingResponse wstat x = bracketBlocking wstat CauseResponse (eventLogWS wstat >> x)
 
 blockingEnqueue :: WorkerStatOP -> String -> IO a -> IO a
-blockingEnqueue wstat note = bracketBlocking wstat (CauseEnqueue note)
+blockingEnqueue wstat note x = bracketBlocking wstat (CauseEnqueue note) (eventLogWS wstat >> x)
 
 blockingLog :: WorkerStatOP -> String -> IO a -> IO a
 blockingLog wstat note = bracketBlocking wstat (CauseLog note)
