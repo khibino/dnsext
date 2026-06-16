@@ -27,7 +27,6 @@ module DNS.Iterative.Server (
     tlsServers,
 
     -- * WorkerStat
-    WorkerStat (..),
     WorkerStatOP (..),
     pprWorkerStats,
     pprWorkerStat,
