@@ -67,7 +67,7 @@ import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats
 import DNS.Iterative.Types
-import DNS.Iterative.WorkerStats hiding (setWorkerStat)
+import DNS.Iterative.WorkerStats
 
 ----------------------------------------------------------------
 
