@@ -465,7 +465,7 @@ bitmapSize x = (x `unsafeShiftR` 3) + 1
 -- >>> groupType [A,AAAA,TYPE 1000,TYPE 1001]
 -- [(0,4,[1,28]),(3,30,[232,233])]
 groupType :: [TYPE] -> [(Word8, Int, [Int])]
-groupType ts = go id ts
+groupType ts = go id $ sort ts
   where
     divide :: TYPE -> (Word8, Int)
     divide t =
