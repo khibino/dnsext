@@ -20,6 +20,7 @@ spec = describe "authoritative algorithm" $ do
         let query = defaultQuery{question = Question "exist.example.jp." A IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 1
         answer ans `shouldSatisfy` include "exist.example.jp." A
         length (authority ans) `shouldBe` 0
         length (additional ans) `shouldBe` 0
@@ -29,6 +30,7 @@ spec = describe "authoritative algorithm" $ do
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 1
         authority ans `shouldSatisfy` include "example.jp." SOA
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
@@ -114,6 +116,7 @@ spec = describe "authoritative algorithm" $ do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 1
         answer ans `shouldSatisfy` include "exist-cname.example.jp." CNAME
+        length (authority ans) `shouldBe` 1
         authority ans `shouldSatisfy` include "example.jp." SOA
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
@@ -123,6 +126,7 @@ spec = describe "authoritative algorithm" $ do
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 1
         answer ans `shouldSatisfy` include "fault-cname.example.jp." CNAME
+        length (authority ans) `shouldBe` 1
         authority ans `shouldSatisfy` include "example.jp." SOA
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
@@ -151,6 +155,7 @@ spec = describe "authoritative algorithm" $ do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 1
         authority ans `shouldSatisfy` include "example.jp." SOA
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
@@ -159,6 +164,7 @@ spec = describe "authoritative algorithm" $ do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 1
         authority ans `shouldSatisfy` include "example.jp." SOA
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
