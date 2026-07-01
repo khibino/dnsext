@@ -39,6 +39,7 @@ doit db = do
         let query = dnssecQuery{question = Question "exist.example.jp." A IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 2
         answer ans `shouldSatisfy` include "exist.example.jp." A
         answer ans `shouldSatisfy` includeRRSIG "exist.example.jp." A
         length (authority ans) `shouldBe` 0
@@ -49,6 +50,7 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 4
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         authority ans `shouldSatisfy` include "in2.example.jp." NSEC
@@ -77,6 +79,21 @@ doit db = do
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
         flags ans `shouldSatisfy` not . authAnswer
     it "can answer referrals (2)" $ do
+        let query = dnssecQuery{question = Question "in2.example.jp." NS IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 5
+        authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
+        authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
+        authority ans `shouldSatisfy` includeNS "unrelated2.com."
+        authority ans `shouldSatisfy` include "in2.example.jp." DS
+        authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." DS
+        length (additional ans) `shouldBe` 2
+        additional ans `shouldSatisfy` include "ns.in2.example.jp." A
+        additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
+        flags ans `shouldSatisfy` not . authAnswer
+    it "can answer referrals (3)" $ do
         let query = dnssecQuery{question = Question "foo.in.example.jp." A IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
@@ -88,6 +105,21 @@ doit db = do
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
+        flags ans `shouldSatisfy` not . authAnswer
+    it "can answer referrals (4)" $ do
+        let query = dnssecQuery{question = Question "foo.in2.example.jp." NS IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 5
+        authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
+        authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
+        authority ans `shouldSatisfy` includeNS "unrelated2.com."
+        authority ans `shouldSatisfy` include "in2.example.jp." DS
+        authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." DS
+        length (additional ans) `shouldBe` 2
+        additional ans `shouldSatisfy` include "ns.in2.example.jp." A
+        additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
         flags ans `shouldSatisfy` not . authAnswer
     it "can answer referrals via NS" $ do
         let query = dnssecQuery{question = Question "ns.in.example.jp." NS IN}
@@ -143,6 +175,7 @@ doit db = do
         length (answer ans) `shouldBe` 2
         answer ans `shouldSatisfy` include "exist-cname.example.jp." CNAME
         answer ans `shouldSatisfy` includeRRSIG "exist-cname.example.jp." CNAME
+        length (authority ans) `shouldBe` 2
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         length (additional ans) `shouldBe` 0
@@ -154,6 +187,7 @@ doit db = do
         length (answer ans) `shouldBe` 2
         answer ans `shouldSatisfy` include "fault-cname.example.jp." CNAME
         answer ans `shouldSatisfy` includeRRSIG "fault-cname.example.jp." CNAME
+        length (authority ans) `shouldBe` 2
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         length (additional ans) `shouldBe` 0
@@ -187,6 +221,7 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 2
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         length (additional ans) `shouldBe` 0
@@ -196,6 +231,7 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 2
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         length (additional ans) `shouldBe` 0
@@ -205,6 +241,7 @@ doit db = do
         let query = dnssecQuery{question = Question "exist.example.jp." NSEC IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 2
         answer ans `shouldSatisfy` include "exist.example.jp." NSEC
         answer ans `shouldSatisfy` includeRRSIG "exist.example.jp." NSEC
         length (authority ans) `shouldBe` 0
@@ -215,6 +252,7 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 4
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         authority ans `shouldSatisfy` include "in2.example.jp." NSEC
@@ -229,6 +267,7 @@ doit db = do
         length (answer ans) `shouldBe` 0
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
+        length (authority ans) `shouldBe` 0
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
 
