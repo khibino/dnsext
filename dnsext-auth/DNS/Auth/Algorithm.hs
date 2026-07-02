@@ -61,7 +61,7 @@ getAnswer db query
     -- RFC 8906 Sec3.1.3.1. Recursive Queries
     -- A non-recursive server is supposed to respond to recursive
     -- queries as if the Recursion Desired (RD) bit is not set.
-    | otherwise = processPositive db q dnssecOK reply
+    | otherwise = process db q dnssecOK reply
   where
     q = question query
     reply = fromQuery query
@@ -80,10 +80,14 @@ unwrap True RRSetSig{..} = rrsetsigRRs ++ maybe [] pure rrsetsigSig
 -- In-domain NS        not     has
 -- In-domain DS        has     has
 -- Empty non-terminal  not     not
-processPositive :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
-processPositive db q@Question{..} dnssecOK reply
+process :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
+process db@DB{..} q@Question{..} dnssecOK reply
     | qtype == NSEC = processNSEC db q dnssecOK reply
-processPositive db@DB{..} q@Question{..} dnssecOK reply = case lookupD qname dbAnswer of
+    | qtype == DS = processPositive db dbAuthority q dnssecOK reply
+    | otherwise = processPositive db dbAnswer q dnssecOK reply
+
+processPositive :: DB -> ODB -> Question -> Bool -> DNSMessage -> DNSMessage
+processPositive db odb q@Question{..} dnssecOK reply = case lookupD qname odb of
     Nothing -> findAuthority db q dnssecOK reply
     Just idb
         -- RFC 8482 Sec 4.1
