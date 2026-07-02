@@ -13,6 +13,7 @@ import qualified Data.Map as M
 import Data.Maybe (catMaybes)
 
 import DNS.Auth.DB
+import DNS.SEC
 import DNS.Types
 
 fromQuery :: DNSMessage -> DNSMessage
@@ -80,6 +81,8 @@ unwrap True RRSetSig{..} = rrsetsigRRs ++ maybe [] pure rrsetsigSig
 -- In-domain DS        has     has
 -- Empty non-terminal  not     not
 processPositive :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
+processPositive db q@Question{..} dnssecOK reply
+    | qtype == NSEC = processNSEC db q dnssecOK reply
 processPositive db@DB{..} q@Question{..} dnssecOK reply = case lookupD qname dbAnswer of
     Nothing -> findAuthority db q dnssecOK reply
     Just idb
@@ -88,20 +91,14 @@ processPositive db@DB{..} q@Question{..} dnssecOK reply = case lookupD qname dbA
         | qtype == ANY ->
             let ans = headIDB dnssecOK idb
              in if null ans
-                    then makeNegativeReply db reply dnssecOK [] [] NoErr
+                    then makeNegativeReply db qname reply dnssecOK [] [] NoErr
                     else makePositiveReply reply ans [] [] NoErr True
         | otherwise -> case lookupT CNAME idb of
             Nothing ->
                 let ans = maybe [] (unwrap dnssecOK) $ lookupT qtype idb
                     add = if qtype == NS then findAdditional db dnssecOK ans else []
-                 in if ans == []
-                        then
-                            if null (idbAll idb)
-                                then makeNegativeReply db reply dnssecOK [] add NoErr
-                                -- In-domain NS is included due to
-                                -- NSEC and DS, sigh. In this case, idb has
-                                -- entries for DS and NSEC.
-                                else findAuthority db q dnssecOK reply
+                 in if null ans
+                        then makeNegativeReply db qname reply dnssecOK [] add NoErr
                         else makePositiveReply reply ans [] add NoErr True
             Just ent -> case rrsetsigRRs ent of
                 [c] -> case fromRData $ rdata c of
@@ -112,6 +109,20 @@ processPositive db@DB{..} q@Question{..} dnssecOK reply = case lookupD qname dbA
                                 Just sig -> [c, sig]
                          in processCNAME db q dnssecOK reply cc $ cname_domain cname
                 _ -> makeErrorReply reply ServFail
+
+processNSEC :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
+processNSEC db@DB{..} Question{..} dnssecOK reply = case M.lookup key dbNsecMap of
+    Nothing -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
+    Just nsec
+        | rrsetsigName nsec == qname ->
+            let ans = getRRs dnssecOK nsec
+             in makePositiveReply reply ans [] [] NoErr True
+        | otherwise -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
+  where
+    key = Exact $ qname
+    rc name = case lookupD name dbAnswer of
+        Nothing -> NXDomain
+        _ -> NoErr
 
 -- RFC 1912 Sec 2.4 CNAME records
 -- This function does not follow CNAME of CNAME.
@@ -126,7 +137,7 @@ processCNAME DB{..} Question{..} dnssecOK reply cc cname
 processCNAME db@DB{..} Question{..} dnssecOK reply cc cname
     | cname `isSubDomainOf` dbZone = case lookupD cname dbAnswer of
         -- RFC 2308 Sec 2.1 Name Error
-        Nothing -> makeNegativeReply db reply dnssecOK cc [] NXDomain
+        Nothing -> makeNegativeReply db cname reply dnssecOK cc [] NXDomain
         Just idb ->
             let ans = maybe [] (unwrap dnssecOK) $ lookupT qtype idb
                 -- RFC2308 Sec 2.2 No Data
@@ -145,9 +156,9 @@ findAuthority
 findAuthority db@DB{..} Question{..} dnssecOK reply = loop qname
   where
     loop dom
-        | dom == dbZone = makeNegativeReply db reply dnssecOK [] [] NXDomain
+        | dom == dbZone = makeNegativeReply db qname reply dnssecOK [] [] NXDomain
         | otherwise = case unconsDomain dom of
-            Nothing -> makeNegativeReply db reply dnssecOK [] [] NXDomain
+            Nothing -> makeNegativeReply db qname reply dnssecOK [] [] NXDomain
             Just (_, dom') -> case lookupD dom dbAuthority of
                 Nothing -> loop dom'
                 Just idb
@@ -185,8 +196,8 @@ makePositiveReply reply ans auth add code aa =
         , flags = (flags reply){authAnswer = aa}
         }
 
-makeNegativeReply :: DB -> DNSMessage -> Bool -> Answers -> AdditionalRecords -> RCODE -> DNSMessage
-makeNegativeReply db reply dnssecOK ans add code =
+makeNegativeReply :: DB -> Domain -> DNSMessage -> Bool -> Answers -> AdditionalRecords -> RCODE -> DNSMessage
+makeNegativeReply db dom reply dnssecOK ans add code =
     reply
         { answer = ans -- CNAME sometime
         , authority = auth ++ nsec
@@ -195,7 +206,7 @@ makeNegativeReply db reply dnssecOK ans add code =
         , flags = (flags reply){authAnswer = True}
         }
   where
-    key = Exact $ qname $ question reply
+    key = Exact dom
     auth = dbSOArr dnssecOK db
     nsec
         | dnssecOK = case M.lookup key $ dbNsecMap db of

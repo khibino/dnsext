@@ -9,13 +9,20 @@ import DNS.Auth.DB
 import DNS.SEC
 import DNS.Types
 
+import Data.Maybe
+
 spec :: Spec
 spec = describe "authoritative algorithm" $ do
+    let zone = "example.jp."
     runIO $ runInitIO $ addResourceDataForDNSSEC
-    edb <- runIO $ loadDB "example.jp." "test/example.zone"
-    let db = case edb of
-            Nothing -> error "DB"
-            Just db' -> db'
+    edb <- runIO $ loadDB zone "test/example.zone"
+    let db = fromJust edb
+    doit db
+    db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)
+    doit db2
+
+doit :: DB -> Spec
+doit db = do
     it "can answer an existing domain" $ do
         let query = defaultQuery{question = Question "exist.example.jp." A IN}
             ans = getAnswer db query
@@ -56,6 +63,19 @@ spec = describe "authoritative algorithm" $ do
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
         flags ans `shouldSatisfy` not . authAnswer
     it "can answer referrals (2)" $ do
+        let query = defaultQuery{question = Question "in2.example.jp." NS IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 3
+        authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
+        authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
+        authority ans `shouldSatisfy` includeNS "unrelated2.com."
+        length (additional ans) `shouldBe` 2
+        additional ans `shouldSatisfy` include "ns.in2.example.jp." A
+        additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
+        flags ans `shouldSatisfy` not . authAnswer
+    it "can answer referrals (3)" $ do
         let query = defaultQuery{question = Question "foo.in.example.jp." A IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
@@ -67,6 +87,19 @@ spec = describe "authoritative algorithm" $ do
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
+        flags ans `shouldSatisfy` not . authAnswer
+    it "can answer referrals (4)" $ do
+        let query = defaultQuery{question = Question "foo.in2.example.jp." A IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 3
+        authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
+        authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
+        authority ans `shouldSatisfy` includeNS "unrelated2.com."
+        length (additional ans) `shouldBe` 2
+        additional ans `shouldSatisfy` include "ns.in2.example.jp." A
+        additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
         flags ans `shouldSatisfy` not . authAnswer
     it "can answer referrals via NS" $ do
         let query = defaultQuery{question = Question "ns.in.example.jp." NS IN}
@@ -161,6 +194,33 @@ spec = describe "authoritative algorithm" $ do
         flags ans `shouldSatisfy` authAnswer
     it "can handle Empty Non-Terminal node nested" $ do
         let query = defaultQuery{question = Question "ent2.ent1.example.jp." A IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 1
+        authority ans `shouldSatisfy` include "example.jp." SOA
+        length (additional ans) `shouldBe` 0
+        flags ans `shouldSatisfy` authAnswer
+    it "can answer an existing domain for NSEC" $ do
+        let query = defaultQuery{question = Question "exist.example.jp." NSEC IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 1
+        authority ans `shouldSatisfy` include "example.jp." SOA
+        length (additional ans) `shouldBe` 0
+        flags ans `shouldSatisfy` authAnswer
+    it "can answer a non-existing domain for NSEC" $ do
+        let query = defaultQuery{question = Question "nonexist.example.jp." NSEC IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NXDomain
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 1
+        authority ans `shouldSatisfy` include "example.jp." SOA
+        length (additional ans) `shouldBe` 0
+        flags ans `shouldSatisfy` authAnswer
+    it "can handle Empty Non-Terminal node for NSEC x" $ do
+        let query = defaultQuery{question = Question "ent1.example.jp." NSEC IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0

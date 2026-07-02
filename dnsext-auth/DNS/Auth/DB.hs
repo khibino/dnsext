@@ -128,7 +128,9 @@ emptyDB =
 ----------------------------------------------------------------
 
 loadDB :: Domain -> FilePath -> IO (Maybe DB)
-loadDB zone file = loadZoneFile zone file >>= makeDBforSecondary zone
+loadDB zone file = do
+    rss <- loadZoneFile zone file
+    makeDBforSecondary zone $ filter (\r -> rrtype r /= DS) rss
 
 loadZoneFile :: Domain -> FilePath -> IO [ResourceRecord]
 loadZoneFile zone file = catMaybes . map fromResource <$> ZF.parseFile file zone
@@ -209,10 +211,7 @@ makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr =
         , dbNsecMap = makeNSECDB nsecSigned
         }
   where
-    -- "zonemaster" checks if NSEC RR of apex exits or not.
-    -- Originally, in-domain NS should not be included in dbAnswer.
-    -- NSEC breaks this invariant, sigh.
-    ans = setEmptyNonTerminals zone $ makeODB (ssSigned ++ isSigned ++ dsSigned ++ nsecSigned)
+    ans = setEmptyNonTerminals zone $ makeODB (ssSigned ++ isSigned)
     auth = setEmptyNonTerminals zone $ makeODB (unsign ns ++ dsSigned)
     asSigned = filter (\r -> rrsetsigType r == A || rrsetsigType r == AAAA) isSigned
     add = makeODB (asSigned ++ unsign gs)

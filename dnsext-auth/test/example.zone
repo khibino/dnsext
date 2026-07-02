@@ -1,5 +1,5 @@
 @  IN SOA ns.example.jp. hostmaster.example.jp. (
-                            870801 ;serial
+                            870802 ;serial
                             5 ;refresh every 30 minutes
                             300 ;retry every 5 minutes
                             604800 ;expire after a week
@@ -30,3 +30,4 @@ sibling2.example.jp.    3600 NS    ns.sibling2.example.jp.
                         3600 DS    29309 15 2 a98101579e3a5d5ef5e6e9a0d34160728f3313bd0133ac7b6f4d8bc0dbe8504c
 ns.sibling2.example.jp. 3600 A     192.0.2.12 ; glue
 unrelated2.com.         3600 A     192.0.2.20 ; glue
+b.example.jp.           3600 A     192.0.2.30

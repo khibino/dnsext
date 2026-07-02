@@ -33,6 +33,18 @@ spec = describe "authoritative algorithm" $ do
     db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)
     doit db2
 
+-- Canonical order:
+-- example.jp.
+-- b.example.jp.
+-- a.ent2.ent1.example.jp.
+-- exist.example.jp.
+-- exist-cname.example.jp.
+-- ext-cname.example.jp.
+-- fault-cname.example.jp.
+-- in2.example.jp.
+-- ns.example.jp.
+-- sibling2.example.jp.
+
 doit :: DB -> Spec
 doit db = do
     it "can answer an existing domain" $ do
@@ -187,9 +199,11 @@ doit db = do
         length (answer ans) `shouldBe` 2
         answer ans `shouldSatisfy` include "fault-cname.example.jp." CNAME
         answer ans `shouldSatisfy` includeRRSIG "fault-cname.example.jp." CNAME
-        length (authority ans) `shouldBe` 2
+        length (authority ans) `shouldBe` 4
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
+        authority ans `shouldSatisfy` include "in2.example.jp." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
     it "can handle unrelated CNAME" $ do
@@ -221,9 +235,11 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 2
+        length (authority ans) `shouldBe` 4
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
+        authority ans `shouldSatisfy` include "b.example.jp." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "b.example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
     it "can handle Empty Non-Terminal node nested" $ do
@@ -231,9 +247,11 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 2
+        length (authority ans) `shouldBe` 4
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
+        authority ans `shouldSatisfy` include "b.example.jp." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "b.example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
 
@@ -259,15 +277,16 @@ doit db = do
         authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
-
     it "can handle Empty Non-Terminal node for NSEC" $ do
         let query = dnssecQuery{question = Question "ent1.example.jp." NSEC IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 4
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
-        length (authority ans) `shouldBe` 0
+        authority ans `shouldSatisfy` include "b.example.jp." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "b.example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
 
