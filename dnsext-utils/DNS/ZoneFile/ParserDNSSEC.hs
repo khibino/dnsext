@@ -4,6 +4,7 @@ module DNS.ZoneFile.ParserDNSSEC where
 
 -- GHC packages
 import Control.Applicative
+import Data.ByteString (ByteString)
 import Data.ByteString.Short (fromShort)
 import Data.Word
 
@@ -46,12 +47,16 @@ rdataDNSKEY = do
     keyflags = toDNSKEYflags <$> readCString "dnskey.flags"
     proto = readCString "dnskey.proto"
     handleB64 = either (raise . ("Parser.rdataDNSKEY: fromBase64: " ++)) pure
-    part = fromShort . cs_cs <$> lstring
-    parts = (mconcat <$>) $ (:) <$> part <*> many (blank *> part)
     keyB64 = handleB64 . Opaque.fromBase64 =<< parts
 {- FOURMOLU_ENABLE -}
 
 -----
+
+part :: MonadParser Token s m => m ByteString
+part = fromShort . cs_cs <$> lstring
+
+parts :: MonadParser Token s m => m ByteString
+parts = (mconcat <$>) $ (:) <$> part <*> many (blank *> part)
 
 keytag :: MonadParser Token s m => m Word16
 keytag = readCString "keytag"
@@ -63,6 +68,6 @@ digestalg :: MonadParser Token s m => m DigestAlg
 digestalg = toDigestAlg <$> readCString "digestalg"
 
 digest :: MonadParser Token s m => m Opaque
-digest = handleB16 . Opaque.fromBase16 . fromShort =<< cstring
+digest = handleB16 . Opaque.fromBase16 =<< parts
   where
     handleB16 = either (raise . ("Parser.digest: fromBase16: " ++)) pure
