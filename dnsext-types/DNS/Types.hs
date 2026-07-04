@@ -91,6 +91,12 @@ module DNS.Types (
     rd_ptr,
     ptr_domain,
 
+    -- *** HINFO RR
+    RD_HINFO,
+    rd_hinfo,
+    hinfo_cpu,
+    hinfo_os,
+
     -- *** MX RR
     RD_MX,
     rd_mx,
@@ -194,6 +200,7 @@ module DNS.Types (
         SOA,
         NULL,
         PTR,
+        HINFO,
         MX,
         TXT,
         RP,

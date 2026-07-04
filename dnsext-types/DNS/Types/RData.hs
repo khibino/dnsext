@@ -25,6 +25,9 @@ import DNS.Types.Serial
 import DNS.Types.Type
 import DNS.Wire
 
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Short as Short
+
 ---------------------------------------------------------------
 
 class (Typeable a, Eq a, Show a) => ResourceData a where
@@ -242,6 +245,41 @@ instance Show RD_NULL where
 
 rd_null :: Opaque -> RData
 rd_null = toRData . RD_NULL
+
+----------------------------------------------------------------
+
+-- Host information (RFC1035)
+data RD_HINFO = RD_HINFO
+    { hinfo_cpu :: ShortByteString
+    , hinfo_os :: ShortByteString
+    }
+    deriving (Eq, Ord)
+
+instance ResourceData RD_HINFO where
+    resourceDataType _ = HINFO
+    resourceDataSize (RD_HINFO cpu os) = Short.length cpu + Short.length os + 2
+    putResourceData _ (RD_HINFO cpu os) = \wbuf _ -> do
+        putLenShortByteString wbuf cpu
+        putLenShortByteString wbuf os
+
+get_hinfo :: Int -> Parser RD_HINFO
+get_hinfo _ rbuf _ = RD_HINFO <$> getCharString <*> getCharString
+  where
+    getCharString = getInt8 rbuf >>= getNShortByteString rbuf
+
+instance Show RD_HINFO where
+    show (RD_HINFO cpu os) = toString cpu ++ " " ++ toString os
+      where
+        toString = C8.unpack . Short.fromShort
+
+-- | Smart constructor.
+rd_hinfo :: ShortByteString -> ShortByteString -> RData
+rd_hinfo cpu os =
+    toRData $
+        RD_HINFO
+            { hinfo_cpu = cpu
+            , hinfo_os = os
+            }
 
 ----------------------------------------------------------------
 

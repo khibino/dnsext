@@ -183,6 +183,9 @@ rdataAAAA = rd_aaaa <$> ipv6
 rdataPTR :: Parser RData
 rdataPTR = rd_ptr <$> domain
 
+rdataHINFO :: Parser RData
+rdataHINFO = rd_hinfo <$> cstring <*> (blank *> cstring)
+
 rdataTXT :: MonadParser Token s m => m RData
 rdataTXT = rd_txt_n . txts <$> ((:) <$> nbstring <*> many (blank *> nbstring))
   where
@@ -269,6 +272,7 @@ rrTyRData mk =
        , (MX     , rdataMX     )
        , (CNAME  , rdataCNAME  )
        , (SOA    , rdataSOA    )
+       , (HINFO  , rdataHINFO  )
        ] ++
        rdatasDNSSEC ++
        rdatasSVCB domain)

@@ -9,6 +9,7 @@ module DNS.Types.Type (
         SOA,
         NULL,
         PTR,
+        HINFO,
         MX,
         TXT,
         RP,
@@ -84,6 +85,10 @@ pattern NULL = TYPE 10
 pattern PTR :: TYPE
 pattern PTR = TYPE 12
 
+-- | Host information
+pattern HINFO :: TYPE
+pattern HINFO = TYPE 13
+
 -- | Mail exchange
 pattern MX :: TYPE
 pattern MX = TYPE 15
@@ -148,6 +153,7 @@ typeAndNames =
     , (SOA,   "SOA")
     , (NULL,  "NULL")
     , (PTR,   "PTR")
+    , (HINFO, "HINFO")
     , (MX,    "MX")
     , (TXT,   "TXT")
     , (RP,    "RP")
