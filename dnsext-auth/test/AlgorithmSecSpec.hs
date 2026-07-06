@@ -82,10 +82,12 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 3
+        length (authority ans) `shouldBe` 5
         authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
         authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
         authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` include "fault-cname.example.jp." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "fault-cname.example.jp." NSEC
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
