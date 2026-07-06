@@ -91,6 +91,7 @@ doit db = do
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
+        additional ans `shouldSatisfy` not . include "unrelated.com." A
         flags ans `shouldSatisfy` not . authAnswer
     it "can answer referrals (2)" $ do
         let query = dnssecQuery{question = Question "in2.example.jp." NS IN}
@@ -106,6 +107,7 @@ doit db = do
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in2.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
+        additional ans `shouldSatisfy` not . include "unrelated2.com." A
         flags ans `shouldSatisfy` not . authAnswer
     it "can answer referrals (3)" $ do
         let query = dnssecQuery{question = Question "foo.in.example.jp." A IN}
@@ -119,6 +121,7 @@ doit db = do
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
+        additional ans `shouldSatisfy` not . include "unrelated.com." A
         flags ans `shouldSatisfy` not . authAnswer
     it "can answer referrals (4)" $ do
         let query = dnssecQuery{question = Question "foo.in2.example.jp." NS IN}
@@ -134,6 +137,7 @@ doit db = do
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in2.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
+        additional ans `shouldSatisfy` not . include "unrelated2.com." A
         flags ans `shouldSatisfy` not . authAnswer
     it "can answer referrals (5)" $ do
         let query = dnssecQuery{question = Question "in2.example.jp." DS IN}
@@ -157,6 +161,7 @@ doit db = do
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
+        additional ans `shouldSatisfy` not . include "unrelated.com." A
         flags ans `shouldSatisfy` not . authAnswer
     it "returns AA for NS of this domain" $ do
         let query = dnssecQuery{question = Question "example.jp." NS IN}
