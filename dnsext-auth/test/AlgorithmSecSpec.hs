@@ -100,14 +100,12 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 7
+        length (authority ans) `shouldBe` 5
         authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
         authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
         authority ans `shouldSatisfy` includeNS "unrelated2.com."
         authority ans `shouldSatisfy` include "in2.example.jp." DS
         authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." DS
-        authority ans `shouldSatisfy` include "in2.example.jp." NSEC
-        authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." NSEC
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in2.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
@@ -134,14 +132,12 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 7
+        length (authority ans) `shouldBe` 5
         authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
         authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
         authority ans `shouldSatisfy` includeNS "unrelated2.com."
         authority ans `shouldSatisfy` include "in2.example.jp." DS
         authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." DS
-        authority ans `shouldSatisfy` include "in2.example.jp." NSEC
-        authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." NSEC
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in2.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A

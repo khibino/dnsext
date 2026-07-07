@@ -92,13 +92,11 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 6 -- fixme
+        length (authority ans) `shouldBe` 4
         authority ans `shouldSatisfy` includeNS "ns1.a.example."
         authority ans `shouldSatisfy` includeNS "ns2.a.example."
         authority ans `shouldSatisfy` include "a.example." DS
         authority ans `shouldSatisfy` includeRRSIG "a.example." DS
-        -- fixme
-        -- fixme
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns1.a.example." A
         additional ans `shouldSatisfy` include "ns2.a.example." A

@@ -8,7 +8,7 @@ module DNS.Auth.Algorithm (
     fromQuery,
 ) where
 
-import Data.List (nub, sort)
+import Data.List (nub, partition, sort)
 import qualified Data.Map as M
 import Data.Maybe (catMaybes)
 
@@ -170,14 +170,16 @@ findAuthority db@DB{..} Question{..} dnssecOK reply = loop qname
                     | null (allRRsofIDB False idb) ->
                         makePositiveReply reply [] (dbSOArr dnssecOK db) [] NoErr True -- fixme
                     | otherwise ->
-                        let allrrs' = allRRsofIDB dnssecOK idb
-                            allrrs
-                                | dnssecOK = case M.lookup (Exact qname) dbNsecMap of
-                                    Nothing -> allrrs'
-                                    Just n -> allrrs' ++ getRRs dnssecOK n
-                                | otherwise = filter (\r -> rrtype r == NS) allrrs'
-                            add = findAdditional db dnssecOK allrrs
-                         in makePositiveReply reply [] allrrs add NoErr False
+                        let allrrs = allRRsofIDB dnssecOK idb
+                            (nss, dss) = partition (\r -> rrtype r == NS) allrrs
+                            auth
+                                | dnssecOK && null dss = case M.lookup (Exact qname) dbNsecMap of
+                                    Nothing -> allrrs
+                                    Just n -> allrrs ++ getRRs dnssecOK n
+                                | dnssecOK = allrrs
+                                | otherwise = nss
+                            add = findAdditional db dnssecOK auth
+                         in makePositiveReply reply [] auth add NoErr False
 
 findAdditional
     :: DB
