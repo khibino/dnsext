@@ -172,7 +172,9 @@ findAuthority db@DB{..} Question{..} dnssecOK reply = loop qname
                     | otherwise ->
                         let allrrs' = allRRsofIDB dnssecOK idb
                             allrrs
-                                | dnssecOK = allrrs'
+                                | dnssecOK = case M.lookup (Exact qname) dbNsecMap of
+                                    Nothing -> allrrs'
+                                    Just n -> allrrs' ++ getRRs dnssecOK n
                                 | otherwise = filter (\r -> rrtype r == NS) allrrs'
                             add = findAdditional db dnssecOK allrrs
                          in makePositiveReply reply [] allrrs add NoErr False
