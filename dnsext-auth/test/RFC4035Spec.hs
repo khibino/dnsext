@@ -55,9 +55,16 @@ doit db = do
         answer ans `shouldSatisfy` include "x.w.example." MX
         answer ans `shouldSatisfy` includeRRSIG "x.w.example." MX
         length (authority ans) `shouldBe` 0
-        -- fixme
-        length (additional ans) `shouldBe` 0
-        -- fixme: xxx resolving MX
+        -- Our algorithm does not return NS in this case
+        --        authority ans `shouldSatisfy` include "ns1.example." NS
+        --        authority ans `shouldSatisfy` include "ns2.example." NS
+        --        authority ans `shouldSatisfy` includeRRSIG "ns1.example." NS
+        length (additional ans) `shouldBe` 4
+        additional ans `shouldSatisfy` include "xx.example." A
+        additional ans `shouldSatisfy` includeRRSIG "xx.example." A
+        additional ans `shouldSatisfy` include "xx.example." AAAA
+        additional ans `shouldSatisfy` includeRRSIG "xx.example." AAAA
+        -- See above.
         flags ans `shouldSatisfy` authAnswer
     it "passes the test in Appendix B.2" $ do
         let query = dnssecQuery{question = Question "ml.example." A IN}
@@ -69,9 +76,9 @@ doit db = do
         authority ans `shouldSatisfy` includeRRSIG "example." SOA
         authority ans `shouldSatisfy` include "b.example." NSEC
         authority ans `shouldSatisfy` includeRRSIG "b.example." NSEC
-        -- fixme
+        -- fixme: wildcard
         -- authority ans `shouldSatisfy` include "example." NSEC
-        -- fixme
+        -- fixme: wildcard
         -- authority ans `shouldSatisfy` includeRRSIG "example." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer

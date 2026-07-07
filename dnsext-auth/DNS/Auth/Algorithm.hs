@@ -100,7 +100,7 @@ processPositive db odb q@Question{..} dnssecOK reply = case lookupD qname odb of
         | otherwise -> case lookupT CNAME idb of
             Nothing ->
                 let ans = maybe [] (unwrap dnssecOK) $ lookupT qtype idb
-                    add = if qtype == NS then findAdditional db dnssecOK ans else []
+                    add = if qtype `elem` [NS, MX] then findAdditional db dnssecOK ans else []
                  in if null ans
                         then makeNegativeReply db qname reply dnssecOK [] add NoErr
                         else makePositiveReply reply ans [] add NoErr True
@@ -188,11 +188,12 @@ findAdditional
     -> [ResourceRecord]
 findAdditional DB{..} dnssecOK rs0 = add
   where
-    doms0 = nub $ sort $ catMaybes $ map extractNS rs0
+    doms0 = nub $ sort $ catMaybes (map extractNS rs0) ++ catMaybes (map extractMX rs0)
     doms = filter (\d -> d `isSubDomainOf` dbZone) doms0
     add = concat $ map lookupAdd doms
     lookupAdd dom = maybe [] (allRRsofIDB dnssecOK) $ lookupD dom dbAdditional
     extractNS rr = ns_domain <$> fromRData (rdata rr)
+    extractMX rr = mx_exchange <$> fromRData (rdata rr)
 
 makePositiveReply :: DNSMessage -> Answers -> AuthorityRecords -> AdditionalRecords -> RCODE -> Bool -> DNSMessage
 makePositiveReply reply ans auth add code aa =
