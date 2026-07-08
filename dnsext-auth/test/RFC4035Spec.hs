@@ -71,15 +71,13 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 4 -- fixme
+        length (authority ans) `shouldBe` 6
         authority ans `shouldSatisfy` include "example." SOA
         authority ans `shouldSatisfy` includeRRSIG "example." SOA
         authority ans `shouldSatisfy` include "b.example." NSEC
         authority ans `shouldSatisfy` includeRRSIG "b.example." NSEC
-        -- fixme: wildcard
-        -- authority ans `shouldSatisfy` include "example." NSEC
-        -- fixme: wildcard
-        -- authority ans `shouldSatisfy` includeRRSIG "example." NSEC
+        authority ans `shouldSatisfy` include "example." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "example." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
     it "passes the test in Appendix B.3" $ do

@@ -64,11 +64,13 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 4
+        length (authority ans) `shouldBe` 6
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         authority ans `shouldSatisfy` include "in2.example.jp." NSEC
         authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." NSEC
+        authority ans `shouldSatisfy` include "example.jp." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
     it "can refuse unrelated domains" $ do
@@ -222,11 +224,13 @@ doit db = do
         length (answer ans) `shouldBe` 2
         answer ans `shouldSatisfy` include "fault-cname.example.jp." CNAME
         answer ans `shouldSatisfy` includeRRSIG "fault-cname.example.jp." CNAME
-        length (authority ans) `shouldBe` 4
+        length (authority ans) `shouldBe` 6
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         authority ans `shouldSatisfy` include "in2.example.jp." NSEC
         authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." NSEC
+        authority ans `shouldSatisfy` include "example.jp." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
     it "can handle unrelated CNAME" $ do
@@ -293,11 +297,13 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 4
+        length (authority ans) `shouldBe` 6
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         authority ans `shouldSatisfy` include "in2.example.jp." NSEC
         authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." NSEC
+        authority ans `shouldSatisfy` include "example.jp." NSEC
+        authority ans `shouldSatisfy` includeRRSIG "example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
     it "can handle Empty Non-Terminal node for NSEC" $ do

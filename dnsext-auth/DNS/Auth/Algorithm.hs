@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Auth.Algorithm (
@@ -8,6 +9,7 @@ module DNS.Auth.Algorithm (
     fromQuery,
 ) where
 
+import Data.ByteString.Short ()
 import Data.List (nub, partition, sort)
 import qualified Data.Map as M
 import Data.Maybe (catMaybes)
@@ -218,6 +220,16 @@ makeNegativeReply db dom reply dnssecOK ans add code =
     key = Exact dom
     auth = dbSOArr dnssecOK db
     nsec
+        | dnssecOK && code == NXDomain = case M.lookup key $ dbNsecMap db of
+            Nothing -> []
+            Just n -> case unconsDomain dom of
+                Nothing -> getRRs dnssecOK n
+                Just (_, dom') ->
+                    let asterisk = fromWireLabels ("*" : wireLabels dom')
+                        asteriskkey = Exact asterisk
+                     in case M.lookup asteriskkey $ dbNsecMap db of
+                            Nothing -> getRRs dnssecOK n
+                            Just m -> getRRs dnssecOK n ++ getRRs dnssecOK m
         | dnssecOK = case M.lookup key $ dbNsecMap db of
             Nothing -> []
             Just n -> getRRs dnssecOK n
