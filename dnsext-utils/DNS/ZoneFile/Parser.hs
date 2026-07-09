@@ -209,6 +209,14 @@ rdataSOA =
     <*> (blank *> seconds) <*> (blank *> seconds) <*> (blank *> seconds) <*> (blank *> seconds)
 {- FOURMOLU_ENABLE -}
 
+rdataSRV :: Parser RData
+rdataSRV =
+    rd_srv
+        <$> readCString "srv_priority"
+        <*> (blank *> readCString "srv_weight")
+        <*> (blank *> readCString "srv_port")
+        <*> (blank *> domain)
+
 ---
 
 {- FOURMOLU_DISABLE -}
@@ -273,6 +281,7 @@ rrTyRData mk =
        , (CNAME  , rdataCNAME  )
        , (SOA    , rdataSOA    )
        , (HINFO  , rdataHINFO  )
+       , (SRV    , rdataSRV    )
        ] ++
        rdatasDNSSEC ++
        rdatasSVCB domain)
