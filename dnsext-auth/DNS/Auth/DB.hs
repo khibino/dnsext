@@ -19,6 +19,7 @@ module DNS.Auth.DB (
     lookupT,
     lookupD,
     NSECDB,
+    lookupN,
     DomainRange (..),
 ) where
 
@@ -104,7 +105,7 @@ emptyDB =
         , dbAuthority = emptyODB
         , dbAdditional = emptyODB
         , dbAll = []
-        , dbNsecMap = M.empty
+        , dbNsecMap = emptyNSECDB
         }
   where
     soard = rd_soa "." "." 0 0 0 0 0
@@ -415,10 +416,19 @@ instance Ord DomainRange where
     Range _ re  <= Exact k     = re <= k
 {- FOURMOLU_ENABLE -}
 
-type NSECDB = M.Map DomainRange RRSetSig
+newtype NSECDB = NSECDB (M.Map DomainRange RRSetSig) deriving (Eq, Show)
+
+lookupN :: Domain -> DB -> Maybe RRSetSig
+lookupN dom db = M.lookup key nsecdb
+  where
+    key = Exact dom
+    NSECDB nsecdb = dbNsecMap db
+
+emptyNSECDB :: NSECDB
+emptyNSECDB = NSECDB M.empty
 
 makeNSECDB :: [RRSetSig] -> NSECDB
-makeNSECDB vals = M.fromList $ zip keys vals
+makeNSECDB vals = NSECDB $ M.fromList $ zip keys vals
   where
     keys = modifyTail $ catMaybes $ map unpack vals
     unpack :: RRSetSig -> Maybe (Domain, Domain)

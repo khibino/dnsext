@@ -11,7 +11,6 @@ module DNS.Auth.Algorithm (
 
 import Data.ByteString.Short ()
 import Data.List (nub, partition, sort)
-import qualified Data.Map as M
 import Data.Maybe (catMaybes)
 
 import DNS.Auth.DB
@@ -117,7 +116,7 @@ processPositive db odb q@Question{..} dnssecOK reply = case lookupD qname odb of
                 _ -> makeErrorReply reply ServFail
 
 processNSEC :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
-processNSEC db@DB{..} Question{..} dnssecOK reply = case M.lookup key dbNsecMap of
+processNSEC db@DB{..} Question{..} dnssecOK reply = case lookupN qname db of
     Nothing -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
     Just nsec
         | rrsetsigName nsec == qname ->
@@ -125,7 +124,6 @@ processNSEC db@DB{..} Question{..} dnssecOK reply = case M.lookup key dbNsecMap 
              in makePositiveReply reply ans [] [] NoErr True
         | otherwise -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
   where
-    key = Exact $ qname
     rc name = case lookupD name dbAnswer of
         Nothing -> NXDomain
         _ -> NoErr
@@ -175,7 +173,7 @@ findAuthority db@DB{..} Question{..} dnssecOK reply = loop qname
                         let allrrs = allRRsofIDB dnssecOK idb
                             (nss, dss) = partition (\r -> rrtype r == NS) allrrs
                             auth
-                                | dnssecOK && null dss = case M.lookup (Exact qname) dbNsecMap of
+                                | dnssecOK && null dss = case lookupN qname db of
                                     Nothing -> allrrs
                                     Just n -> allrrs ++ getRRs dnssecOK n
                                 | dnssecOK = allrrs
@@ -217,20 +215,18 @@ makeNegativeReply db dom reply dnssecOK ans add code =
         , flags = (flags reply){authAnswer = True}
         }
   where
-    key = Exact dom
     auth = dbSOArr dnssecOK db
     nsec
-        | dnssecOK && code == NXDomain = case M.lookup key $ dbNsecMap db of
+        | dnssecOK && code == NXDomain = case lookupN dom db of
             Nothing -> []
             Just n -> case unconsDomain dom of
                 Nothing -> getRRs dnssecOK n
                 Just (_, dom') ->
                     let asterisk = fromWireLabels ("*" : wireLabels dom')
-                        asteriskkey = Exact asterisk
-                     in case M.lookup asteriskkey $ dbNsecMap db of
+                     in case lookupN asterisk db of
                             Nothing -> getRRs dnssecOK n
                             Just m -> getRRs dnssecOK n ++ getRRs dnssecOK m
-        | dnssecOK = case M.lookup key $ dbNsecMap db of
+        | dnssecOK = case lookupN dom db of
             Nothing -> []
             Just n -> getRRs dnssecOK n
         | otherwise = []
