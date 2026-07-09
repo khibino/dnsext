@@ -49,8 +49,9 @@ spec = describe "authoritative algorithm" $ do
 -- -- nonexist.example.jp.
 -- ns.example.jp.
 -- sibling.example.jp.
--- ns.sibling.example.jp.
+-- -- ns.sibling.example.jp.
 -- sibling2.example.jp.
+-- -- ns.sibling2.example.jp.
 
 doit :: DB -> Spec
 doit db = do
