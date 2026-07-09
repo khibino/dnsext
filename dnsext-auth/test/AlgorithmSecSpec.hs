@@ -37,6 +37,8 @@ spec = describe "authoritative algorithm" $ do
 -- example.jp.
 -- -- *.example.jp.
 -- b.example.jp.
+-- -- ent1.example.jp.
+-- -- ent2.ent1.example.jp.
 -- a.ent2.ent1.example.jp.
 -- exist.example.jp.
 -- exist-cname.example.jp.
