@@ -22,8 +22,11 @@ module DNS.Auth.DB (
     lookupN,
     DomainRange (..),
     toWildcard,
+    CNAMECheck (..),
+    checkCNAME,
 ) where
 
+import Control.Applicative ((<|>))
 import qualified Data.ByteString.Short as Short
 import Data.Function (on)
 import Data.List (groupBy, nub, partition, sort)
@@ -61,13 +64,29 @@ getRRs False RRSetSig{..} = rrsetsigRRs
 lookupT :: TYPE -> IDB -> Maybe RRSetSig
 lookupT typ IDB{..} = M.lookup typ idbMap
 
+data CNAMECheck = Canon | Alias Domain [ResourceRecord] | CNErr
+
+checkCNAME :: IDB -> CNAMECheck
+checkCNAME IDB{..} = case M.lookup CNAME idbMap of
+    Nothing -> Canon
+    Just ent -> case rrsetsigRRs ent of
+        [c] -> case fromRData $ rdata c of
+            Nothing -> CNErr
+            Just cname ->
+                let cc = case rrsetsigSig ent of -- fixme: dnssecOK
+                        Nothing -> [c]
+                        Just sig -> [c, sig]
+                    dom = cname_domain cname
+                 in Alias dom cc
+        _ -> CNErr
+
 data ODB = ODB
     { odbMap :: M.Map Domain IDB
     }
     deriving (Show)
 
 lookupD :: Domain -> ODB -> Maybe IDB
-lookupD dom ODB{..} = M.lookup dom odbMap
+lookupD dom ODB{..} = M.lookup dom odbMap <|> M.lookup (toWildcard dom) odbMap
 
 emptyODB :: ODB
 emptyODB = ODB{odbMap = M.empty}

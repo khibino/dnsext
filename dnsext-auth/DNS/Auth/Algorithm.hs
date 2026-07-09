@@ -95,25 +95,17 @@ processPositive db odb q@Question{..} dnssecOK reply = case lookupD qname odb of
         -- Answer with a Subset of Available RRsets
         | qtype == ANY ->
             let ans = headIDB dnssecOK idb
-             in if null ans
-                    then makeNegativeReply db qname reply dnssecOK [] [] NoErr
-                    else makePositiveReply reply ans [] [] NoErr True
-        | otherwise -> case lookupT CNAME idb of
-            Nothing ->
+             in makeReply ans []
+        | otherwise -> case checkCNAME idb of
+            Canon ->
                 let ans = maybe [] (unwrap dnssecOK) $ lookupT qtype idb
                     add = if qtype `elem` [NS, MX] then findAdditional db dnssecOK ans else []
-                 in if null ans
-                        then makeNegativeReply db qname reply dnssecOK [] add NoErr
-                        else makePositiveReply reply ans [] add NoErr True
-            Just ent -> case rrsetsigRRs ent of
-                [c] -> case fromRData $ rdata c of
-                    Nothing -> makeErrorReply reply ServFail
-                    Just cname ->
-                        let cc = case rrsetsigSig ent of
-                                Nothing -> [c]
-                                Just sig -> [c, sig]
-                         in processCNAME db q dnssecOK reply cc $ cname_domain cname
-                _ -> makeErrorReply reply ServFail
+                 in makeReply ans add
+            Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
+            CNErr -> makeErrorReply reply ServFail
+  where
+    makeReply [] add = makeNegativeReply db qname reply dnssecOK [] add NoErr
+    makeReply ans add = makePositiveReply reply ans [] add NoErr True
 
 processNSEC :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
 processNSEC db@DB{..} Question{..} dnssecOK reply = case lookupN qname db of
