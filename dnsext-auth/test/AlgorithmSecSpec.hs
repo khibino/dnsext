@@ -35,6 +35,7 @@ spec = describe "authoritative algorithm" $ do
 
 -- Canonical order:
 -- example.jp.
+-- -- *.example.jp.
 -- b.example.jp.
 -- a.ent2.ent1.example.jp.
 -- exist.example.jp.
@@ -43,6 +44,7 @@ spec = describe "authoritative algorithm" $ do
 -- fault-cname.example.jp.
 -- in.example.jp.
 -- in2.example.jp.
+-- -- nonexist.example.jp.
 -- ns.example.jp.
 -- sibling.example.jp.
 -- ns.sibling.example.jp.
