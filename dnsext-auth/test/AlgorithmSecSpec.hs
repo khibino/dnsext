@@ -44,6 +44,7 @@ spec = describe "authoritative algorithm" $ do
 -- in.example.jp.
 -- in2.example.jp.
 -- ns.example.jp.
+-- sibling.example.jp.
 -- ns.sibling.example.jp.
 -- sibling2.example.jp.
 
