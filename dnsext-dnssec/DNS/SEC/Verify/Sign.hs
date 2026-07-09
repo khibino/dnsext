@@ -201,9 +201,17 @@ signZone prikey rrsigTemp0 groupup rrs0 = E.handle handler $ mapM f rrss
                 , rrsetsigSig = Just sig
                 }
       where
+        labels = case leafDomain rrname of
+            Nothing -> 0
+            Just l ->
+                let n0 = labelsCount rrname
+                    n
+                        | l == "*" = n0 - 1
+                        | otherwise = n0
+                 in n
         rrsigTemp =
             rrsigTemp0
                 { rrsig_type = rrtype
-                , rrsig_num_labels = fromIntegral $ labelsCount rrname
+                , rrsig_num_labels = fromIntegral labels
                 , rrsig_ttl = rrttl
                 }
