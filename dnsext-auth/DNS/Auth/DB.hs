@@ -21,6 +21,7 @@ module DNS.Auth.DB (
     NSECDB,
     lookupN,
     DomainRange (..),
+    toWildcard,
 ) where
 
 import qualified Data.ByteString.Short as Short
@@ -70,6 +71,13 @@ lookupD dom ODB{..} = M.lookup dom odbMap
 
 emptyODB :: ODB
 emptyODB = ODB{odbMap = M.empty}
+
+----------------------------------------------------------------
+
+toWildcard :: Domain -> Domain
+toWildcard dom = case unconsDomain dom of
+    Nothing -> dom
+    Just (_, super) -> fromWireLabels ("*" : wireLabels super)
 
 ----------------------------------------------------------------
 

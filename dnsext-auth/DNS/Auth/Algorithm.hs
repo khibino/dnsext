@@ -219,13 +219,9 @@ makeNegativeReply db dom reply dnssecOK ans add code =
     nsec
         | dnssecOK && code == NXDomain = case lookupN dom db of
             Nothing -> []
-            Just n -> case unconsDomain dom of
+            Just n -> case lookupN (toWildcard dom) db of
                 Nothing -> getRRs dnssecOK n
-                Just (_, dom') ->
-                    let asterisk = fromWireLabels ("*" : wireLabels dom')
-                     in case lookupN asterisk db of
-                            Nothing -> getRRs dnssecOK n
-                            Just m -> getRRs dnssecOK n ++ getRRs dnssecOK m
+                Just m -> getRRs dnssecOK n ++ getRRs dnssecOK m
         | dnssecOK = case lookupN dom db of
             Nothing -> []
             Just n -> getRRs dnssecOK n
