@@ -61,8 +61,14 @@ getRRs :: Bool -> RRSetSig -> [ResourceRecord]
 getRRs True RRSetSig{..} = rrsetsigRRs ++ maybe [] (: []) rrsetsigSig
 getRRs False RRSetSig{..} = rrsetsigRRs
 
-lookupT :: TYPE -> IDB -> Maybe RRSetSig
-lookupT typ IDB{..} = M.lookup typ idbMap
+lookupT :: Domain -> TYPE -> IDB -> Bool -> [ResourceRecord]
+lookupT dom typ IDB{..} dnssecOK = maybe [] (unwrap dnssecOK) rs
+  where
+    rs = synthesize dom <$> M.lookup typ idbMap
+
+unwrap :: Bool -> RRSetSig -> [ResourceRecord]
+unwrap False RRSetSig{..} = rrsetsigRRs
+unwrap True RRSetSig{..} = rrsetsigRRs ++ maybe [] pure rrsetsigSig
 
 data CNAMECheck = Canon | Alias Domain [ResourceRecord] | CNErr
 
@@ -97,6 +103,23 @@ toWildcard :: Domain -> Domain
 toWildcard dom = case unconsDomain dom of
     Nothing -> dom
     Just (_, super) -> fromWireLabels ("*" : wireLabels super)
+
+synthesize :: Domain -> RRSetSig -> RRSetSig
+synthesize dom rs
+    | isWildcard (rrsetsigName rs) =
+        rs
+            { rrsetsigName = dom
+            , rrsetsigRRs = map syn $ rrsetsigRRs rs
+            , rrsetsigSig = syn <$> rrsetsigSig rs
+            }
+    | otherwise = rs
+  where
+    syn r = r{rrname = dom}
+
+isWildcard :: Domain -> Bool
+isWildcard dom = case unconsDomain dom of
+    Nothing -> False
+    Just (l, _) -> l == "*"
 
 ----------------------------------------------------------------
 

@@ -70,10 +70,6 @@ getAnswer db query
         EDNSheader eh -> (ednsVersion eh /= 0, ednsDnssecOk eh)
         _ -> (False, False)
 
-unwrap :: Bool -> RRSetSig -> [ResourceRecord]
-unwrap False RRSetSig{..} = rrsetsigRRs
-unwrap True RRSetSig{..} = rrsetsigRRs ++ maybe [] pure rrsetsigSig
-
 -- dbAnswer contains empty ODBs for For RFC 4592 Sec 2.2.2.Empty
 -- Non-terminals.
 --                     RRSIG   NSEC
@@ -98,7 +94,7 @@ processPositive db odb q@Question{..} dnssecOK reply = case lookupD qname odb of
              in makeReply ans []
         | otherwise -> case checkCNAME idb of
             Canon ->
-                let ans = maybe [] (unwrap dnssecOK) $ lookupT qtype idb
+                let ans = lookupT qname qtype idb dnssecOK
                     add = if qtype `elem` [NS, MX] then findAdditional db dnssecOK ans else []
                  in makeReply ans add
             Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
@@ -135,7 +131,7 @@ processCNAME db@DB{..} Question{..} dnssecOK reply cc cname
         -- RFC 2308 Sec 2.1 Name Error
         Nothing -> makeNegativeReply db cname reply dnssecOK cc [] NXDomain
         Just idb ->
-            let ans = maybe [] (unwrap dnssecOK) $ lookupT qtype idb
+            let ans = lookupT cname qtype idb dnssecOK
                 -- RFC2308 Sec 2.2 No Data
                 auth
                     | null ans = dbSOArr dnssecOK db
