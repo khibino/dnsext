@@ -219,6 +219,7 @@ doit db = do
         answer ans `shouldSatisfy` include "exist-cname.example.jp." CNAME
         answer ans `shouldSatisfy` includeRRSIG "exist-cname.example.jp." CNAME
         length (authority ans) `shouldBe` 2
+        -- NOTE: 肯定的応答で SOA を検査する必要はなさそう
         authority ans `shouldSatisfy` include "example.jp." SOA
         authority ans `shouldSatisfy` includeRRSIG "example.jp." SOA
         length (additional ans) `shouldBe` 0
@@ -258,6 +259,7 @@ doit db = do
         answer ans `shouldSatisfy` includeRRSIG "exist-cname.example.jp." CNAME
         length (authority ans) `shouldBe` 0
         length (additional ans) `shouldBe` 4
+        -- NOTE: CNAME を聞いているので、指している先の A/AAAA を検査する必要は無さそう
         additional ans `shouldSatisfy` include "exist.example.jp." A
         additional ans `shouldSatisfy` includeRRSIG "exist.example.jp." A
         additional ans `shouldSatisfy` include "exist.example.jp." AAAA
