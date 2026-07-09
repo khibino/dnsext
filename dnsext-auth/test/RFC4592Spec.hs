@@ -35,45 +35,78 @@ spec = describe "authoritative algorithm" $ do
 
 doit :: DB -> Spec
 doit db = do
-    it "implements Sec 2.2.1" $ do
+    it "implements Sec 2.2.1 (synthesized)" $ do
         let query = defaultQuery{question = Question "host3.example." MX IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 1
         answer ans `shouldSatisfy` include "host3.example." MX
-    it "implements Sec 2.2.1" $ do
+    it "implements Sec 2.2.1 (synthesized)" $ do
         let query = defaultQuery{question = Question "host3.example." A IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-    it "implements Sec 2.2.1" $ do
+    it "implements Sec 2.2.1 (synthesized)" $ do
         let query = defaultQuery{question = Question "foo.bar.example." A IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
-    it "implements Sec 2.2.1" $ do
+    it "implements Sec 2.2.1 (not synthesized)" $ do
         let query = defaultQuery{question = Question "host1.example." MX IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-    it "implements Sec 2.2.1" $ do
+    it "implements Sec 2.2.1 (not synthesized)" $ do
         let query = defaultQuery{question = Question "sub.*.example." MX IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-    it "implements Sec 2.2.1" $ do
+    it "implements Sec 2.2.1 (not synthesized)" $ do
         let query = defaultQuery{question = Question "_telnet._tcp.host1.example." SRV IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
-    it "implements Sec 2.2.1" $ do
+    it "implements Sec 2.2.1 (not synthesized)" $ do
         let query = defaultQuery{question = Question "host.subdel.example." A IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 2
-    it "implements Sec 2.2.1" $ do
+    it "implements Sec 2.2.1 (not synthesized)" $ do
         let query = defaultQuery{question = Question "ghost.*.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NXDomain
+        length (answer ans) `shouldBe` 0
+    it "implements Sec 3.3.2" $ do
+        let query = defaultQuery{question = Question "host3.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 1
+        answer ans `shouldSatisfy` include "host3.example." MX
+    it "implements Sec 3.3.2" $ do
+        let query = defaultQuery{question = Question "_telnet._tcp.host1.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NXDomain
+        length (answer ans) `shouldBe` 0
+    it "implements Sec 3.3.2" $ do
+        let query = defaultQuery{question = Question "_dns._udp.host2.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NXDomain
+        length (answer ans) `shouldBe` 0
+    it "implements Sec 3.3.2" $ do
+        let query = defaultQuery{question = Question "_telnet._tcp.host3.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 1
+        answer ans `shouldSatisfy` include "_telnet._tcp.host3.example." MX
+    it "implements Sec 3.3.2" $ do
+        let query = defaultQuery{question = Question "_chat._udp.host3.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 1
+        answer ans `shouldSatisfy` include "_chat._udp.host3.example." MX
+    it "implements Sec 3.3.2" $ do
+        let query = defaultQuery{question = Question "foobar.*.example." MX IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
