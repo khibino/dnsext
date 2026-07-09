@@ -145,7 +145,7 @@ doit db = do
         additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
         additional ans `shouldSatisfy` not . include "unrelated2.com." A
         flags ans `shouldSatisfy` not . authAnswer
-    it "can answer referrals (5)" $ do
+    it "can answer DS not referrals" $ do
         let query = dnssecQuery{question = Question "in2.example.jp." DS IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
