@@ -41,6 +41,42 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 1
         answer ans `shouldSatisfy` include "host3.example." MX
+    it "implements Sec 2.2.1" $ do
+        let query = defaultQuery{question = Question "host3.example." A IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+    it "implements Sec 2.2.1" $ do
+        let query = defaultQuery{question = Question "foo.bar.example." A IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NXDomain
+        length (answer ans) `shouldBe` 0
+    it "implements Sec 2.2.1" $ do
+        let query = defaultQuery{question = Question "host1.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+    it "implements Sec 2.2.1" $ do
+        let query = defaultQuery{question = Question "sub.*.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+    it "implements Sec 2.2.1" $ do
+        let query = defaultQuery{question = Question "_telnet._tcp.host1.example." SRV IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NXDomain
+        length (answer ans) `shouldBe` 0
+    it "implements Sec 2.2.1" $ do
+        let query = defaultQuery{question = Question "host.subdel.example." A IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 2
+    it "implements Sec 2.2.1" $ do
+        let query = defaultQuery{question = Question "ghost.*.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NXDomain
+        length (answer ans) `shouldBe` 0
 
 includeRRSIG :: Domain -> TYPE -> [ResourceRecord] -> Bool
 includeRRSIG dom typ rs = any has rs
