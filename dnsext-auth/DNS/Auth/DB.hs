@@ -92,7 +92,9 @@ data ODB = ODB
     deriving (Show)
 
 lookupD :: Domain -> ODB -> Maybe IDB
-lookupD dom ODB{..} = M.lookup dom odbMap <|> M.lookup (toWildcard dom) odbMap
+lookupD dom ODB{..} = case leafDomain dom of
+    Just l | l /= "*" -> M.lookup dom odbMap <|> M.lookup (toWildcard dom) odbMap
+    _ -> M.lookup dom odbMap
 
 emptyODB :: ODB
 emptyODB = ODB{odbMap = M.empty}
@@ -117,9 +119,9 @@ synthesize dom rs
     syn r = r{rrname = dom}
 
 isWildcard :: Domain -> Bool
-isWildcard dom = case unconsDomain dom of
+isWildcard dom = case leafDomain dom of
     Nothing -> False
-    Just (l, _) -> l == "*"
+    Just l -> l == "*"
 
 ----------------------------------------------------------------
 
