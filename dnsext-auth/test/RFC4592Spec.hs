@@ -47,10 +47,11 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
     it "implements Sec 2.2.1 (synthesized)" $ do
-        let query = defaultQuery{question = Question "foo.bar.example." A IN}
+        let query = defaultQuery{question = Question "foo.bar.example." TXT IN}
             ans = getAnswer db query
-        rcode ans `shouldBe` NXDomain
-        length (answer ans) `shouldBe` 0
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 1
+        answer ans `shouldSatisfy` include "foo.bar.example." TXT
     it "implements Sec 2.2.1 (not synthesized)" $ do
         let query = defaultQuery{question = Question "host1.example." MX IN}
             ans = getAnswer db query

@@ -78,13 +78,12 @@ getAnswer db query
 -- In-domain DS        has     has
 -- Empty non-terminal  not     not
 process :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
-process db@DB{..} q@Question{..} dnssecOK reply
+process db q@Question{..} dnssecOK reply
     | qtype == NSEC = processNSEC db q dnssecOK reply
-    | qtype == DS = processPositive db dbAuthority q dnssecOK reply
-    | otherwise = processPositive db dbAnswer q dnssecOK reply
+    | otherwise = processPositive db q dnssecOK reply
 
-processPositive :: DB -> ODB -> Question -> Bool -> DNSMessage -> DNSMessage
-processPositive db odb q@Question{..} dnssecOK reply = case lookupD qname odb of
+processPositive :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
+processPositive db q@Question{..} dnssecOK reply = case lookupDforAns db q of
     Nothing -> findAuthority db q dnssecOK reply
     Just idb
         -- RFC 8482 Sec 4.1
@@ -145,29 +144,23 @@ findAuthority
     -> Bool
     -> DNSMessage
     -> DNSMessage
-findAuthority db@DB{..} Question{..} dnssecOK reply = loop qname
-  where
-    loop dom
-        | dom == dbZone = makeNegativeReply db qname reply dnssecOK [] [] NXDomain
-        | otherwise = case unconsDomain dom of
-            Nothing -> makeNegativeReply db qname reply dnssecOK [] [] NXDomain
-            Just (_, dom') -> case lookupD dom dbAuthority of
-                Nothing -> loop dom'
-                Just idb
-                    -- For RFC 4592 Sec 2.2.2.Empty Non-terminals
-                    | null (allRRsofIDB False idb) ->
-                        makePositiveReply reply [] (dbSOArr dnssecOK db) [] NoErr True -- fixme
-                    | otherwise ->
-                        let allrrs = allRRsofIDB dnssecOK idb
-                            (nss, dss) = partition (\r -> rrtype r == NS) allrrs
-                            auth
-                                | dnssecOK && null dss = case lookupN qname db of
-                                    Nothing -> allrrs
-                                    Just n -> allrrs ++ getRRs dnssecOK n
-                                | dnssecOK = allrrs
-                                | otherwise = nss
-                            add = findAdditional db dnssecOK auth
-                         in makePositiveReply reply [] auth add NoErr False
+findAuthority db q@Question{..} dnssecOK reply = case lookupDforAuth db q of
+    Nothing -> makeNegativeReply db qname reply dnssecOK [] [] NXDomain
+    Just idb
+        -- For RFC 4592 Sec 2.2.2.Empty Non-terminals
+        | null (allRRsofIDB False idb) ->
+            makePositiveReply reply [] (dbSOArr dnssecOK db) [] NoErr True -- fixme
+        | otherwise ->
+            let allrrs = allRRsofIDB dnssecOK idb
+                (nss, dss) = partition (\r -> rrtype r == NS) allrrs
+                auth
+                    | dnssecOK && null dss = case lookupN qname db of
+                        Nothing -> allrrs
+                        Just n -> allrrs ++ getRRs dnssecOK n
+                    | dnssecOK = allrrs
+                    | otherwise = nss
+                add = findAdditional db dnssecOK auth
+             in makePositiveReply reply [] auth add NoErr False
 
 findAdditional
     :: DB

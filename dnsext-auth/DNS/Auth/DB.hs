@@ -18,6 +18,9 @@ module DNS.Auth.DB (
     loadZoneFile,
     lookupT,
     lookupD,
+    lookupDorW,
+    lookupDforAns,
+    lookupDforAuth,
     NSECDB,
     lookupN,
     DomainRange (..),
@@ -92,14 +95,50 @@ data ODB = ODB
     deriving (Show)
 
 lookupD :: Domain -> ODB -> Maybe IDB
-lookupD dom ODB{..} = case leafDomain dom of
+lookupD dom ODB{..} = M.lookup dom odbMap
+
+lookupDorW :: Domain -> ODB -> Maybe IDB
+lookupDorW dom ODB{..} = case leafDomain dom of
     Just l | l /= "*" -> M.lookup dom odbMap <|> M.lookup (toWildcard dom) odbMap
     _ -> M.lookup dom odbMap
+
+lookupDforAns :: DB -> Question -> Maybe IDB
+lookupDforAns DB{..} Question{..} = case lookupD qname odb of
+    Nothing -> loop qname
+    x -> x
+  where
+    odb
+        | qtype == DS = dbAuthority
+        | otherwise = dbAnswer
+    loop dom
+        | dom == dbZone = Nothing
+        | otherwise = case unconsDomain dom of
+            Nothing -> Nothing
+            Just (_, dom') -> case lookupD dom odb of
+                Nothing -> case lookupD (consAsterisk dom') odb of
+                    Nothing -> loop dom'
+                    Just idb -> Just idb
+                -- domain exists, so don't lookup with wildcard
+                _ -> Nothing
+
+lookupDforAuth :: DB -> Question -> Maybe IDB
+lookupDforAuth DB{..} Question{..} = loop qname
+  where
+    loop dom
+        | dom == dbZone = Nothing
+        | otherwise = case unconsDomain dom of
+            Nothing -> Nothing
+            Just (_, dom') -> case lookupDorW dom dbAuthority of
+                Nothing -> loop dom'
+                Just idb -> Just idb
 
 emptyODB :: ODB
 emptyODB = ODB{odbMap = M.empty}
 
 ----------------------------------------------------------------
+
+consAsterisk :: Domain -> Domain
+consAsterisk dom = fromWireLabels ("*" : wireLabels dom)
 
 toWildcard :: Domain -> Domain
 toWildcard dom = case unconsDomain dom of
