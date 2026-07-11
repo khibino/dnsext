@@ -15,6 +15,8 @@ import Text.Read
 
 import DNS.Auth.Algorithm
 import DNS.Auth.DB
+import DNS.SEC
+import DNS.SEC.Verify
 import DNS.Types
 
 import qualified Axfr
@@ -44,12 +46,25 @@ readSource s
 
 loadSource :: Env -> Domain -> Serial -> Source -> IO (Maybe DB)
 loadSource env zone serial source = case source of
-    FromUpstream4 ip4 -> toDB <$> Axfr.client env serial (IPv4 ip4) zone
-    FromUpstream6 ip6 -> toDB <$> Axfr.client env serial (IPv6 ip6) zone
-    FromFile fn -> loadDB zone fn
-  where
-    toDB [] = Nothing
-    toDB rrs = makeDB zone rrs
+    FromUpstream4 ip4 ->
+        Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
+    FromUpstream6 ip6 ->
+        Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
+    FromFile fn -> do
+        -- head rrs is soa
+        rrs <- loadZoneFile zone fn
+        (_pub, _pri, dnskey, ds, doSign) <-
+            prepareDNSSEC $
+                DNSSECinfo
+                    { dnssecInfoZone = zone
+                    , dnssecInfoPubAlg = ED25519
+                    , dnssecInfoDigestAlg = SHA256
+                    , dnssecInfoTTL = 3600
+                    , dnssecInfoDuration = 86400
+                    }
+        -- fixme:
+        print ds
+        makeDBforPrimary zone doSign (rrs ++ [dnskey])
 
 ----------------------------------------------------------------
 
@@ -107,7 +122,7 @@ shouldReload _ = True
 updateZone :: Env -> IORef Zone -> IO ()
 updateZone env zoneref = do
     Zone{..} <- readIORef zoneref
-    let serial = soa_serial $ dbSOA zoneDB
+    let serial = soa_serial $ dbRD_SOA zoneDB
     mdb <- loadSource env zoneName serial zoneSource
     case mdb of
         Nothing -> return ()

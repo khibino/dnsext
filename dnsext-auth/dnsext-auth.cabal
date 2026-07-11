@@ -16,7 +16,9 @@ library
     ghc-options:      -Wall
     build-depends:
         base >=4 && <5,
+        bytestring,
         containers,
+        dnsext-dnssec,
         dnsext-types,
         dnsext-utils
 
@@ -28,13 +30,17 @@ test-suite spec
     main-is:            Spec.hs
     build-tool-depends: hspec-discover:hspec-discover
     hs-source-dirs:     test
-    other-modules:      AlgorithmSpec
+    other-modules:      AlgorithmSecSpec
+                        AlgorithmSpec
+                        RFC4035Spec
+                        RFC4592Spec
     default-language:   Haskell2010
     ghc-options:        -Wall -threaded
     build-depends:
         base,
         bytestring,
         dnsext-auth,
+        dnsext-dnssec,
         dnsext-types,
         hspec
 

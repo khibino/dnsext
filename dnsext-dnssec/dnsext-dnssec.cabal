@@ -37,8 +37,11 @@ library
         DNS.SEC.Verify.NSEC
         DNS.SEC.Verify.NSEC3
         DNS.SEC.Verify.NSECxRange
+        DNS.SEC.Verify.RRset
         DNS.SEC.Verify.RSA
         DNS.SEC.Verify.SHA
+        DNS.SEC.Verify.Sign
+        DNS.SEC.Verify.Supported
         DNS.SEC.Verify.Verify
 
     default-language: Haskell2010
@@ -48,11 +51,12 @@ library
         array,
         bytestring,
         containers,
-        crypton,
+        crypton >= 1.1.4,
         dnsext-types,
         iproute >=1.3.2,
         mtl,
         ram,
+        serialise,
         unix-time,
         word8
 
@@ -72,6 +76,8 @@ test-suite spec
     ghc-options:        -Wall
     build-depends:
         base,
+        base64-bytestring,
+        crypton,
         QuickCheck >=2.9,
         bytestring,
         dnsext-dnssec,

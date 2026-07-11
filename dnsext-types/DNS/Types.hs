@@ -182,6 +182,8 @@ module DNS.Types (
     revLabels,
     superDomains',
     superDomains,
+    leafDomain,
+    unsafeLeafDomain,
     isSubDomainOf,
     labelsCount,
 

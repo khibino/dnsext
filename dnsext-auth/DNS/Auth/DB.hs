@@ -1,44 +1,202 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module DNS.Auth.DB (
+    RRSetSig (..),
+    IDB (..),
+    allRRsofIDB,
+    headIDB,
+    ODB (..),
     DB (..),
+    dbRD_SOA,
+    dbSOArr,
+    getRRs,
     loadDB,
-    makeDB,
+    makeDBforPrimary,
+    makeDBforSecondary,
     emptyDB,
+    loadZoneFile,
+    lookupT,
+    lookupD,
+    lookupDorW,
+    lookupDforAns,
+    lookupDforAuth,
+    NSECDB,
+    lookupN,
+    DomainRange (..),
+    toWildcard,
+    CNAMECheck (..),
+    checkCNAME,
 ) where
 
+import Control.Applicative ((<|>))
+import qualified Data.ByteString.Short as Short
 import Data.Function (on)
-import Data.List (groupBy, partition, sort)
+import Data.List (groupBy, nub, partition, sort)
 import qualified Data.Map.Strict as M
-import Data.Maybe (catMaybes, fromJust)
+import Data.Maybe (catMaybes, fromJust, isNothing)
 import qualified Data.Set as Set
+import GHC.Stack
 
+import DNS.SEC
+import DNS.SEC.Verify
 import DNS.Types
 import qualified DNS.ZoneFile as ZF
 
 ----------------------------------------------------------------
 
-data DB = DB
-    { dbZone :: Domain
-    , dbSOA :: RD_SOA
-    , dbSOArr :: ResourceRecord
-    , dbAnswer :: M.Map Domain [ResourceRecord]
-    , dbAuthority :: M.Map Domain [ResourceRecord]
-    , dbAdditional :: M.Map Domain [ResourceRecord]
-    , dbAll :: [ResourceRecord]
+data IDB = IDB
+    { idbAll :: [RRSetSig]
+    , idbMap :: M.Map TYPE RRSetSig
     }
     deriving (Show)
+
+emptyIDB :: IDB
+emptyIDB = IDB{idbAll = [], idbMap = M.empty}
+
+allRRsofIDB :: Bool -> IDB -> [ResourceRecord]
+allRRsofIDB dnssecOK IDB{..} = concat $ map (getRRs dnssecOK) idbAll
+
+headIDB :: Bool -> IDB -> [ResourceRecord]
+headIDB dnssecOK IDB{..} = concat $ map (getRRs dnssecOK) $ take 1 idbAll
+
+getRRs :: Bool -> RRSetSig -> [ResourceRecord]
+getRRs True RRSetSig{..} = rrsetsigRRs ++ maybe [] (: []) rrsetsigSig
+getRRs False RRSetSig{..} = rrsetsigRRs
+
+lookupT :: Domain -> TYPE -> IDB -> Bool -> [ResourceRecord]
+lookupT dom typ IDB{..} dnssecOK = maybe [] (unwrap dnssecOK) rs
+  where
+    rs = synthesize dom <$> M.lookup typ idbMap
+
+unwrap :: Bool -> RRSetSig -> [ResourceRecord]
+unwrap False RRSetSig{..} = rrsetsigRRs
+unwrap True RRSetSig{..} = rrsetsigRRs ++ maybe [] pure rrsetsigSig
+
+data CNAMECheck = Canon | Alias Domain [ResourceRecord] | CNErr
+
+checkCNAME :: IDB -> CNAMECheck
+checkCNAME IDB{..} = case M.lookup CNAME idbMap of
+    Nothing -> Canon
+    Just ent -> case rrsetsigRRs ent of
+        [c] -> case fromRData $ rdata c of
+            Nothing -> CNErr
+            Just cname ->
+                let cc = case rrsetsigSig ent of -- fixme: dnssecOK
+                        Nothing -> [c]
+                        Just sig -> [c, sig]
+                    dom = cname_domain cname
+                 in Alias dom cc
+        _ -> CNErr
+
+data ODB = ODB
+    { odbMap :: M.Map Domain IDB
+    }
+    deriving (Show)
+
+lookupD :: Domain -> ODB -> Maybe IDB
+lookupD dom ODB{..} = M.lookup dom odbMap
+
+lookupDorW :: Domain -> ODB -> Maybe IDB
+lookupDorW dom ODB{..} = case leafDomain dom of
+    Just l | l /= "*" -> M.lookup dom odbMap <|> M.lookup (toWildcard dom) odbMap
+    _ -> M.lookup dom odbMap
+
+lookupDforAns :: DB -> Question -> Maybe IDB
+lookupDforAns DB{..} Question{..} = case lookupD qname odb of
+    Nothing -> loop qname
+    x -> x
+  where
+    odb
+        | qtype == DS = dbAuthority
+        | otherwise = dbAnswer
+    loop dom
+        | dom == dbZone = Nothing
+        | otherwise = case unconsDomain dom of
+            Nothing -> Nothing
+            Just (_, dom') -> case lookupD dom odb of
+                Nothing -> case lookupD (consAsterisk dom') odb of
+                    Nothing -> loop dom'
+                    Just idb -> Just idb
+                -- domain exists, so don't lookup with wildcard
+                _ -> Nothing
+
+lookupDforAuth :: DB -> Question -> Maybe IDB
+lookupDforAuth DB{..} Question{..} = loop qname
+  where
+    loop dom
+        | dom == dbZone = Nothing
+        | otherwise = case unconsDomain dom of
+            Nothing -> Nothing
+            Just (_, dom') -> case lookupDorW dom dbAuthority of
+                Nothing -> loop dom'
+                Just idb -> Just idb
+
+emptyODB :: ODB
+emptyODB = ODB{odbMap = M.empty}
+
+----------------------------------------------------------------
+
+consAsterisk :: Domain -> Domain
+consAsterisk dom = fromWireLabels ("*" : wireLabels dom)
+
+toWildcard :: Domain -> Domain
+toWildcard dom = case unconsDomain dom of
+    Nothing -> dom
+    Just (_, super) -> fromWireLabels ("*" : wireLabels super)
+
+synthesize :: Domain -> RRSetSig -> RRSetSig
+synthesize dom rs
+    | isWildcard (rrsetsigName rs) =
+        rs
+            { rrsetsigName = dom
+            , rrsetsigRRs = map syn $ rrsetsigRRs rs
+            , rrsetsigSig = syn <$> rrsetsigSig rs
+            }
+    | otherwise = rs
+  where
+    syn r = r{rrname = dom}
+
+isWildcard :: Domain -> Bool
+isWildcard dom = case leafDomain dom of
+    Nothing -> False
+    Just l -> l == "*"
+
+----------------------------------------------------------------
+
+data DB = DB
+    { dbZone :: Domain
+    , dbSOA :: (RD_SOA, RRSetSig)
+    , dbAnswer :: ODB
+    , dbAuthority :: ODB
+    , dbAdditional :: ODB
+    , dbAll :: [ResourceRecord]
+    , dbNsecMap :: NSECDB
+    }
+    deriving (Show)
+
+dbRD_SOA :: DB -> RD_SOA
+dbRD_SOA db = soa
+  where
+    (soa, _) = dbSOA db
+
+dbSOArr :: Bool -> DB -> [ResourceRecord]
+dbSOArr wantRRSig db = getRRs wantRRSig soarr
+  where
+    (_, soarr) = dbSOA db
+
+----------------------------------------------------------------
 
 emptyDB :: DB
 emptyDB =
     DB
         { dbZone = "."
-        , dbSOA = soa
-        , dbSOArr = soarr
-        , dbAnswer = M.empty
-        , dbAuthority = M.empty
-        , dbAdditional = M.empty
+        , dbSOA = (soa, soarrsetsig)
+        , dbAnswer = emptyODB
+        , dbAuthority = emptyODB
+        , dbAdditional = emptyODB
         , dbAll = []
+        , dbNsecMap = emptyNSECDB
         }
   where
     soard = rd_soa "." "." 0 0 0 0 0
@@ -51,83 +209,224 @@ emptyDB =
             , rrttl = 0
             , rdata = soard
             }
+    soarrsetsig =
+        RRSetSig
+            { rrsetsigName = "."
+            , rrsetsigType = SOA
+            , rrsetsigRRs = [soarr]
+            , rrsetsigSig = Nothing
+            }
 
 ----------------------------------------------------------------
 
 loadDB :: Domain -> FilePath -> IO (Maybe DB)
-loadDB zone file = makeDB zone <$> loadZoneFile zone file
+loadDB zone file = do
+    rss <- loadZoneFile zone file
+    makeDBforSecondary zone $ filter (\r -> rrtype r /= DS) rss
 
 loadZoneFile :: Domain -> FilePath -> IO [ResourceRecord]
 loadZoneFile zone file = catMaybes . map fromResource <$> ZF.parseFile file zone
 
 ----------------------------------------------------------------
 
-makeDB :: Domain -> [ResourceRecord] -> Maybe DB
-makeDB _ [] = Nothing
+makeDBforPrimary
+    :: Domain
+    -> (Bool -> [ResourceRecord] -> IO [RRSetSig])
+    -> [ResourceRecord]
+    -> IO (Maybe DB)
+makeDBforPrimary _ _ [] = return Nothing
 -- RFC 1035 Sec 5.2
 -- Exactly one SOA RR should be present at the top of the zone.
-makeDB zone (soarr : rrs)
-    | rrtype soarr /= SOA = Nothing
+makeDBforPrimary zone doSign (soarr : rrs)
+    | rrtype soarr /= SOA = return Nothing
     | otherwise = case fromRData $ rdata soarr of
-        Nothing -> Nothing
-        Just soa ->
-            Just $
-                DB
-                    { dbZone = zone
-                    , dbSOA = soa
-                    , dbSOArr = soarr
-                    , dbAnswer = ans
-                    , dbAuthority = auth
-                    , dbAdditional = add
-                    , dbAll = [soarr] ++ rrs ++ [soarr] -- for AXFR
-                    }
-  where
-    -- RFC 9471
-    -- In-domain and sibling glues only.
-    -- Unrelated glues are ignored.
-    (as, ns, _os) = partition3 zone rrs
-    isDelegated = makeIsDelegated ns
-    (gs, zs) = partition (\r -> isDelegated (rrname r)) as
-    -- gs: glue (in delegated domain)
-    -- zs: in-domain
-    -- expand is for RFC 4592 Sec 2.2.2.Empty Non-terminals
-    ans = makeMap $ [soarr] ++ concat (map (expand zone) zs)
-    auth = makeMap ns
-    xs = filter (\r -> rrtype r == A || rrtype r == AAAA) zs
-    add = makeMap $ xs ++ gs
+        Nothing -> return Nothing
+        Just soa -> do
+            let (is, ns, ds, gs, _os) = divide zone rrs
+            ssSigned <- doSign True [soarr]
+            isSigned <- doSign True is
+            dsSigned <- doSign True ds
+            -- In-domain NS/DS should have NSEC.
+            nsecSigned <- makeNSECforPrimary doSign (soarr : (is ++ ns))
+            let allrr =
+                    getRRs True (unsafeHead ssSigned)
+                        ++ concat (map (getRRs True) isSigned)
+                        ++ ns
+                        ++ concat (map (getRRs True) dsSigned)
+                        ++ concat (map (getRRs True) nsecSigned)
+                        ++ gs
+                        ++ _os
+                        ++ [soarr] -- for AXFR
+            return $ Just $ makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr
 
-partition3
+makeDBforSecondary :: Domain -> [ResourceRecord] -> IO (Maybe DB)
+makeDBforSecondary _ [] = return Nothing
+-- RFC 1035 Sec 5.2
+-- Exactly one SOA RR should be present at the top of the zone.
+makeDBforSecondary zone (soarr : rrs0)
+    | rrtype soarr /= SOA = return Nothing
+    | otherwise = case fromRData $ rdata soarr of
+        Nothing -> return Nothing
+        Just soa -> do
+            let (sigs, rrs1) = partition (\r -> rrtype r == RRSIG) rrs0
+                (nsec, rrs) = partition (\r -> rrtype r == NSEC) rrs1
+            let (is, ns, ds, gs, _os) = divide zone rrs
+                sigDB = M.fromList $ catMaybes $ map rrsigKV sigs
+                ssSigned = groupAndSig sigDB [soarr]
+                isSigned = groupAndSig sigDB is
+                dsSigned = groupAndSig sigDB ds
+            let nsecSigned = makeNSECforSecondary sigDB nsec
+            let allrr = [soarr] ++ rrs ++ [soarr] -- for AXFR
+            return $ Just $ makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr
+
+----------------------------------------------------------------
+
+makeDBFinal
+    :: Domain
+    -> RD_SOA
+    -> [ResourceRecord]
+    -> [ResourceRecord]
+    -> [RRSetSig]
+    -> [RRSetSig]
+    -> [RRSetSig]
+    -> [RRSetSig]
+    -> [ResourceRecord]
+    -> DB
+makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr =
+    DB
+        { dbZone = zone
+        , dbSOA = (soa, unsafeHead ssSigned)
+        , dbAnswer = ans
+        , dbAuthority = auth
+        , dbAdditional = add
+        , dbAll = allrr
+        , dbNsecMap = makeNSECDB nsecSigned
+        }
+  where
+    ans = setEmptyNonTerminals zone $ makeODB (ssSigned ++ isSigned)
+    auth = setEmptyNonTerminals zone $ makeODB (unsign ns ++ dsSigned)
+    asSigned = filter (\r -> rrsetsigType r == A || rrsetsigType r == AAAA) isSigned
+    add = makeODB (asSigned ++ unsign gs)
+
+----------------------------------------------------------------
+
+rrsigKV :: ResourceRecord -> Maybe ((Domain, TYPE), ResourceRecord)
+rrsigKV rr = case fromRData $ rdata rr of
+    Nothing -> Nothing
+    Just rrsig -> Just ((rrname rr, rrsig_type rrsig), rr)
+
+groupAndSig
+    :: M.Map (Domain, TYPE) ResourceRecord
+    -> [ResourceRecord]
+    -> [RRSetSig]
+groupAndSig db rrs0 = map (bindSIG db) $ groupRRset rrs0
+
+bindSIG :: M.Map (Domain, TYPE) ResourceRecord -> [ResourceRecord] -> RRSetSig
+bindSIG db rrs =
+    RRSetSig
+        { rrsetsigName = rrname
+        , rrsetsigType = rrtype
+        , rrsetsigRRs = rrs
+        , rrsetsigSig = msig
+        }
+  where
+    ResourceRecord{..} = unsafeHead rrs
+    msig = M.lookup (rrname, rrtype) db
+
+unsign :: [ResourceRecord] -> [RRSetSig]
+unsign rrs0 = map addNothing $ groupRRset rrs0
+  where
+    addNothing rrs =
+        RRSetSig
+            { rrsetsigName = rrname
+            , rrsetsigType = rrtype
+            , rrsetsigRRs = rrs
+            , rrsetsigSig = Nothing
+            }
+      where
+        ResourceRecord{..} = unsafeHead rrs
+
+----------------------------------------------------------------
+
+-- RFC 9471
+-- In-domain and sibling glues only.
+-- Unrelated glues are ignored.
+-- is: in-domain
+-- ns: NS except this domain
+-- ds: DS
+-- gs: glue (in delegated domain)
+-- _os: unrelated, ignored
+divide
+    :: Domain
+    -> [ResourceRecord]
+    -> ([ResourceRecord], [ResourceRecord], [ResourceRecord], [ResourceRecord], [ResourceRecord])
+divide zone rrs = (is, ns, ds, gs, _os)
+  where
+    -- ps: possible in-domain
+    (ps, ns, ds, _os) = divide4 zone rrs
+    isDelegated = makeIsDelegated ns
+    (gs, is) = partition (\r -> isDelegated (rrname r)) ps
+
+divide4
     :: Domain
     -> [ResourceRecord]
     -> ( [ResourceRecord] -- Possible in-domain
        , [ResourceRecord] -- NS except this domain
+       , [ResourceRecord] -- DS
        , [ResourceRecord] -- Unrelated, ignored
        )
-partition3 dom rrs0 = loop rrs0 [] [] []
+divide4 dom rrs0 = loop rrs0 [] [] [] []
   where
-    loop [] as ns os = (as, ns, os)
-    loop (r : rs) as ns os
+    loop [] as ns ds os = (as, ns, ds, os)
+    loop (r : rs) as ns ds os
         | rrname r `isSubDomainOf` dom =
             if rrtype r == NS && rrname r /= dom
-                then loop rs as (r : ns) os
-                else loop rs (r : as) ns os
-        | otherwise = loop rs as ns (r : os)
+                then loop rs as (r : ns) ds os
+                else
+                    if rrtype r == DS
+                        then loop rs as ns (r : ds) os
+                        else loop rs (r : as) ns ds os
+        | otherwise = loop rs as ns ds (r : os)
 
-makeIsDelegated :: [ResourceRecord] -> (Domain -> Bool)
+makeIsDelegated
+    :: [ResourceRecord]
+    -- ^ NS resource records
+    -> (Domain -> Bool)
 makeIsDelegated rrs = \dom -> or (map (\f -> f dom) ps)
   where
     s = Set.fromList $ map rrname rrs
     ps = map (\x -> (`isSubDomainOf` x)) $ Set.toList s
 
-makeMap :: [ResourceRecord] -> M.Map Domain [ResourceRecord]
-makeMap rrs = M.fromList kvs
-  where
-    ts = groupBy ((==) `on` rrname) $ sort rrs
-    vs = map (filter (\rr -> rrtype rr /= NULL)) ts
-    ks = map (rrname . unsafeHead) ts
-    kvs = zip ks vs
+----------------------------------------------------------------
 
-unsafeHead :: [a] -> a
+makeODB :: [RRSetSig] -> ODB
+makeODB rs = ODB{odbMap = M.fromList kvs}
+  where
+    rss :: [[RRSetSig]]
+    rss = groupBy ((==) `on` rrsetsigName) $ sort rs
+    doms :: [Domain]
+    doms = map (rrsetsigName . unsafeHead) rss
+    kvs = zip doms $ map makeIDB rss
+
+makeIDB :: [RRSetSig] -> IDB
+makeIDB vs =
+    IDB
+        { idbAll = vs
+        , idbMap = M.fromList ((RRSIG, rrsetsigRRSIG) : kvs)
+        }
+  where
+    ks = map rrsetsigType vs
+    kvs = zip ks vs
+    rrsigs = catMaybes $ map rrsetsigSig vs
+    rrsetsigRRSIG =
+        RRSetSig
+            { rrsetsigName = rrsetsigName $ unsafeHead vs
+            , rrsetsigType = RRSIG
+            , rrsetsigRRs = rrsigs
+            , rrsetsigSig = Nothing
+            }
+
+unsafeHead :: HasCallStack => [a] -> a
 unsafeHead (x : _) = x
 unsafeHead _ = error "unsafeHead"
 
@@ -138,22 +437,104 @@ fromResource (ZF.R_RR r) = Just r
 fromResource _ = Nothing
 
 -- For RFC 4592 Sec 2.2.2.Empty Non-terminals
-expand :: Domain -> ResourceRecord -> [ResourceRecord]
-expand dom rr = loop r0
+--
+-- Example: _sip._tcp.example.com
+-- _tcp.example.com exists but does not have RRs
+setEmptyNonTerminals :: Domain -> ODB -> ODB
+setEmptyNonTerminals zone (ODB m) = ODB m'
   where
-    r0 = rrname rr
-    loop r
-        | r == dom = [rr]
-        | otherwise = case unconsDomain r of
-            Nothing -> [rr]
-            Just (_, r1) -> rrnull r : loop r1
+    n = labelsCount zone
+    doms0 = filter (\d -> labelsCount d >= n + 2) $ M.keys m
+    doms1 = map snd $ catMaybes $ map unconsDomain doms0
+    doms2 = concat $ map (drop n) $ map superDomains doms1
+    doms3 = nub $ sort doms2
+    ments = map (\d -> (d, M.lookup d m)) doms3
+    ents = map fst $ filter (isNothing . snd) ments
+    m' = foldr (\d db -> M.insert d emptyIDB db) m ents
 
-rrnull :: Domain -> ResourceRecord
-rrnull r =
-    ResourceRecord
-        { rrname = r
-        , rrtype = NULL
-        , rrclass = IN
-        , rrttl = 0
-        , rdata = rd_null ""
-        }
+----------------------------------------------------------------
+
+makeNSECforPrimary
+    :: (Bool -> [ResourceRecord] -> IO [RRSetSig])
+    -> [ResourceRecord]
+    -> IO [RRSetSig]
+makeNSECforPrimary doSign rrs = doSign False $ map pack zipped
+  where
+    nameTypes :: [(Domain, TYPE)]
+    nameTypes = map (\x -> (rrname x, rrtype x)) $ nub $ sort rrs
+    packedNameTypes :: [(Domain, [TYPE])]
+    packedNameTypes =
+        map (\xs -> (fst (unsafeHead xs), nub $ sort $ map snd xs)) $
+            groupBy ((==) `on` fst) nameTypes
+    h = unsafeHead packedNameTypes
+    slided = drop 1 packedNameTypes ++ [h]
+    zipped :: [((Domain, [TYPE]), (Domain, [TYPE]))]
+    zipped = zip packedNameTypes slided
+    pack ((dom, types), (nxt, _)) =
+        ResourceRecord
+            { rrname = dom
+            , rrclass = IN
+            , rrtype = NSEC
+            , rrttl = 3600
+            , -- RFC 4035 Sec 2.3: The type bitmap of every NSEC
+              -- resource record in a signed zone MUST indicate the
+              -- presence of both the NSEC record itself and its
+              -- corresponding RRSIG record.
+              rdata = rd_nsec nxt (NSEC : RRSIG : types) -- putNsecTypes sorts this.
+            }
+
+makeNSECforSecondary
+    :: M.Map (Domain, TYPE) ResourceRecord
+    -> [ResourceRecord]
+    -> [RRSetSig]
+makeNSECforSecondary db rrs0 = map (bindSIG db) $ map (: []) rrs0
+
+----------------------------------------------------------------
+
+data DomainRange = Exact Domain | Range Domain Domain deriving (Show)
+
+{- FOURMOLU_DISABLE -}
+instance Eq DomainRange where
+    Exact k1      == Exact k2      = k1 == k2
+    Range r1s r1e == Range r2s r2e = r1s == r2s && r1e == r2e
+    Exact k       == Range rs re   = rs <= k    && k < re
+    Range rs re   == Exact k       = rs <= k    && k < re
+
+instance Ord DomainRange where
+    Exact k1    <= Exact k2    = k1 <= k2
+    Range _ r1e <= Range r2s _ = r1e <= r2s
+    Exact k     <= Range rs _  = k <= rs
+    Range _ re  <= Exact k     = re <= k
+{- FOURMOLU_ENABLE -}
+
+newtype NSECDB = NSECDB (M.Map DomainRange RRSetSig) deriving (Eq, Show)
+
+lookupN :: Domain -> DB -> Maybe RRSetSig
+lookupN dom db = M.lookup key nsecdb
+  where
+    key = Exact dom
+    NSECDB nsecdb = dbNsecMap db
+
+emptyNSECDB :: NSECDB
+emptyNSECDB = NSECDB M.empty
+
+makeNSECDB :: [RRSetSig] -> NSECDB
+makeNSECDB vals = NSECDB $ M.fromList $ zip keys vals
+  where
+    keys = modifyTail $ catMaybes $ map unpack vals
+    unpack :: RRSetSig -> Maybe (Domain, Domain)
+    unpack rss = case fromRData $ rdata r of
+        Nothing -> Nothing
+        Just nsec -> Just (rrsetsigName rss, nsec_next_domain nsec)
+      where
+        r = unsafeHead $ rrsetsigRRs rss
+    modifyTail [] = []
+    modifyTail [(x, y)] = [Range x (modify y)]
+    modifyTail ((x, y) : xys) = Range x y : modifyTail xys
+
+    zero :: Short.ShortByteString
+    zero = "\x00"
+    modify :: Domain -> Domain
+    modify dom = case toWireLabels dom of
+        [] -> fromWireLabels [zero]
+        l : ls -> fromWireLabels (l <> zero : ls)

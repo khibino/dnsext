@@ -8,6 +8,8 @@ module DNS.Types.Domain (
     Domain,
     superDomains',
     superDomains,
+    leafDomain,
+    unsafeLeafDomain,
     isSubDomainOf,
     labelsCount,
     domainSize,
@@ -228,6 +230,20 @@ unconsDomain :: Domain -> Maybe (Label, Domain)
 unconsDomain (Domain d) = case uncons (Array.elems d) of
     Nothing -> Nothing
     Just (l, d') -> Just (l, Domain $ listWireLabels d')
+
+leafDomain :: Domain -> Maybe Label
+leafDomain (Domain d)
+    | end == 0 = Nothing
+    | otherwise = Just (d ! 0)
+  where
+    (_, end) = Array.bounds d
+
+unsafeLeafDomain :: Domain -> Label
+unsafeLeafDomain dom@(Domain d)
+    | end == 0 = "."
+    | otherwise = d ! 0
+  where
+    (_, end) = Array.bounds d
 
 -- | Generating a reverse list of domain labels.
 --

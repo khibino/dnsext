@@ -1,16 +1,20 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Auth.Algorithm (
     getAnswer,
     DB (..),
+    dbRD_SOA,
+    dbSOArr,
     fromQuery,
 ) where
 
-import Data.List (nub, sort)
-import qualified Data.Map.Strict as M
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.ByteString.Short ()
+import Data.List (nub, partition, sort)
+import Data.Maybe (catMaybes)
 
 import DNS.Auth.DB
+import DNS.SEC
 import DNS.Types
 
 fromQuery :: DNSMessage -> DNSMessage
@@ -54,100 +58,162 @@ getAnswer db query
             { rcode = Refused
             , flags = (flags reply){authAnswer = False}
             }
+    | ednsVerErr = reply{rcode = BadVers}
     -- RFC 8906 Sec3.1.3.1. Recursive Queries
     -- A non-recursive server is supposed to respond to recursive
     -- queries as if the Recursion Desired (RD) bit is not set.
-    | otherwise = processPositive db q reply
+    | otherwise = process db q dnssecOK reply
   where
     q = question query
     reply = fromQuery query
+    (ednsVerErr, dnssecOK) = case ednsHeader query of
+        EDNSheader eh -> (ednsVersion eh /= 0, ednsDnssecOk eh)
+        _ -> (False, False)
 
-processPositive :: DB -> Question -> DNSMessage -> DNSMessage
-processPositive db@DB{..} q@Question{..} reply = case M.lookup qname dbAnswer of
-    Nothing -> findAuthority db q reply
-    Just rs
+-- dbAnswer contains empty ODBs for For RFC 4592 Sec 2.2.2.Empty
+-- Non-terminals.
+--                     RRSIG   NSEC
+-- Exist               has     has
+-- In-domain NS        not     has
+-- In-domain DS        has     has
+-- Empty non-terminal  not     not
+process :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
+process db q@Question{..} dnssecOK reply
+    | qtype == NSEC = processNSEC db q dnssecOK reply
+    | otherwise = processPositive db q dnssecOK reply
+
+processPositive :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
+processPositive db q@Question{..} dnssecOK reply = case lookupDforAns db q of
+    Nothing -> findAuthority db q dnssecOK reply
+    Just idb
         -- RFC 8482 Sec 4.1
         -- Answer with a Subset of Available RRsets
-        | qtype == ANY -> makeAnswer (take 1 rs) []
-        | otherwise -> case filter (\r -> rrtype r == CNAME) rs of
-            [] ->
-                let ans = filter (\r -> rrtype r == qtype) rs
-                    add = if qtype == NS then findAdditional db ans else []
-                 in makeAnswer ans add
-            [c] | length rs == 1 -> case fromRData $ rdata c of
-                Nothing -> makeReply reply [] [] [] ServFail False
-                Just cname -> processCNAME db q reply c $ cname_domain cname
-            _ -> makeReply reply [] [] [] ServFail False
+        | qtype == ANY ->
+            let ans = headIDB dnssecOK idb
+             in makeReply ans []
+        | otherwise -> case checkCNAME idb of
+            Canon ->
+                let ans = lookupT qname qtype idb dnssecOK
+                    add = if qtype `elem` [NS, MX] then findAdditional db dnssecOK ans else []
+                 in makeReply ans add
+            Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
+            CNErr -> makeErrorReply reply ServFail
   where
-    -- RFC2308 Sec 2.2 No Data
-    makeAnswer ans add = makeReply reply ans auth add NoErr True
-      where
-        auth
-            | null ans = [dbSOArr]
-            | otherwise = []
+    makeReply [] add = makeNegativeReply db qname reply dnssecOK [] add NoErr
+    makeReply ans add = makePositiveReply reply ans [] add NoErr True
+
+processNSEC :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
+processNSEC db@DB{..} Question{..} dnssecOK reply = case lookupN qname db of
+    Nothing -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
+    Just nsec
+        | rrsetsigName nsec == qname ->
+            let ans = getRRs dnssecOK nsec
+             in makePositiveReply reply ans [] [] NoErr True
+        | otherwise -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
+  where
+    rc name = case lookupD name dbAnswer of
+        Nothing -> NXDomain
+        _ -> NoErr
 
 -- RFC 1912 Sec 2.4 CNAME records
 -- This function does not follow CNAME of CNAME.
-processCNAME :: DB -> Question -> DNSMessage -> ResourceRecord -> Domain -> DNSMessage
-processCNAME DB{..} Question{..} reply c cname
-    | qtype == CNAME = makeReply reply [c] [] add NoErr True
+processCNAME :: DB -> Question -> Bool -> DNSMessage -> [ResourceRecord] -> Domain -> DNSMessage
+processCNAME DB{..} Question{..} dnssecOK reply cc cname
+    | qtype == CNAME = makePositiveReply reply cc [] add NoErr True
   where
     add
         | cname `isSubDomainOf` dbZone =
-            fromMaybe [] $ M.lookup cname dbAdditional
+            maybe [] (allRRsofIDB dnssecOK) $ lookupD cname dbAdditional
         | otherwise = []
-processCNAME DB{..} Question{..} reply c cname = makeReply reply ans auth [] code True
-  where
-    (ans, auth, code)
-        | cname `isSubDomainOf` dbZone = case M.lookup cname dbAnswer of
-            -- RFC 2308 Sec 2.1 Name Error
-            Nothing -> ([c], [dbSOArr], NXDomain)
-            Just rs ->
-                let ans' = filter (\r -> rrtype r == qtype) rs
-                    -- RFC2308 Sec 2.2 No Data
-                    auth'
-                        | null ans' = [dbSOArr]
-                        | otherwise = []
-                 in (c : ans', auth', NoErr)
-        | otherwise = ([c], [], NoErr)
+processCNAME db@DB{..} Question{..} dnssecOK reply cc cname
+    | cname `isSubDomainOf` dbZone = case lookupD cname dbAnswer of
+        -- RFC 2308 Sec 2.1 Name Error
+        Nothing -> makeNegativeReply db cname reply dnssecOK cc [] NXDomain
+        Just idb ->
+            let ans = lookupT cname qtype idb dnssecOK
+                -- RFC2308 Sec 2.2 No Data
+                auth
+                    | null ans = dbSOArr dnssecOK db
+                    | otherwise = []
+             in makePositiveReply reply (cc ++ ans) auth [] NoErr True
+    | otherwise = makePositiveReply reply cc [] [] NoErr True
 
 findAuthority
     :: DB
     -> Question
+    -> Bool
     -> DNSMessage
     -> DNSMessage
-findAuthority db@DB{..} Question{..} reply = loop qname
-  where
-    loop dom
-        | dom == dbZone = makeReply reply [] [dbSOArr] [] NXDomain True
-        | otherwise = case unconsDomain dom of
-            Nothing -> makeReply reply [] [dbSOArr] [] NXDomain True
-            Just (_, dom') -> case M.lookup dom dbAuthority of
-                Nothing -> loop dom'
-                Just auth
-                    | null auth -> makeReply reply [] [dbSOArr] [] NoErr True
-                    | otherwise ->
-                        let add = findAdditional db auth
-                         in makeReply reply [] auth add NoErr False
+findAuthority db q@Question{..} dnssecOK reply = case lookupDforAuth db q of
+    Nothing -> makeNegativeReply db qname reply dnssecOK [] [] NXDomain
+    Just idb
+        -- For RFC 4592 Sec 2.2.2.Empty Non-terminals
+        | null (allRRsofIDB False idb) ->
+            makePositiveReply reply [] (dbSOArr dnssecOK db) [] NoErr True -- fixme
+        | otherwise ->
+            let allrrs = allRRsofIDB dnssecOK idb
+                (nss, dss) = partition (\r -> rrtype r == NS) allrrs
+                auth
+                    | dnssecOK && null dss = case lookupN qname db of
+                        Nothing -> allrrs
+                        Just n -> allrrs ++ getRRs dnssecOK n
+                    | dnssecOK = allrrs
+                    | otherwise = nss
+                add = findAdditional db dnssecOK auth
+             in makePositiveReply reply [] auth add NoErr False
 
 findAdditional
     :: DB
+    -> Bool
     -> [ResourceRecord] -- NSs in Answer or Authority
     -> [ResourceRecord]
-findAdditional DB{..} rs0 = add
+findAdditional DB{..} dnssecOK rs0 = add
   where
-    doms0 = nub $ sort $ catMaybes $ map extractNS rs0
+    doms0 = nub $ sort $ catMaybes (map extractNS rs0) ++ catMaybes (map extractMX rs0)
     doms = filter (\d -> d `isSubDomainOf` dbZone) doms0
     add = concat $ map lookupAdd doms
-    lookupAdd dom = fromMaybe [] $ M.lookup dom dbAdditional
+    lookupAdd dom = maybe [] (allRRsofIDB dnssecOK) $ lookupD dom dbAdditional
     extractNS rr = ns_domain <$> fromRData (rdata rr)
+    extractMX rr = mx_exchange <$> fromRData (rdata rr)
 
-makeReply :: DNSMessage -> Answers -> AuthorityRecords -> AdditionalRecords -> RCODE -> Bool -> DNSMessage
-makeReply reply ans auth add code aa =
+makePositiveReply :: DNSMessage -> Answers -> AuthorityRecords -> AdditionalRecords -> RCODE -> Bool -> DNSMessage
+makePositiveReply reply ans auth add code aa =
     reply
         { answer = ans
         , authority = auth
         , additional = add
         , rcode = code
         , flags = (flags reply){authAnswer = aa}
+        }
+
+makeNegativeReply :: DB -> Domain -> DNSMessage -> Bool -> Answers -> AdditionalRecords -> RCODE -> DNSMessage
+makeNegativeReply db dom reply dnssecOK ans add code =
+    reply
+        { answer = ans -- CNAME sometime
+        , authority = auth ++ nsec
+        , additional = add
+        , rcode = code
+        , flags = (flags reply){authAnswer = True}
+        }
+  where
+    auth = dbSOArr dnssecOK db
+    nsec
+        | dnssecOK && code == NXDomain = case lookupN dom db of
+            Nothing -> []
+            Just n -> case lookupN (toWildcard dom) db of
+                Nothing -> getRRs dnssecOK n
+                Just m -> getRRs dnssecOK n ++ getRRs dnssecOK m
+        | dnssecOK = case lookupN dom db of
+            Nothing -> []
+            Just n -> getRRs dnssecOK n
+        | otherwise = []
+
+makeErrorReply :: DNSMessage -> RCODE -> DNSMessage
+makeErrorReply reply code =
+    reply
+        { answer = []
+        , authority = []
+        , additional = []
+        , rcode = code
+        , flags = (flags reply){authAnswer = False}
         }
