@@ -176,6 +176,7 @@ module DNS.Types (
 
     -- ** Domain
     Domain,
+    Label,
     domainSize,
     unconsDomain,
     wireLabels,
@@ -280,6 +281,7 @@ import DNS.Types.RData
 import DNS.Types.Seconds
 import DNS.Types.Serial
 import DNS.Types.Type
+import DNS.Wire.Types
 
 ----------------------------------------------------------------
 
