@@ -64,12 +64,14 @@ import qualified DNS.Types as DNS
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Stats (Stats)
+import DNS.Iterative.WorkerStats (WorkerStatOP)
 
 ----------
 -- tagless-final effect interfaces
 
 class MonadIO m => MonadEnv m where
     asksEnv :: (Env -> a) -> m a
+    asksWS :: (WorkerStatOP -> a) -> m a
 
 class MonadEnv m => MonadContext m where
     asksQP :: (QueryParam -> a) -> m a

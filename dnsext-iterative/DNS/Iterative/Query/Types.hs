@@ -28,6 +28,7 @@ import qualified DNS.Types as DNS
 
 -- this package
 import DNS.Iterative.Imports
+import DNS.Iterative.WorkerStats (WorkerStatOP)
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Norec (norec)
 
@@ -44,20 +45,22 @@ queryControls' h = queryControls (\mf eh _ -> h (mf defaultQueryDNSFlags) eh)
 
 ----------
 
-type ContextT m = ReaderT Env (ReaderT QueryParam (ReaderT QueryState m))
+type ContextT m = ReaderT Env (ReaderT WorkerStatOP (ReaderT QueryParam (ReaderT QueryState m)))
 type QueryT m = ExceptT QueryError (ContextT m)
 type DNSQuery = QueryT IO
 
 instance MonadIO m => MonadEnv (QueryT m) where
     asksEnv = lift . asks
     {-# INLINEABLE asksEnv #-}
+    asksWS = lift . lift . asks
+    {-# INLINEABLE asksWS #-}
 
 instance MonadIO m => MonadContext (QueryT m) where
-    asksQP = lift . lift . asks
+    asksQP = lift . lift . lift . asks
     {-# INLINEABLE asksQP #-}
-    localQP f = mapExceptT $ mapReaderT $ local f
+    localQP f = mapExceptT $ mapReaderT $ mapReaderT $ local f
     {-# INLINEABLE localQP #-}
-    asksQS = lift . lift . lift . asks
+    asksQS = lift . lift . lift . lift . asks
     {-# INLINEABLE asksQS #-}
     throwQuery = throwE
     {-# INLINEABLE throwQuery #-}
@@ -65,18 +68,21 @@ instance MonadIO m => MonadContext (QueryT m) where
     {-# INLINEABLE catchQuery #-}
 
 instance MonadQuery DNSQuery where
-    queryNorec dnssecOK aservers name typ = asksEnv id >>= \env -> norec env dnssecOK aservers name typ
+    queryNorec dnssecOK aservers name typ = do
+        env <- asksEnv id
+        wstat <- asksWS id
+        norec env wstat dnssecOK aservers name typ
     {-# INLINEABLE queryNorec #-}
 
-runQueryT :: MonadIO m => QueryT m a -> Env -> QueryParam -> m (Either QueryError a, QueryState)
-runQueryT q e p = do
+runQueryT :: MonadIO m => QueryT m a -> Env -> WorkerStatOP -> QueryParam -> m (Either QueryError a, QueryState)
+runQueryT q e w p = do
     s <- liftIO newQueryState
-    (,) <$> runReaderT (runReaderT (runReaderT (runExceptT q) e) p) s <*> pure s
+    (,) <$> runReaderT (runReaderT (runReaderT (runReaderT (runExceptT q) e) w) p) s <*> pure s
 
-evalQueryT :: MonadIO m => QueryT m a -> Env -> QueryParam -> m (Either QueryError a)
-evalQueryT q e p = fst <$> runQueryT q e p
+evalQueryT :: MonadIO m => QueryT m a -> Env -> WorkerStatOP -> QueryParam -> m (Either QueryError a)
+evalQueryT q e w p = fst <$> runQueryT q e w p
 
-runDNSQuery :: DNSQuery a -> Env -> QueryParam -> IO (Either QueryError a)
+runDNSQuery :: DNSQuery a -> Env -> WorkerStatOP -> QueryParam -> IO (Either QueryError a)
 runDNSQuery = evalQueryT
 
 {- FOURMOLU_DISABLE -}

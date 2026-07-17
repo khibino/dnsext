@@ -23,6 +23,7 @@ import DNS.Iterative.Internal (
     Delegation (..),
     Env (..),
     foldResponseIterative',
+    noopWorkerStat,
     newEmptyEnv,
     newTestCache,
     queryParamIN,
@@ -130,7 +131,7 @@ querySpec disableV6NS putLines = describe "query" $ do
         getReply n0 ty ident = do
             let n = fromString n0
                 q = Question n ty DNS.IN
-            foldResponseIterative' Left (\_ -> Right) cxt ident q mempty
+            foldResponseIterative' Left (\_ -> Right) cxt noopWorkerStat ident q mempty
 
     let failLeft p = either (fail . ((p ++ ": ") ++) . show) pure
         printQueryError :: Show e => Either e a -> IO ()
@@ -162,13 +163,13 @@ querySpec disableV6NS putLines = describe "query" $ do
         checkVResult = either (const VFailed) (either cachedVAnswer checkVAnswer)
 
     it "root-priming" $ do
-        result <- runDNSQuery rootPriming cxt $ queryParamIN (fromString ".") NS mempty
+        result <- runDNSQuery rootPriming cxt noopWorkerStat $ queryParamIN (fromString ".") NS mempty
         printQueryError result
         either (expectationFailure . show) (`shouldSatisfy` isRight) result
 
     root <- runIO $ do
         icxt <- newTestEnv disableV6NS (\_ _ _ -> pure ())
-        failLeft "refresh-root error" =<< runDNSQuery refreshRoot icxt (queryParamIN (fromString ".") NS mempty)
+        failLeft "refresh-root error" =<< runDNSQuery refreshRoot icxt noopWorkerStat (queryParamIN (fromString ".") NS mempty)
 
     it "iterative" $ do
         result <- runIterative_ root "iij.ad.jp."

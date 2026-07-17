@@ -17,12 +17,19 @@ import System.Console.ANSI.Types
 
 -- this package
 import DNS.Iterative.Imports
+import DNS.Iterative.WorkerStats
 import DNS.Iterative.Query.Class
+
+clogLinesIO :: Env -> WorkerStatOP -> Log.Level -> Maybe Color -> [String] -> IO ()
+clogLinesIO env wstat level color xs = do
+    let bracketBlocking_ = blockingLog wstat $ unwords xs
+    bracketBlocking_ $ logLines_ env level color xs
 
 clogLines :: MonadEnv m => Log.Level -> Maybe Color -> [String] -> m ()
 clogLines level color xs = do
-    putLines <- asksEnv logLines_
-    liftIO $ putLines level color xs
+    env <- asksEnv id
+    wstat <- asksWS id
+    liftIO $ clogLinesIO env wstat level color xs
 
 logLines :: MonadEnv m => Log.Level -> [String] -> m ()
 logLines level xs = clogLines level Nothing xs
