@@ -21,6 +21,7 @@ import DNS.Iterative.Server.QUIC
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Server.UDP
 import DNS.Iterative.Stats (incStatsDoH3, sessionStatsDoH3)
+import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 http3Servers :: VcServerConfig -> ServerActions

@@ -25,6 +25,7 @@ import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Server.UDP
 import DNS.Iterative.Stats (incStatsDoQ, sessionStatsDoQ)
+import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 

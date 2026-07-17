@@ -26,6 +26,7 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsTCP53, sessionStatsTCP53)
+import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 

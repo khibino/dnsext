@@ -1,6 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 
-module DNS.Iterative.Server.WorkerStats where
+module DNS.Iterative.WorkerStats where
 
 -- GHC packages
 import Data.IORef
@@ -12,7 +12,7 @@ import DNS.Types (Question (..))
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
 
 -- this package
-import DNS.Iterative.Server.Types (DoX (..))
+import DNS.Iterative.Types (DoX (..))
 
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
@@ -99,15 +99,19 @@ data WStatStore = WSStore WorkerStat TimeStamp
 
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
-    ref <- newIORef =<< getStore WWaitDequeue
-    pure $ WorkerStatOP (setStat ref) (getStat ref)
+    ref <- newIORef =<< mkStore WWaitDequeue
+    return
+        WorkerStatOP
+        { setWorkerStat = setStat ref
+        , getWorkerStat = getStat ref
+        }
   where
-    getStore stat = WSStore stat <$> getTimeStamp
-    setStat ref stat = writeIORef ref =<< getStore stat
+    mkStore stat = WSStore stat <$> getTimeStamp
+    setStat ref stat = writeIORef ref =<< mkStore stat
     getStat ref = do
-        WSStore s ts0 <- readIORef ref
+        WSStore stat ts0 <- readIORef ref
         now <- getTimeStamp
-        return (s, now `diffTimeStamp` ts0)
+        return (stat, now `diffTimeStamp` ts0)
 
 ------------------------------------------------------------
 
