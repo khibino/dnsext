@@ -2,7 +2,7 @@
 
 module DNS.Iterative.Server.ProxyVC where
 
-import Control.Exception (SomeException, toException)
+import Control.Exception (SomeException, toException, catch)
 import Control.Concurrent.STM
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -14,6 +14,16 @@ import Numeric.Natural (Natural)
 import DNS.Types (DNSError (DecodeError))
 import DNS.Types.Decode (decodeVCLength)
 import DNS.Types.Encode (encodeVCLength)
+
+onException'
+    :: IO a
+    -> (SomeException -> IO ())
+    -> IO a
+onException' action h = catch action handle
+  where
+    handle se = h se >> throwIO se  -- re-throw any exception
+
+--------------------------------------------------------------------------------
 
 -- $setup
 -- >>> :seti -XOverloadedStrings
@@ -95,13 +105,13 @@ inputFilledN recvN n = loop id n
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-preceiver
+pxReceiver
     :: (Int -> IO PxInput)
-    -> TBQueue PxInput
+    -> PxRecv
     -> IO ()
-preceiver filledN inputQ = loop
+pxReceiver filledN PxRecv{..} = onException' loop inputError
   where
-
+    inputError se = enqueue (InputError se)
     loop = recvLen (recvVC loop)
 
     recvLen recvVC_ = do
@@ -115,31 +125,31 @@ preceiver filledN inputQ = loop
         inp <- filledN len
         let errEOF = InputError $ toException $ DecodeError "ProxyVC.preceiver: inconsistent EOF position"
         case inp of
-            InputEOF       -> enqueue  errEOF  -- EOF found on strange position
+            InputEOF       -> enqueue  errEOF  -- EOF found on inconsistent position
             InputError{}   -> enqueue  inp
             InputBytes bs  -> enqueue (InputBytes bs) >> next
 
-    enqueue ev = atomically $ writeTBQueue inputQ ev
+    enqueue inp = atomically $ pxToReader inp
 {- FOURMOLU_DISABLE -}
 
 --------------------------------------------------------------------------------
 
 type PxOutput = BS
 
-psender
+pxSender
     :: ([BS] -> IO ())
-    -> TBQueue PxOutput
+    -> PxSend
     -> IO ()
-psender sendMany outputQ = loop
+pxSender sendMany PxSend{..} = loop
   where
     loop = do
-        bs <- atomically (readTBQueue outputQ)
+        bs <- atomically pxToSend
         sendMany [encodeVCLength (BS.length bs), bs]
         loop
 
 --------------------------------------------------------------------------------
 
-data StTerm
+data StInputTerm
     = TmEOF
     | TmError SomeException
     deriving Show
@@ -149,12 +159,44 @@ data StTerm
 -- Proxy Session
 --   - isolate from asyncronous cancellations
 --   - handling blocking I/O calls
+data PxSession_
+    = PxSession_
+      { inputQ    :: TBQueue PxInput
+      , outputQ   :: TBQueue PxOutput
+      , termTM    :: TMVar StInputTerm  -- after read terminated state from real receiver
+      , outErrTM  :: TMVar SomeException
+      , closeTM   :: TMVar ()
+      }
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+data PxRecv
+    = PxRecv
+      { pxToReader  :: PxInput -> STM ()
+      }
+{- FOURMOLU_ENABLE -}
+
+data PxSend
+    = PxSend
+      { pxFromWriter   :: STM PxOutput
+      , pxSenderError  :: SomeException -> STM ()
+      }
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+data PxRead
+    = PxRead
+      { pxGet   :: STM PxInput
+      , pxTerm  :: StTerm -> STM ()
+      }
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 data PxSession
     = PxSession
-      { inputQ   :: TBQueue PxInput
-      , outputQ  :: TBQueue PxOutput
-      , termTM   :: TMVar StTerm  -- after read terminated state from real receiver
-      , quitTM   :: TMVar ()
+      {
+      , pxTerm       :: StTerm -> STM ()
+      , pxWaitClose  :: STM ()
       }
 {- FOURMOLU_ENABLE -}
 
