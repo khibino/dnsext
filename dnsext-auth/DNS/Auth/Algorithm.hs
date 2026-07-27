@@ -11,7 +11,7 @@ module DNS.Auth.Algorithm (
 
 import Data.ByteString.Short ()
 import Data.List (nub, partition, sort)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, isJust)
 
 import DNS.Auth.DB
 import DNS.SEC
@@ -85,13 +85,12 @@ process db q@Question{..} dnssecOK reply
 processPositive :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
 processPositive db q@Question{..} dnssecOK reply = case lookupDB qname db of
     -- RFC 2308 Sec 2.1 Name Error
-    NonEx -> makeNegativeReply db qname reply dnssecOK [] [] NXDomain
+    NonEx -> makeNegativeReply db qname reply dnssecOK [] Nothing [] NXDomain
     Deleg rrs _ -> processDelegation db q dnssecOK reply [] rrs False
-    Exist rrs -> loopPositive db q dnssecOK reply rrs False
-    Expand rrs -> loopPositive db q dnssecOK reply rrs True
+    Exist rrs mwild -> loopPositive db q dnssecOK reply rrs mwild
 
-loopPositive :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Bool -> DNSMessage
-loopPositive db q@Question{..} dnssecOK reply rrs expanded
+loopPositive :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Maybe Domain -> DNSMessage
+loopPositive db q@Question{..} dnssecOK reply rrs mwild
     -- RFC 8482 Sec 4.1
     -- Answer with a Subset of Available RRsets
     | qtype == ANY =
@@ -100,10 +99,11 @@ loopPositive db q@Question{..} dnssecOK reply rrs expanded
     | otherwise = case checkCNAME dnssecOK rrs of
         Canon ->
             let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
-                -- RFC 4035
-                -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Response
                 auth
-                    | dnssecOK && expanded = lookupN qname db
+                    | dnssecOK && not (null ans) && isJust mwild =
+                        -- RFC 4035
+                        -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Res
+                        lookupN qname db
                     | otherwise = []
                 add
                     | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
@@ -112,7 +112,7 @@ loopPositive db q@Question{..} dnssecOK reply rrs expanded
         Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
         CNErr -> makeErrorReply reply ServFail
   where
-    makeReply [] _auth add = makeNegativeReply db qname reply dnssecOK [] add NoErr
+    makeReply [] _auth add = makeNegativeReply db qname reply dnssecOK [] mwild add NoErr
     makeReply ans auth add = makePositiveReply reply ans auth add NoErr True
 
 ----------------------------------------------------------------
@@ -122,9 +122,11 @@ processDelegation db Question{..} dnssecOK reply cc rrs aa
     | qtype == DS = makePositiveReply reply dss [] [] NoErr True
     | otherwise = do
         let auth
-                | dnssecOK && null dss = allrrs ++ lookupN qname db
-                | dnssecOK = allrrs
-                | otherwise = nss
+                | not dnssecOK = nss
+                -- RFC 4035
+                -- Sec 3.1.4.  Including DS RRs in a Response
+                | null dss = allrrs ++ lookupN qname db
+                | otherwise = allrrs
             add = findAdditional db dnssecOK auth
          in makePositiveReply reply cc auth add NoErr aa
   where
@@ -133,10 +135,9 @@ processDelegation db Question{..} dnssecOK reply cc rrs aa
 
 ----------------------------------------------------------------
 
--- rrsetsigName nsec == qname
 processNSEC :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
 processNSEC db Question{..} dnssecOK reply = case lookupN' qname db of
-    [] -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
+    [] -> makeNegativeReply db qname reply dnssecOK [] Nothing [] $ rc qname
     nsec -> makePositiveReply reply nsec [] [] NoErr True
   where
     rc name = case lookupDB name db of -- fixme: db is too large?
@@ -159,9 +160,9 @@ processCNAME db@DB{..} Question{..} dnssecOK reply cc cname
 processCNAME db@DB{..} q@Question{..} dnssecOK reply cc cname
     | cname `isSubDomainOf` dbZone = case lookupDB cname db of
         -- RFC 2308 Sec 2.1 Name Error
-        NonEx -> makeNegativeReply db cname reply dnssecOK cc [] NXDomain
+        NonEx -> makeNegativeReply db cname reply dnssecOK cc Nothing [] NXDomain
         Deleg rrs _ -> processDelegation db q dnssecOK reply cc rrs True
-        Exist rrs ->
+        Exist rrs _ ->
             let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
                 -- RFC2308 Sec 2.2 No Data
                 auth
@@ -194,7 +195,7 @@ cook dnssecOK f rrs = concat $ map (getRRs dnssecOK) $ f rrs
 
 cookDo :: ([RRSetSig] -> [a]) -> Result -> [a]
 cookDo f (Deleg _ (Just rrs)) = f rrs
-cookDo f (Exist rrs) = f rrs
+cookDo f (Exist rrs _) = f rrs
 cookDo _ _ = []
 
 ----------------------------------------------------------------
@@ -209,11 +210,12 @@ makePositiveReply reply ans auth add code aa =
         , flags = (flags reply){authAnswer = aa}
         }
 
-makeNegativeReply :: DB -> Domain -> DNSMessage -> Bool -> Answers -> AdditionalRecords -> RCODE -> DNSMessage
-makeNegativeReply db dom reply dnssecOK ans add code =
+makeNegativeReply :: DB -> Domain -> DNSMessage -> Bool -> Answers -> Maybe Domain -> AdditionalRecords -> RCODE -> DNSMessage
+makeNegativeReply db dom reply dnssecOK ans mwild add code =
     reply
         { answer = ans -- CNAME sometime
-        , authority = auth ++ nsec
+        -- wildcard may produce duplicated NSEC RRs
+        , authority = auth ++ nub (sort nsec)
         , additional = add
         , rcode = code
         , flags = (flags reply){authAnswer = True}
@@ -221,11 +223,22 @@ makeNegativeReply db dom reply dnssecOK ans add code =
   where
     auth = dbSOArr dnssecOK db
     nsec
-        | dnssecOK && code == NXDomain = case lookupN dom db of
-            [] -> []
-            xs -> xs ++ lookupN (toWildcard dom) db
-        | dnssecOK = lookupN dom db
-        | otherwise = []
+        | not dnssecOK = []
+        | otherwise = case mwild of
+            Nothing
+                | code == NXDomain -> case lookupN dom db of
+                    [] -> []
+                    -- RFC 4035
+                    -- 3.1.3.2.  Including NSEC RRs: Name Error Response
+                    -- fixme: how to make the wildcard?
+                    xs -> xs ++ lookupN (toWildcard dom) db
+                | otherwise ->
+                    -- RFC 4035
+                    -- 3.1.3.1.  Including NSEC RRs: No Data Response
+                    lookupN dom db
+            -- RFC 4035
+            -- Sec 3.1.3.4.  Including NSEC RRs: Wildcard No Data Response
+            Just wild -> lookupN dom db ++ lookupN wild db
 
 makeErrorReply :: DNSMessage -> RCODE -> DNSMessage
 makeErrorReply reply code =

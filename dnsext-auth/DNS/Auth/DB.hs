@@ -452,16 +452,16 @@ insert (l : ls) rrs node@Node{..} =
      in node'
 
 data Result
-    = Exist [RRSetSig]
-    | Expand [RRSetSig]
+    = Exist [RRSetSig] (Maybe Domain) -- wildcard
     | Deleg [RRSetSig] (Maybe [RRSetSig])
     | NonEx
 
 lookupDB :: Domain -> DB -> Result
 lookupDB dom DB{..} = loop ls0 dbNode Nothing
   where
+    rls = revLabels dom
     ls0 = drop dbLabelsCount $ revLabels dom
-    loop [] node Nothing = Exist $ nodeRRs node
+    loop [] node Nothing = Exist (nodeRRs node) Nothing
     loop [] node (Just x) = Deleg (nodeRRs x) $ Just $ nodeRRs node
     loop (l : ls) node mx = case M.lookup l $ nodeMap node of
         -- If l is "*" and "*" exist, match here.
@@ -473,7 +473,10 @@ lookupDB dom DB{..} = loop ls0 dbNode Nothing
                 Nothing -> case mx of
                     Nothing -> NonEx
                     Just cut -> Deleg (nodeRRs cut) Nothing
-                Just node' -> Expand $ map (synthesize dom) $ nodeRRs node'
+                Just node' ->
+                    let len = labelsCount dom - length ls - 1
+                        wild = fromWireLabels ("*" : reverse (take len rls))
+                     in Exist (map (synthesize dom) $ nodeRRs node') $ Just wild
             | otherwise -> case mx of
                 Nothing -> NonEx
                 Just cut -> Deleg (nodeRRs cut) Nothing

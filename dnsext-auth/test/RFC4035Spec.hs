@@ -158,12 +158,11 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
-        length (authority ans) `shouldBe` 4
+        length (authority ans) `shouldBe` 6
         authority ans `shouldSatisfy` include "example." SOA
         authority ans `shouldSatisfy` includeRRSIG "example." SOA
         authority ans `shouldSatisfy` include "x.y.w.example." NSEC
         authority ans `shouldSatisfy` includeRRSIG "x.y.w.example." NSEC
-        -- XXX
         authority ans `shouldSatisfy` include "*.w.example." NSEC
         authority ans `shouldSatisfy` includeRRSIG "*.w.example." NSEC
         length (additional ans) `shouldBe` 0
