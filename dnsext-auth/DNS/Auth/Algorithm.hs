@@ -100,6 +100,8 @@ loopPositive db q@Question{..} dnssecOK reply rrs expanded
     | otherwise = case checkCNAME dnssecOK rrs of
         Canon ->
             let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+                -- RFC 4035
+                -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Response
                 auth
                     | dnssecOK && expanded = case lookupN qname db of
                         Nothing -> []
