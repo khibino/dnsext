@@ -87,24 +87,33 @@ processPositive db q@Question{..} dnssecOK reply = case lookupDB qname db of
     -- RFC 2308 Sec 2.1 Name Error
     NonEx -> makeNegativeReply db qname reply dnssecOK [] [] NXDomain
     Deleg rrs _ -> processDelegation db q dnssecOK reply [] rrs False
-    Exist rrs
-        -- RFC 8482 Sec 4.1
-        -- Answer with a Subset of Available RRsets
-        | qtype == ANY ->
-            let ans = cook dnssecOK (take 1) rrs
-             in makeReply ans []
-        | otherwise -> case checkCNAME dnssecOK rrs of
-            Canon ->
-                let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
-                    add
-                        | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
-                        | otherwise = []
-                 in makeReply ans add
-            Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
-            CNErr -> makeErrorReply reply ServFail
+    Exist rrs -> loopPositive db q dnssecOK reply rrs False
+    Expand rrs -> loopPositive db q dnssecOK reply rrs True
+
+loopPositive :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Bool -> DNSMessage
+loopPositive db q@Question{..} dnssecOK reply rrs expanded
+    -- RFC 8482 Sec 4.1
+    -- Answer with a Subset of Available RRsets
+    | qtype == ANY =
+        let ans = cook dnssecOK (take 1) rrs
+         in makeReply ans [] []
+    | otherwise = case checkCNAME dnssecOK rrs of
+        Canon ->
+            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+                auth
+                    | dnssecOK && expanded = case lookupN qname db of
+                        Nothing -> []
+                        Just n -> getRRs dnssecOK n
+                    | otherwise = []
+                add
+                    | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
+                    | otherwise = []
+             in makeReply ans auth add
+        Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
+        CNErr -> makeErrorReply reply ServFail
   where
-    makeReply [] add = makeNegativeReply db qname reply dnssecOK [] add NoErr
-    makeReply ans add = makePositiveReply reply ans [] add NoErr True
+    makeReply [] _auth add = makeNegativeReply db qname reply dnssecOK [] add NoErr
+    makeReply ans auth add = makePositiveReply reply ans auth add NoErr True
 
 ----------------------------------------------------------------
 

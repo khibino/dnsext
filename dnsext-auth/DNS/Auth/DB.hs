@@ -440,6 +440,7 @@ insert (l : ls) rrs node@Node{..} =
 
 data Result
     = Exist [RRSetSig]
+    | Expand [RRSetSig]
     | Deleg [RRSetSig] (Maybe [RRSetSig])
     | NonEx
 
@@ -459,8 +460,7 @@ lookupDB dom DB{..} = loop ls0 dbNode Nothing
                 Nothing -> case mx of
                     Nothing -> NonEx
                     Just cut -> Deleg (nodeRRs cut) Nothing
-                -- fixme deleg
-                Just node' -> Exist $ map (synthesize dom) $ nodeRRs node'
+                Just node' -> Expand $ map (synthesize dom) $ nodeRRs node'
             | otherwise -> case mx of
                 Nothing -> NonEx
                 Just cut -> Deleg (nodeRRs cut) Nothing

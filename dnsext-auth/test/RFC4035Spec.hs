@@ -131,22 +131,19 @@ doit db = do
         additional ans `shouldSatisfy` include "ns1.b.example." A
         additional ans `shouldSatisfy` include "ns2.b.example." A
         flags ans `shouldSatisfy` not . authAnswer
-
     it "passes the test in Appendix B.6 (Wildcard Expansion)" $ do
         -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Response
-
         let query = dnssecQuery{question = Question "a.z.w.example." MX IN}
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 2
         answer ans `shouldSatisfy` include "a.z.w.example." MX
         answer ans `shouldSatisfy` includeRRSIG "a.z.w.example." MX
-        length (authority ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 2
         -- Our algorithm does not return NS in this case
         --  authority ans `shouldSatisfy` includeNS "ns1.example."
         --  authority ans `shouldSatisfy` includeNS "ns2.example."
         --  authority ans `shouldSatisfy` includeRRSIG "example." NS
-        -- XXX
         authority ans `shouldSatisfy` include "x.y.w.example." NSEC
         authority ans `shouldSatisfy` includeRRSIG "x.y.w.example." NSEC
         length (additional ans) `shouldBe` 4
@@ -155,7 +152,6 @@ doit db = do
         additional ans `shouldSatisfy` include "ai.example." AAAA
         additional ans `shouldSatisfy` includeRRSIG "ai.example." AAAA
         flags ans `shouldSatisfy` authAnswer
-
     it "passes the test in Appendix B.7 (Wildcard No Data Error)" $ do
         -- Sec 3.1.3.4.  Including NSEC RRs: Wildcard No Data Response
         let query = dnssecQuery{question = Question "a.z.w.example." AAAA IN}
@@ -172,7 +168,6 @@ doit db = do
         authority ans `shouldSatisfy` includeRRSIG "*.w.example." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
-
     it "passes the test in Appendix B.8 (DS Child Zone No Data Error)" $ do
         -- Sec 3.1.4.1.  Responding to Queries for DS RRs
         let query = dnssecQuery{question = Question "example." DS IN}
