@@ -441,7 +441,7 @@ insert (l : ls) rrs node@Node{..} =
 data Result
     = Exist [RRSetSig]
     | Deleg [RRSetSig] (Maybe [RRSetSig])
-    | NX
+    | NonEx
 
 lookupDB :: Domain -> DB -> Result
 lookupDB dom DB{..} = loop ls0 dbNode Nothing
@@ -457,12 +457,12 @@ lookupDB dom DB{..} = loop ls0 dbNode Nothing
         Nothing
             | l /= "*" -> case M.lookup "*" $ nodeMap node of
                 Nothing -> case mx of
-                    Nothing -> NX
+                    Nothing -> NonEx
                     Just cut -> Deleg (nodeRRs cut) Nothing
                 -- fixme deleg
                 Just node' -> Exist $ map (synthesize dom) $ nodeRRs node'
             | otherwise -> case mx of
-                Nothing -> NX
+                Nothing -> NonEx
                 Just cut -> Deleg (nodeRRs cut) Nothing
 
 ----------------------------------------------------------------

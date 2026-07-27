@@ -85,7 +85,7 @@ process db q@Question{..} dnssecOK reply
 processPositive :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
 processPositive db q@Question{..} dnssecOK reply = case lookupDB qname db of
     -- RFC 2308 Sec 2.1 Name Error
-    NX -> makeNegativeReply db qname reply dnssecOK [] [] NXDomain
+    NonEx -> makeNegativeReply db qname reply dnssecOK [] [] NXDomain
     Deleg rrs _ -> processDelegation db q dnssecOK reply [] rrs False
     Exist rrs
         -- RFC 8482 Sec 4.1
@@ -134,7 +134,7 @@ processNSEC db Question{..} dnssecOK reply = case lookupN qname db of
         | otherwise -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
   where
     rc name = case lookupDB name db of -- fixme: db is too large?
-        NX -> NXDomain
+        NonEx -> NXDomain
         _ -> NoErr
 
 ----------------------------------------------------------------
@@ -153,7 +153,7 @@ processCNAME db@DB{..} Question{..} dnssecOK reply cc cname
 processCNAME db@DB{..} q@Question{..} dnssecOK reply cc cname
     | cname `isSubDomainOf` dbZone = case lookupDB cname db of
         -- RFC 2308 Sec 2.1 Name Error
-        NX -> makeNegativeReply db cname reply dnssecOK cc [] NXDomain
+        NonEx -> makeNegativeReply db cname reply dnssecOK cc [] NXDomain
         Deleg rrs _ -> processDelegation db q dnssecOK reply cc rrs True
         Exist rrs ->
             let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
