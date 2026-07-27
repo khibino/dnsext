@@ -102,7 +102,15 @@ processPositive db q@Question{..} dnssecOK reply = case lookupDB qname db of
 loopPositive :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Maybe Domain -> DNSMessage
 loopPositive db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssecOK rrs of
     CNErr -> makeErrorReply reply ServFail
-    Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
+    Alias cname cc
+        | qtype == CNAME ->
+            let add
+                    | cname `isSubDomainOf` dbZone db -- fixme: amp attack?
+                        =
+                        cookDo (cook dnssecOK id) $ lookupDB cname db
+                    | otherwise = []
+             in makePositiveReply reply cc [] add NoErr True
+        | otherwise -> processCNAME db q dnssecOK reply cc cname
     Canon ->
         let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
             auth
@@ -124,14 +132,6 @@ loopPositive db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssec
 -- RFC 1912 Sec 2.4 CNAME records
 -- This function does not follow CNAME of CNAME.
 processCNAME :: DB -> Question -> Bool -> DNSMessage -> [ResourceRecord] -> Domain -> DNSMessage
-processCNAME db@DB{..} Question{..} dnssecOK reply cc cname
-    | qtype == CNAME = makePositiveReply reply cc [] add NoErr True
-  where
-    add
-        | cname `isSubDomainOf` dbZone -- fixme: amp attack?
-            =
-            cookDo (cook dnssecOK id) $ lookupDB cname db
-        | otherwise = []
 processCNAME db@DB{..} q@Question{..} dnssecOK reply cc cname
     | cname `isSubDomainOf` dbZone = case lookupDB cname db of
         -- RFC 2308 Sec 2.1 Name Error
