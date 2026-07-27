@@ -103,9 +103,7 @@ loopPositive db q@Question{..} dnssecOK reply rrs expanded
                 -- RFC 4035
                 -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Response
                 auth
-                    | dnssecOK && expanded = case lookupN qname db of
-                        Nothing -> []
-                        Just n -> getRRs dnssecOK n
+                    | dnssecOK && expanded = lookupN qname db
                     | otherwise = []
                 add
                     | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
@@ -124,9 +122,7 @@ processDelegation db Question{..} dnssecOK reply cc rrs aa
     | qtype == DS = makePositiveReply reply dss [] [] NoErr True
     | otherwise = do
         let auth
-                | dnssecOK && null dss = case lookupN qname db of
-                    Nothing -> allrrs
-                    Just n -> allrrs ++ getRRs dnssecOK n
+                | dnssecOK && null dss = allrrs ++ lookupN qname db
                 | dnssecOK = allrrs
                 | otherwise = nss
             add = findAdditional db dnssecOK auth
@@ -137,14 +133,11 @@ processDelegation db Question{..} dnssecOK reply cc rrs aa
 
 ----------------------------------------------------------------
 
+-- rrsetsigName nsec == qname
 processNSEC :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
-processNSEC db Question{..} dnssecOK reply = case lookupN qname db of
-    Nothing -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
-    Just nsec
-        | rrsetsigName nsec == qname ->
-            let ans = getRRs dnssecOK nsec
-             in makePositiveReply reply ans [] [] NoErr True
-        | otherwise -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
+processNSEC db Question{..} dnssecOK reply = case lookupN' qname db of
+    [] -> makeNegativeReply db qname reply dnssecOK [] [] $ rc qname
+    nsec -> makePositiveReply reply nsec [] [] NoErr True
   where
     rc name = case lookupDB name db of -- fixme: db is too large?
         NonEx -> NXDomain
@@ -229,13 +222,9 @@ makeNegativeReply db dom reply dnssecOK ans add code =
     auth = dbSOArr dnssecOK db
     nsec
         | dnssecOK && code == NXDomain = case lookupN dom db of
-            Nothing -> []
-            Just n -> case lookupN (toWildcard dom) db of
-                Nothing -> getRRs dnssecOK n
-                Just m -> getRRs dnssecOK n ++ getRRs dnssecOK m
-        | dnssecOK = case lookupN dom db of
-            Nothing -> []
-            Just n -> getRRs dnssecOK n
+            [] -> []
+            xs -> xs ++ lookupN (toWildcard dom) db
+        | dnssecOK = lookupN dom db
         | otherwise = []
 
 makeErrorReply :: DNSMessage -> RCODE -> DNSMessage

@@ -14,6 +14,7 @@ module DNS.Auth.DB (
     loadZoneFile,
     NSECDB,
     lookupN,
+    lookupN',
     DomainRange (..),
     toWildcard,
     Result (..),
@@ -362,8 +363,20 @@ instance Ord DomainRange where
 
 newtype NSECDB = NSECDB (M.Map DomainRange RRSetSig) deriving (Eq, Show)
 
-lookupN :: Domain -> DB -> Maybe RRSetSig
-lookupN dom db = M.lookup key nsecdb
+lookupN :: Domain -> DB -> [ResourceRecord]
+lookupN dom db = case M.lookup key nsecdb of
+    Nothing -> []
+    Just n -> getRRs True n
+  where
+    key = Exact dom
+    NSECDB nsecdb = dbNsecMap db
+
+lookupN' :: Domain -> DB -> [ResourceRecord]
+lookupN' dom db = case M.lookup key nsecdb of
+    Nothing -> []
+    Just n
+        | rrsetsigName n == dom -> getRRs True n
+        | otherwise -> []
   where
     key = Exact dom
     NSECDB nsecdb = dbNsecMap db
