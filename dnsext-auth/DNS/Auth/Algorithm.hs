@@ -121,6 +121,33 @@ loopPositive db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssec
 
 ----------------------------------------------------------------
 
+-- RFC 1912 Sec 2.4 CNAME records
+-- This function does not follow CNAME of CNAME.
+processCNAME :: DB -> Question -> Bool -> DNSMessage -> [ResourceRecord] -> Domain -> DNSMessage
+processCNAME db@DB{..} Question{..} dnssecOK reply cc cname
+    | qtype == CNAME = makePositiveReply reply cc [] add NoErr True
+  where
+    add
+        | cname `isSubDomainOf` dbZone -- fixme: amp attack?
+            =
+            cookDo (cook dnssecOK id) $ lookupDB cname db
+        | otherwise = []
+processCNAME db@DB{..} q@Question{..} dnssecOK reply cc cname
+    | cname `isSubDomainOf` dbZone = case lookupDB cname db of
+        -- RFC 2308 Sec 2.1 Name Error
+        NonEx -> makeNegativeReply db cname reply dnssecOK cc Nothing [] NXDomain
+        Deleg rrs _ -> processDelegation db q dnssecOK reply cc rrs True
+        Exist rrs _ ->
+            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+                -- RFC2308 Sec 2.2 No Data
+                auth
+                    | null ans = dbSOArr dnssecOK db
+                    | otherwise = []
+             in makePositiveReply reply (cc ++ ans) auth [] NoErr True
+    | otherwise = makePositiveReply reply cc [] [] NoErr True
+
+----------------------------------------------------------------
+
 processDelegation :: DB -> Question -> Bool -> DNSMessage -> Answers -> [RRSetSig] -> Bool -> DNSMessage
 processDelegation db Question{..} dnssecOK reply cc rrs aa
     | qtype == DS = makePositiveReply reply dss [] [] NoErr True
@@ -147,33 +174,6 @@ processNSEC db Question{..} dnssecOK reply = case lookupN' qname db of
     rc name = case lookupDB name db of -- fixme: db is too large?
         NonEx -> NXDomain
         _ -> NoErr
-
-----------------------------------------------------------------
-
--- RFC 1912 Sec 2.4 CNAME records
--- This function does not follow CNAME of CNAME.
-processCNAME :: DB -> Question -> Bool -> DNSMessage -> [ResourceRecord] -> Domain -> DNSMessage
-processCNAME db@DB{..} Question{..} dnssecOK reply cc cname
-    | qtype == CNAME = makePositiveReply reply cc [] add NoErr True
-  where
-    add
-        | cname `isSubDomainOf` dbZone -- fixme: amp attack?
-            =
-            cookDo (cook dnssecOK id) $ lookupDB cname db
-        | otherwise = []
-processCNAME db@DB{..} q@Question{..} dnssecOK reply cc cname
-    | cname `isSubDomainOf` dbZone = case lookupDB cname db of
-        -- RFC 2308 Sec 2.1 Name Error
-        NonEx -> makeNegativeReply db cname reply dnssecOK cc Nothing [] NXDomain
-        Deleg rrs _ -> processDelegation db q dnssecOK reply cc rrs True
-        Exist rrs _ ->
-            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
-                -- RFC2308 Sec 2.2 No Data
-                auth
-                    | null ans = dbSOArr dnssecOK db
-                    | otherwise = []
-             in makePositiveReply reply (cc ++ ans) auth [] NoErr True
-    | otherwise = makePositiveReply reply cc [] [] NoErr True
 
 ----------------------------------------------------------------
 
