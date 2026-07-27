@@ -96,7 +96,9 @@ processPositive db q@Question{..} dnssecOK reply = case lookupDB qname db of
         | otherwise -> case checkCNAME dnssecOK rrs of
             Canon ->
                 let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
-                    add = if qtype `elem` [NS, MX] then findAdditional db dnssecOK ans else []
+                    add
+                        | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
+                        | otherwise = []
                  in makeReply ans add
             Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
             CNErr -> makeErrorReply reply ServFail
