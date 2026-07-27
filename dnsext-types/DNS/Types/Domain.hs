@@ -239,7 +239,7 @@ leafDomain (Domain d)
     (_, end) = Array.bounds d
 
 unsafeLeafDomain :: Domain -> Label
-unsafeLeafDomain dom@(Domain d)
+unsafeLeafDomain (Domain d)
     | end == 0 = "."
     | otherwise = d ! 0
   where
