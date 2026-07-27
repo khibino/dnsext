@@ -87,33 +87,37 @@ processPositive db q@Question{..} dnssecOK reply = case lookupDB qname db of
     -- RFC 2308 Sec 2.1 Name Error
     NonEx -> makeNegativeReply db qname reply dnssecOK [] Nothing [] NXDomain
     Deleg rrs _ -> processDelegation db q dnssecOK reply [] rrs False
-    Exist rrs mwild -> loopPositive db q dnssecOK reply rrs mwild
+    Exist rrs mwild
+        -- RFC 8482 Sec 4.1
+        -- Answer with a Subset of Available RRsets
+        | qtype == ANY ->
+            let ans = cook dnssecOK (take 1) rrs
+             in if null ans
+                    then
+                        makeNegativeReply db qname reply dnssecOK [] mwild [] NoErr
+                    else
+                        makePositiveReply reply ans [] [] NoErr True
+        | otherwise -> loopPositive db q dnssecOK reply rrs mwild
 
 loopPositive :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Maybe Domain -> DNSMessage
-loopPositive db q@Question{..} dnssecOK reply rrs mwild
-    -- RFC 8482 Sec 4.1
-    -- Answer with a Subset of Available RRsets
-    | qtype == ANY =
-        let ans = cook dnssecOK (take 1) rrs
-         in makeReply ans [] []
-    | otherwise = case checkCNAME dnssecOK rrs of
-        Canon ->
-            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
-                auth
-                    | dnssecOK && not (null ans) && isJust mwild =
-                        -- RFC 4035
-                        -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Res
-                        lookupN qname db
-                    | otherwise = []
-                add
-                    | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
-                    | otherwise = []
-             in makeReply ans auth add
-        Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
-        CNErr -> makeErrorReply reply ServFail
-  where
-    makeReply [] _auth add = makeNegativeReply db qname reply dnssecOK [] mwild add NoErr
-    makeReply ans auth add = makePositiveReply reply ans auth add NoErr True
+loopPositive db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssecOK rrs of
+    CNErr -> makeErrorReply reply ServFail
+    Alias cdom cc -> processCNAME db q dnssecOK reply cc cdom
+    Canon ->
+        let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+            auth
+                | dnssecOK && not (null ans) && isJust mwild =
+                    -- RFC 4035
+                    -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Res
+                    lookupN qname db
+                | otherwise = []
+            add
+                | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
+                | otherwise = []
+         in if null ans
+                -- RFC2308 Sec 2.2 No Data
+                then makeNegativeReply db qname reply dnssecOK [] mwild add NoErr
+                else makePositiveReply reply ans auth add NoErr True
 
 ----------------------------------------------------------------
 
