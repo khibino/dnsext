@@ -117,17 +117,17 @@ process db q@Question{..} dnssecOK reply = case lookupDB qname db of
          in makeNegativeReply db qname reply acc Nothing
     Deleg rrs _
         | qtype == DS ->
-            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+            let ans = fromRRSetSig dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
              in makeReply ans Nothing
         | otherwise -> processDelegation db q acc0 reply rrs False
     Exist rrs mwild
         -- RFC 8482 Sec 4.1
         -- Answer with a Subset of Available RRsets
         | qtype == ANY ->
-            let ans = cook dnssecOK (take 1) rrs
+            let ans = fromRRSetSig dnssecOK (take 1) rrs
              in makeReply ans mwild
         | qtype == CNAME ->
-            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+            let ans = fromRRSetSig dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
              in makeReply ans mwild
         | qtype == NSEC ->
             let ans = lookupN' qname db
@@ -163,7 +163,7 @@ processCNAME db q@Question{..} name acc0 reply rrs0 mwild0 cnt = case checkCNAME
                 let acc = updateAccumulator acc0 cc [] [] NoErr
                  in processCNAME db q cname acc reply rrs mwild (cnt + 1)
     Canon ->
-        let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs0
+        let ans = fromRRSetSig dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs0
             auth
                 | dnssecOK && not (null ans) && isJust mwild0 =
                     -- RFC 4035
@@ -191,7 +191,7 @@ processDelegation db Question{..} acc0 reply rrs aa =
     makePositiveReply reply acc aa
   where
     dnssecOK = accDO acc0
-    allrrs = cook dnssecOK id rrs
+    allrrs = fromRRSetSig dnssecOK id rrs
     (nss, dss) = partition (\r -> rrtype r == NS) allrrs
     auth
         | not dnssecOK = nss
@@ -215,19 +215,19 @@ findAdditional db@DB{..} dnssecOK rs0 = add
     doms = filter (\d -> d `isSubDomainOf` dbZone) doms0
     add = concat $ map lookupAdd doms
     aORaaaa = filter (\x -> rrsetsigType x `elem` [A, AAAA])
-    lookupAdd dom = cookDo (cook dnssecOK aORaaaa) $ lookupDB dom db
+    lookupAdd dom = fromRRSetSigWith (fromRRSetSig dnssecOK aORaaaa) $ lookupDB dom db
     extractNS rr = ns_domain <$> fromRData (rdata rr)
     extractMX rr = mx_exchange <$> fromRData (rdata rr)
 
 ----------------------------------------------------------------
 
-cook :: Bool -> ([RRSetSig] -> [RRSetSig]) -> [RRSetSig] -> [ResourceRecord]
-cook dnssecOK f rrs = concat $ map (getRRs dnssecOK) $ f rrs
+fromRRSetSig :: Bool -> ([RRSetSig] -> [RRSetSig]) -> [RRSetSig] -> [ResourceRecord]
+fromRRSetSig dnssecOK f rrs = concat $ map (getRRs dnssecOK) $ f rrs
 
-cookDo :: ([RRSetSig] -> [a]) -> Result -> [a]
-cookDo f (Deleg _ (Just rrs)) = f rrs
-cookDo f (Exist rrs _) = f rrs
-cookDo _ _ = []
+fromRRSetSigWith :: ([RRSetSig] -> [a]) -> Result -> [a]
+fromRRSetSigWith f (Deleg _ (Just rrs)) = f rrs
+fromRRSetSigWith f (Exist rrs _) = f rrs
+fromRRSetSigWith _ _ = []
 
 ----------------------------------------------------------------
 
