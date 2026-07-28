@@ -72,6 +72,27 @@ getAnswer db query
 
 ----------------------------------------------------------------
 
+data Accumulator = Accumulator
+    { accDO :: Bool
+    , accRCODE :: RCODE
+    , accAnswer :: Answers
+    , accAuthority :: AuthorityRecords
+    , accAdditional :: AdditionalRecords
+    }
+    deriving (Eq, Show)
+
+emptyAccumulator :: Accumulator
+emptyAccumulator =
+    Accumulator
+        { accDO = False
+        , accRCODE = NoErr
+        , accAnswer = []
+        , accAuthority = []
+        , accAdditional = []
+        }
+
+----------------------------------------------------------------
+
 --                     RRSIG   NSEC
 -- Exist               has     has
 -- In-domain NS        not     has
@@ -80,7 +101,13 @@ getAnswer db query
 process :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
 process db q@Question{..} dnssecOK reply = case lookupDB qname db of
     -- RFC 2308 Sec 2.1 Name Error
-    NonEx -> makeNegativeReply db qname reply dnssecOK [] Nothing [] NXDomain
+    NonEx ->
+        let acc =
+                emptyAccumulator
+                    { accDO = dnssecOK
+                    , accRCODE = NXDomain
+                    }
+         in makeNegativeReply db qname reply acc Nothing
     Deleg rrs _
         | qtype == DS ->
             let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
@@ -100,7 +127,9 @@ process db q@Question{..} dnssecOK reply = case lookupDB qname db of
              in makeReply ans mwild
         | otherwise -> processCNAME db q dnssecOK reply rrs mwild
   where
-    makeReply [] mwild = makeNegativeReply db qname reply dnssecOK [] mwild [] NoErr
+    makeReply [] mwild = makeNegativeReply db qname reply acc mwild
+      where
+        acc = emptyAccumulator{accDO = dnssecOK}
     makeReply ans _ = makePositiveReply reply ans [] [] NoErr True
 
 ----------------------------------------------------------------
@@ -113,7 +142,14 @@ processCNAME db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssec
             makePositiveReply reply cc [] [] NoErr True
         | otherwise -> case lookupDB cname db of
             -- RFC 2308 Sec 2.1 Name Error
-            NonEx -> makeNegativeReply db cname reply dnssecOK cc Nothing [] NXDomain
+            NonEx ->
+                let acc =
+                        emptyAccumulator
+                            { accDO = dnssecOK
+                            , accRCODE = NXDomain
+                            , accAnswer = cc
+                            }
+                 in makeNegativeReply db cname reply acc Nothing
             Deleg rrs1 _ -> processDelegation db q dnssecOK reply cc rrs1 True
             Exist rrs1 _ ->
                 let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs1
@@ -135,7 +171,13 @@ processCNAME db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssec
                 | otherwise = []
          in if null ans
                 -- RFC2308 Sec 2.2 No Data
-                then makeNegativeReply db qname reply dnssecOK [] mwild add NoErr
+                then
+                    let acc =
+                            emptyAccumulator
+                                { accDO = dnssecOK
+                                , accAdditional = add
+                                }
+                     in makeNegativeReply db qname reply acc mwild
                 else makePositiveReply reply ans auth add NoErr True
 
 ----------------------------------------------------------------
@@ -193,23 +235,23 @@ makePositiveReply reply ans auth add code aa =
         , flags = (flags reply){authAnswer = aa}
         }
 
-makeNegativeReply :: DB -> Domain -> DNSMessage -> Bool -> Answers -> Maybe Domain -> AdditionalRecords -> RCODE -> DNSMessage
-makeNegativeReply db dom reply dnssecOK ans mwild add code =
+makeNegativeReply :: DB -> Domain -> DNSMessage -> Accumulator -> Maybe Domain -> DNSMessage
+makeNegativeReply db dom reply Accumulator{..} mwild =
     reply
-        { answer = ans -- CNAME sometime
+        { answer = accAnswer -- CNAME sometime
         -- wildcard may produce duplicated NSEC RRs
         , authority = auth ++ nub (sort nsec)
-        , additional = add
-        , rcode = code
+        , additional = accAdditional
+        , rcode = accRCODE
         , flags = (flags reply){authAnswer = True}
         }
   where
-    auth = dbSOArr dnssecOK db
+    auth = dbSOArr accDO db
     nsec
-        | not dnssecOK = []
+        | not accDO = []
         | otherwise = case mwild of
             Nothing
-                | code == NXDomain -> case lookupN dom db of
+                | accRCODE == NXDomain -> case lookupN dom db of
                     [] -> []
                     -- RFC 4035
                     -- 3.1.3.2.  Including NSEC RRs: Name Error Response
