@@ -91,6 +91,15 @@ emptyAccumulator =
         , accAdditional = []
         }
 
+updateAccumulator :: Accumulator -> [ResourceRecord] -> [ResourceRecord] -> [ResourceRecord] -> RCODE -> Accumulator
+updateAccumulator acc ans auth add code =
+    acc
+        { accRCODE = code
+        , accAnswer = accAnswer acc ++ ans
+        , accAuthority = accAuthority acc ++ auth
+        , accAdditional = accAdditional acc ++ add
+        }
+
 ----------------------------------------------------------------
 
 --                     RRSIG   NSEC
@@ -102,17 +111,13 @@ process :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
 process db q@Question{..} dnssecOK reply = case lookupDB qname db of
     -- RFC 2308 Sec 2.1 Name Error
     NonEx ->
-        let acc =
-                emptyAccumulator
-                    { accDO = dnssecOK
-                    , accRCODE = NXDomain
-                    }
+        let acc = acc0{accRCODE = NXDomain}
          in makeNegativeReply db qname reply acc Nothing
     Deleg rrs _
         | qtype == DS ->
             let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
              in makeReply ans Nothing
-        | otherwise -> processDelegation db q dnssecOK reply [] rrs False
+        | otherwise -> processDelegation db q acc0 reply rrs False
     Exist rrs mwild
         -- RFC 8482 Sec 4.1
         -- Answer with a Subset of Available RRsets
@@ -125,39 +130,39 @@ process db q@Question{..} dnssecOK reply = case lookupDB qname db of
         | qtype == NSEC ->
             let ans = lookupN' qname db
              in makeReply ans mwild
-        | otherwise -> processCNAME db q dnssecOK reply rrs mwild
+        | otherwise -> processCNAME db q acc0 reply rrs mwild
   where
-    makeReply [] mwild = makeNegativeReply db qname reply acc mwild
+    acc0 = emptyAccumulator{accDO = dnssecOK}
+    makeReply [] mwild = makeNegativeReply db qname reply acc0 mwild
+    makeReply ans _ = makePositiveReply reply acc True
       where
-        acc = emptyAccumulator{accDO = dnssecOK}
-    makeReply ans _ = makePositiveReply reply ans [] [] NoErr True
+        acc = updateAccumulator acc0 ans [] [] NoErr
 
 ----------------------------------------------------------------
 
-processCNAME :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Maybe Domain -> DNSMessage
-processCNAME db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssecOK rrs of
+processCNAME :: DB -> Question -> Accumulator -> DNSMessage -> [RRSetSig] -> Maybe Domain -> DNSMessage
+processCNAME db q@Question{..} acc0 reply rrs mwild = case checkCNAME dnssecOK rrs of
     CNErr -> makeErrorReply reply ServFail
     Alias cname cc
         | not (cname `isSubDomainOf` dbZone db) ->
-            makePositiveReply reply cc [] [] NoErr True
+            let acc = updateAccumulator acc0 cc [] [] NoErr
+             in makePositiveReply reply acc True
         | otherwise -> case lookupDB cname db of
             -- RFC 2308 Sec 2.1 Name Error
             NonEx ->
-                let acc =
-                        emptyAccumulator
-                            { accDO = dnssecOK
-                            , accRCODE = NXDomain
-                            , accAnswer = cc
-                            }
+                let acc = updateAccumulator acc0 cc [] [] NXDomain
                  in makeNegativeReply db cname reply acc Nothing
-            Deleg rrs1 _ -> processDelegation db q dnssecOK reply cc rrs1 True
+            Deleg rrs1 _ ->
+                let acc = updateAccumulator acc0 cc [] [] NoErr
+                 in processDelegation db q acc reply rrs1 True
             Exist rrs1 _ ->
                 let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs1
                     -- RFC2308 Sec 2.2 No Data
                     auth
                         | null ans = dbSOArr dnssecOK db
                         | otherwise = []
-                 in makePositiveReply reply (cc ++ ans) auth [] NoErr True
+                    acc = updateAccumulator acc0 (cc ++ ans) auth [] NoErr
+                 in makePositiveReply reply acc True
     Canon ->
         let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
             auth
@@ -172,20 +177,21 @@ processCNAME db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssec
          in if null ans
                 -- RFC2308 Sec 2.2 No Data
                 then
-                    let acc =
-                            emptyAccumulator
-                                { accDO = dnssecOK
-                                , accAdditional = add
-                                }
+                    let acc = updateAccumulator acc0 [] [] add NoErr
                      in makeNegativeReply db qname reply acc mwild
-                else makePositiveReply reply ans auth add NoErr True
+                else
+                    let acc = updateAccumulator acc0 ans auth add NoErr
+                     in makePositiveReply reply acc True
+  where
+    dnssecOK = accDO acc0
 
 ----------------------------------------------------------------
 
-processDelegation :: DB -> Question -> Bool -> DNSMessage -> Answers -> [RRSetSig] -> Bool -> DNSMessage
-processDelegation db Question{..} dnssecOK reply cc rrs aa =
-    makePositiveReply reply cc auth add NoErr aa
+processDelegation :: DB -> Question -> Accumulator -> DNSMessage -> [RRSetSig] -> Bool -> DNSMessage
+processDelegation db Question{..} acc0 reply rrs aa =
+    makePositiveReply reply acc aa
   where
+    dnssecOK = accDO acc0
     allrrs = cook dnssecOK id rrs
     (nss, dss) = partition (\r -> rrtype r == NS) allrrs
     auth
@@ -195,6 +201,7 @@ processDelegation db Question{..} dnssecOK reply cc rrs aa =
         | null dss = allrrs ++ lookupN qname db
         | otherwise = allrrs
     add = findAdditional db dnssecOK auth
+    acc = updateAccumulator acc0 [] auth add NoErr
 
 ----------------------------------------------------------------
 
@@ -225,13 +232,13 @@ cookDo _ _ = []
 
 ----------------------------------------------------------------
 
-makePositiveReply :: DNSMessage -> Answers -> AuthorityRecords -> AdditionalRecords -> RCODE -> Bool -> DNSMessage
-makePositiveReply reply ans auth add code aa =
+makePositiveReply :: DNSMessage -> Accumulator -> Bool -> DNSMessage
+makePositiveReply reply Accumulator{..} aa =
     reply
-        { answer = ans
-        , authority = auth
-        , additional = add
-        , rcode = code
+        { answer = accAnswer
+        , authority = accAuthority
+        , additional = accAdditional
+        , rcode = accRCODE
         , flags = (flags reply){authAnswer = aa}
         }
 
