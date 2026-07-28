@@ -78,33 +78,50 @@ getAnswer db query
 -- In-domain DS        has     has
 -- Empty non-terminal  not     not
 process :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
-process db q@Question{..} dnssecOK reply
-    | qtype == NSEC = processNSEC db q dnssecOK reply
-    | otherwise = processPositive db q dnssecOK reply
-
-processPositive :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
-processPositive db q@Question{..} dnssecOK reply = case lookupDB qname db of
+process db q@Question{..} dnssecOK reply = case lookupDB qname db of
     -- RFC 2308 Sec 2.1 Name Error
     NonEx -> makeNegativeReply db qname reply dnssecOK [] Nothing [] NXDomain
-    Deleg rrs _ -> processDelegation db q dnssecOK reply [] rrs False
+    Deleg rrs _
+        | qtype == DS ->
+            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+             in makeReply ans Nothing
+        | otherwise -> processDelegation db q dnssecOK reply [] rrs False
     Exist rrs mwild
         -- RFC 8482 Sec 4.1
         -- Answer with a Subset of Available RRsets
         | qtype == ANY ->
             let ans = cook dnssecOK (take 1) rrs
-             in if null ans
-                    then
-                        makeNegativeReply db qname reply dnssecOK [] mwild [] NoErr
-                    else
-                        makePositiveReply reply ans [] [] NoErr True
-        | otherwise -> loopPositive db q dnssecOK reply rrs mwild
+             in makeReply ans mwild
+        | qtype == CNAME ->
+            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+             in makeReply ans mwild
+        | qtype == NSEC ->
+            let ans = lookupN' qname db
+             in makeReply ans mwild
+        | otherwise -> processCNAME db q dnssecOK reply rrs mwild
+  where
+    makeReply [] mwild = makeNegativeReply db qname reply dnssecOK [] mwild [] NoErr
+    makeReply ans _ = makePositiveReply reply ans [] [] NoErr True
 
-loopPositive :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Maybe Domain -> DNSMessage
-loopPositive db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssecOK rrs of
+----------------------------------------------------------------
+
+processCNAME :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Maybe Domain -> DNSMessage
+processCNAME db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssecOK rrs of
     CNErr -> makeErrorReply reply ServFail
     Alias cname cc
-        | qtype == CNAME -> makePositiveReply reply cc [] [] NoErr True
-        | otherwise -> processCNAME db q dnssecOK reply cc cname
+        | not (cname `isSubDomainOf` dbZone db) ->
+            makePositiveReply reply cc [] [] NoErr True
+        | otherwise -> case lookupDB cname db of
+            -- RFC 2308 Sec 2.1 Name Error
+            NonEx -> makeNegativeReply db cname reply dnssecOK cc Nothing [] NXDomain
+            Deleg rrs1 _ -> processDelegation db q dnssecOK reply cc rrs1 True
+            Exist rrs1 _ ->
+                let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs1
+                    -- RFC2308 Sec 2.2 No Data
+                    auth
+                        | null ans = dbSOArr dnssecOK db
+                        | otherwise = []
+                 in makePositiveReply reply (cc ++ ans) auth [] NoErr True
     Canon ->
         let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
             auth
@@ -123,51 +140,19 @@ loopPositive db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssec
 
 ----------------------------------------------------------------
 
--- RFC 1912 Sec 2.4 CNAME records
--- This function does not follow CNAME of CNAME.
-processCNAME :: DB -> Question -> Bool -> DNSMessage -> [ResourceRecord] -> Domain -> DNSMessage
-processCNAME db@DB{..} q@Question{..} dnssecOK reply cc cname
-    | cname `isSubDomainOf` dbZone = case lookupDB cname db of
-        -- RFC 2308 Sec 2.1 Name Error
-        NonEx -> makeNegativeReply db cname reply dnssecOK cc Nothing [] NXDomain
-        Deleg rrs _ -> processDelegation db q dnssecOK reply cc rrs True
-        Exist rrs _ ->
-            let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
-                -- RFC2308 Sec 2.2 No Data
-                auth
-                    | null ans = dbSOArr dnssecOK db
-                    | otherwise = []
-             in makePositiveReply reply (cc ++ ans) auth [] NoErr True
-    | otherwise = makePositiveReply reply cc [] [] NoErr True
-
-----------------------------------------------------------------
-
 processDelegation :: DB -> Question -> Bool -> DNSMessage -> Answers -> [RRSetSig] -> Bool -> DNSMessage
-processDelegation db Question{..} dnssecOK reply cc rrs aa
-    | qtype == DS = makePositiveReply reply dss [] [] NoErr True
-    | otherwise = do
-        let auth
-                | not dnssecOK = nss
-                -- RFC 4035
-                -- Sec 3.1.4.  Including DS RRs in a Response
-                | null dss = allrrs ++ lookupN qname db
-                | otherwise = allrrs
-            add = findAdditional db dnssecOK auth
-         in makePositiveReply reply cc auth add NoErr aa
+processDelegation db Question{..} dnssecOK reply cc rrs aa =
+    makePositiveReply reply cc auth add NoErr aa
   where
     allrrs = cook dnssecOK id rrs
     (nss, dss) = partition (\r -> rrtype r == NS) allrrs
-
-----------------------------------------------------------------
-
-processNSEC :: DB -> Question -> Bool -> DNSMessage -> DNSMessage
-processNSEC db Question{..} dnssecOK reply = case lookupN' qname db of
-    [] -> makeNegativeReply db qname reply dnssecOK [] Nothing [] $ rc qname
-    nsec -> makePositiveReply reply nsec [] [] NoErr True
-  where
-    rc name = case lookupDB name db of -- fixme: db is too large?
-        NonEx -> NXDomain
-        _ -> NoErr
+    auth
+        | not dnssecOK = nss
+        -- RFC 4035
+        -- Sec 3.1.4.  Including DS RRs in a Response
+        | null dss = allrrs ++ lookupN qname db
+        | otherwise = allrrs
+    add = findAdditional db dnssecOK auth
 
 ----------------------------------------------------------------
 
