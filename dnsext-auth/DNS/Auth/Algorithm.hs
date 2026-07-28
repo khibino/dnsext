@@ -78,6 +78,7 @@ data Accumulator = Accumulator
     , accAnswer :: Answers
     , accAuthority :: AuthorityRecords
     , accAdditional :: AdditionalRecords
+    , accLoopLimit :: Int
     }
     deriving (Eq, Show)
 
@@ -89,6 +90,7 @@ emptyAccumulator =
         , accAnswer = []
         , accAuthority = []
         , accAdditional = []
+        , accLoopLimit = 10 -- fixme: hard-coding
         }
 
 updateAccumulator :: Accumulator -> [ResourceRecord] -> [ResourceRecord] -> [ResourceRecord] -> RCODE -> Accumulator
@@ -130,7 +132,7 @@ process db q@Question{..} dnssecOK reply = case lookupDB qname db of
         | qtype == NSEC ->
             let ans = lookupN' qname db
              in makeReply ans mwild
-        | otherwise -> processCNAME db q acc0 reply rrs mwild
+        | otherwise -> processCNAME db q qname acc0 reply rrs mwild 0
   where
     acc0 = emptyAccumulator{accDO = dnssecOK}
     makeReply [] mwild = makeNegativeReply db qname reply acc0 mwild
@@ -140,8 +142,10 @@ process db q@Question{..} dnssecOK reply = case lookupDB qname db of
 
 ----------------------------------------------------------------
 
-processCNAME :: DB -> Question -> Accumulator -> DNSMessage -> [RRSetSig] -> Maybe Domain -> DNSMessage
-processCNAME db q@Question{..} acc0 reply rrs mwild = case checkCNAME dnssecOK rrs of
+processCNAME :: DB -> Question -> Domain -> Accumulator -> DNSMessage -> [RRSetSig] -> Maybe Domain -> Int -> DNSMessage
+processCNAME _ _ _ acc0 reply _ _ cnt
+    | cnt >= accLoopLimit acc0 = makePositiveReply reply acc0 True {- fixme -}
+processCNAME db q@Question{..} name acc0 reply rrs0 mwild0 cnt = case checkCNAME dnssecOK rrs0 of
     CNErr -> makeErrorReply reply ServFail
     Alias cname cc
         | not (cname `isSubDomainOf` dbZone db) ->
@@ -152,24 +156,19 @@ processCNAME db q@Question{..} acc0 reply rrs mwild = case checkCNAME dnssecOK r
             NonEx ->
                 let acc = updateAccumulator acc0 cc [] [] NXDomain
                  in makeNegativeReply db cname reply acc Nothing
-            Deleg rrs1 _ ->
+            Deleg rrs _ ->
                 let acc = updateAccumulator acc0 cc [] [] NoErr
-                 in processDelegation db q acc reply rrs1 True
-            Exist rrs1 _ ->
-                let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs1
-                    -- RFC2308 Sec 2.2 No Data
-                    auth
-                        | null ans = dbSOArr dnssecOK db
-                        | otherwise = []
-                    acc = updateAccumulator acc0 (cc ++ ans) auth [] NoErr
-                 in makePositiveReply reply acc True
+                 in processDelegation db q acc reply rrs True
+            Exist rrs mwild ->
+                let acc = updateAccumulator acc0 cc [] [] NoErr
+                 in processCNAME db q cname acc reply rrs mwild (cnt + 1)
     Canon ->
-        let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
+        let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs0
             auth
-                | dnssecOK && not (null ans) && isJust mwild =
+                | dnssecOK && not (null ans) && isJust mwild0 =
                     -- RFC 4035
                     -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Res
-                    lookupN qname db
+                    lookupN name db
                 | otherwise = []
             add
                 | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
@@ -178,7 +177,7 @@ processCNAME db q@Question{..} acc0 reply rrs mwild = case checkCNAME dnssecOK r
                 -- RFC2308 Sec 2.2 No Data
                 then
                     let acc = updateAccumulator acc0 [] [] add NoErr
-                     in makeNegativeReply db qname reply acc mwild
+                     in makeNegativeReply db name reply acc mwild0
                 else
                     let acc = updateAccumulator acc0 ans auth add NoErr
                      in makePositiveReply reply acc True
