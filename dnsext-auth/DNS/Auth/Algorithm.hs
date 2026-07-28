@@ -103,13 +103,7 @@ loopPositive :: DB -> Question -> Bool -> DNSMessage -> [RRSetSig] -> Maybe Doma
 loopPositive db q@Question{..} dnssecOK reply rrs mwild = case checkCNAME dnssecOK rrs of
     CNErr -> makeErrorReply reply ServFail
     Alias cname cc
-        | qtype == CNAME ->
-            let add
-                    | cname `isSubDomainOf` dbZone db -- fixme: amp attack?
-                        =
-                        cookDo (cook dnssecOK id) $ lookupDB cname db
-                    | otherwise = []
-             in makePositiveReply reply cc [] add NoErr True
+        | qtype == CNAME -> makePositiveReply reply cc [] [] NoErr True
         | otherwise -> processCNAME db q dnssecOK reply cc cname
     Canon ->
         let ans = cook dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs

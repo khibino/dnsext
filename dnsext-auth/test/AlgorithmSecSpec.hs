@@ -276,11 +276,7 @@ doit db = do
         answer ans `shouldSatisfy` include "exist-cname.example.jp." CNAME
         answer ans `shouldSatisfy` includeRRSIG "exist-cname.example.jp." CNAME
         length (authority ans) `shouldBe` 0
-        length (additional ans) `shouldBe` 4
-        additional ans `shouldSatisfy` include "exist.example.jp." A
-        additional ans `shouldSatisfy` includeRRSIG "exist.example.jp." A
-        additional ans `shouldSatisfy` include "exist.example.jp." AAAA
-        additional ans `shouldSatisfy` includeRRSIG "exist.example.jp." AAAA
+        length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
     it "can handle Empty Non-Terminal node" $ do
         let query = dnssecQuery{question = Question "ent1.example.jp." A IN}
