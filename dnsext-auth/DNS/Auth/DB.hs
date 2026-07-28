@@ -16,9 +16,9 @@ module DNS.Auth.DB (
     lookupN,
     lookupN',
     DomainRange (..),
-    toWildcard,
     Result (..),
     lookupDB,
+    decideNXWildcard,
     CNAMECheck (..),
     checkCNAME,
 ) where
@@ -37,11 +37,6 @@ import DNS.Types
 import qualified DNS.ZoneFile as ZF
 
 ----------------------------------------------------------------
-
-toWildcard :: Domain -> Domain
-toWildcard dom = case unconsDomain dom of
-    Nothing -> dom
-    Just (_, super) -> fromWireLabels ("*" : wireLabels super)
 
 synthesize :: Domain -> RRSetSig -> RRSetSig
 synthesize dom rs
@@ -480,6 +475,23 @@ lookupDB dom DB{..} = loop ls0 dbNode Nothing
             | otherwise -> case mx of
                 Nothing -> NonEx
                 Just cut -> Deleg (nodeRRs cut) Nothing
+
+decideNXWildcard :: Domain -> DB -> Maybe Domain
+decideNXWildcard dom DB{..} = loop ls0 dbNode
+  where
+    rls :: [Label]
+    rls = revLabels dom
+    ls0 = drop dbLabelsCount $ revLabels dom
+    loop :: [Label] -> Node -> Maybe Domain
+    loop [] _ = Nothing -- Exist
+    loop (l : ls) node = case M.lookup l $ nodeMap node of
+        Nothing ->
+            let len = labelsCount dom - length ls - 1
+                wild = fromWireLabels ("*" : reverse (take len rls))
+             in Just wild
+        Just node'
+            | nodeDelegated node' -> Nothing
+            | otherwise -> loop ls node'
 
 ----------------------------------------------------------------
 

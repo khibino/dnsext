@@ -260,8 +260,9 @@ makeNegativeReply db dom reply Accumulator{..} mwild =
                     [] -> []
                     -- RFC 4035
                     -- 3.1.3.2.  Including NSEC RRs: Name Error Response
-                    -- fixme: how to make the wildcard?
-                    xs -> xs ++ lookupN (toWildcard dom) db
+                    xs -> case decideNXWildcard dom db of
+                        Nothing -> xs
+                        Just wild -> xs ++ lookupN wild db
                 | otherwise ->
                     -- RFC 4035
                     -- 3.1.3.1.  Including NSEC RRs: No Data Response
