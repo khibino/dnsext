@@ -119,7 +119,7 @@ process db q@Question{..} dnssecOK reply = case lookupDB qname db of
         | qtype == DS ->
             let ans = fromRRSetSig dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs
              in makeReply ans Nothing
-        | otherwise -> processDelegation db q acc0 reply rrs False
+        | otherwise -> processDelegation db q acc0 reply rrs
     Exist rrs mwild
         -- RFC 8482 Sec 4.1
         -- Answer with a Subset of Available RRsets
@@ -136,7 +136,7 @@ process db q@Question{..} dnssecOK reply = case lookupDB qname db of
   where
     acc0 = emptyAccumulator{accDO = dnssecOK}
     makeReply [] mwild = makeNegativeReply db qname reply acc0 mwild
-    makeReply ans _ = makePositiveReply reply acc True
+    makeReply ans _ = makePositiveReply reply acc
       where
         acc = updateAccumulator acc0 ans [] [] NoErr
 
@@ -144,13 +144,13 @@ process db q@Question{..} dnssecOK reply = case lookupDB qname db of
 
 processCNAME :: DB -> Question -> Domain -> Accumulator -> DNSMessage -> [RRSetSig] -> Maybe Domain -> Int -> DNSMessage
 processCNAME _ _ _ acc0 reply _ _ cnt
-    | cnt >= accLoopLimit acc0 = makePositiveReply reply acc0 True {- fixme -}
+    | cnt >= accLoopLimit acc0 = makePositiveReply reply acc0
 processCNAME db q@Question{..} name acc0 reply rrs0 mwild0 cnt = case checkCNAME dnssecOK rrs0 of
     CNErr -> makeErrorReply reply ServFail
     Alias cname cc
         | not (cname `isSubDomainOf` dbZone db) ->
             let acc = updateAccumulator acc0 cc [] [] NoErr
-             in makePositiveReply reply acc True
+             in makePositiveReply reply acc
         | otherwise -> case lookupDB cname db of
             -- RFC 2308 Sec 2.1 Name Error
             NonEx ->
@@ -158,7 +158,7 @@ processCNAME db q@Question{..} name acc0 reply rrs0 mwild0 cnt = case checkCNAME
                  in makeNegativeReply db cname reply acc Nothing
             Deleg rrs _ ->
                 let acc = updateAccumulator acc0 cc [] [] NoErr
-                 in processDelegation db q acc reply rrs True
+                 in processDelegation db q acc reply rrs
             Exist rrs mwild ->
                 let acc = updateAccumulator acc0 cc [] [] NoErr
                  in processCNAME db q cname acc reply rrs mwild (cnt + 1)
@@ -180,15 +180,14 @@ processCNAME db q@Question{..} name acc0 reply rrs0 mwild0 cnt = case checkCNAME
                      in makeNegativeReply db name reply acc mwild0
                 else
                     let acc = updateAccumulator acc0 ans auth add NoErr
-                     in makePositiveReply reply acc True
+                     in makePositiveReply reply acc
   where
     dnssecOK = accDO acc0
 
 ----------------------------------------------------------------
 
-processDelegation :: DB -> Question -> Accumulator -> DNSMessage -> [RRSetSig] -> Bool -> DNSMessage
-processDelegation db Question{..} acc0 reply rrs aa =
-    makePositiveReply reply acc aa
+processDelegation :: DB -> Question -> Accumulator -> DNSMessage -> [RRSetSig] -> DNSMessage
+processDelegation db Question{..} acc0 reply rrs = makePositiveReply reply acc
   where
     dnssecOK = accDO acc0
     allrrs = fromRRSetSig dnssecOK id rrs
@@ -231,14 +230,14 @@ fromRRSetSigWith _ _ = []
 
 ----------------------------------------------------------------
 
-makePositiveReply :: DNSMessage -> Accumulator -> Bool -> DNSMessage
-makePositiveReply reply Accumulator{..} aa =
+makePositiveReply :: DNSMessage -> Accumulator -> DNSMessage
+makePositiveReply reply Accumulator{..} =
     reply
         { answer = accAnswer
         , authority = accAuthority
         , additional = accAdditional
         , rcode = accRCODE
-        , flags = (flags reply){authAnswer = aa}
+        , flags = (flags reply){authAnswer = not (null accAnswer)}
         }
 
 makeNegativeReply :: DB -> Domain -> DNSMessage -> Accumulator -> Maybe Domain -> DNSMessage
