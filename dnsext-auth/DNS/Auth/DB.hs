@@ -243,6 +243,9 @@ unsign rrs0 = map addNothing $ groupRRset rrs0
 -- RFC 9471
 -- In-domain and sibling glues only.
 -- Unrelated glues are ignored.
+-- Empty non terminals are not included in rrs because they
+-- are from a zone file.
+--
 -- is: in-domain
 -- ns: NS except this domain
 -- ds: DS
