@@ -143,7 +143,8 @@ makeDBforPrimary zone doSign (soarr : rrs)
             isSigned <- doSign True is
             dsSigned <- doSign True ds
             -- In-domain NS/DS should have NSEC.
-            nsecSigned <- makeNSECforPrimary doSign (soarr : (is ++ ns))
+            let node = makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
+            nsecSigned <- makeNSECforPrimary doSign node
             let allrr =
                     getRRs True (unsafeHead ssSigned)
                         ++ concat (map (getRRs True) isSigned)
@@ -153,7 +154,8 @@ makeDBforPrimary zone doSign (soarr : rrs)
                         ++ gs
                         ++ _os
                         ++ [soarr] -- for AXFR
-            return $ Just $ makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr
+                db = makeDBFinal zone soa ssSigned node nsecSigned allrr
+            return $ Just db
 
 makeDBforSecondary :: Domain -> [ResourceRecord] -> IO (Maybe DB)
 makeDBforSecondary _ [] = return Nothing
@@ -171,24 +173,23 @@ makeDBforSecondary zone (soarr : rrs0)
                 ssSigned = groupAndSig sigDB [soarr]
                 isSigned = groupAndSig sigDB is
                 dsSigned = groupAndSig sigDB ds
+            let node = makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
             let nsecSigned = makeNSECforSecondary sigDB nsec
             let allrr = [soarr] ++ rrs ++ [soarr] -- for AXFR
-            return $ Just $ makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr
+                db = makeDBFinal zone soa ssSigned node nsecSigned allrr
+            return $ Just db
 
 ----------------------------------------------------------------
 
 makeDBFinal
     :: Domain
     -> RD_SOA
-    -> [ResourceRecord]
-    -> [ResourceRecord]
     -> [RRSetSig]
-    -> [RRSetSig]
-    -> [RRSetSig]
+    -> Node
     -> [RRSetSig]
     -> [ResourceRecord]
     -> DB
-makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr =
+makeDBFinal zone soa ssSigned node nsecSigned allrr =
     DB
         { dbZone = zone
         , dbLabelsCount = n
@@ -199,7 +200,6 @@ makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr =
         }
   where
     n = labelsCount zone
-    node = makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
 
 ----------------------------------------------------------------
 
@@ -309,16 +309,12 @@ fromResource _ = Nothing
 
 makeNSECforPrimary
     :: (Bool -> [ResourceRecord] -> IO [RRSetSig])
-    -> [ResourceRecord]
+    -> Node
     -> IO [RRSetSig]
-makeNSECforPrimary doSign rrs = doSign False $ map pack zipped
+makeNSECforPrimary doSign root = doSign False $ map pack zipped
   where
-    nameTypes :: [(Domain, TYPE)]
-    nameTypes = map (\x -> (rrname x, rrtype x)) $ nub $ sort rrs
     packedNameTypes :: [(Domain, [TYPE])]
-    packedNameTypes =
-        map (\xs -> (fst (unsafeHead xs), nub $ sort $ map snd xs)) $
-            groupBy ((==) `on` fst) nameTypes
+    packedNameTypes = foldNode skipENTandUnderDelegated root
     h = unsafeHead packedNameTypes
     slided = drop 1 packedNameTypes ++ [h]
     zipped :: [((Domain, [TYPE]), (Domain, [TYPE]))]
@@ -335,6 +331,12 @@ makeNSECforPrimary doSign rrs = doSign False $ map pack zipped
               -- corresponding RRSIG record.
               rdata = rd_nsec nxt (NSEC : RRSIG : types) -- putNsecTypes sorts this.
             }
+    skipENTandUnderDelegated Node{..} = (xs, not nodeDelegated)
+      where
+        types = map rrsetsigType nodeRRs
+        xs
+            | null types = []
+            | otherwise = [(nodeName, types)]
 
 makeNSECforSecondary
     :: M.Map (Domain, TYPE) ResourceRecord
@@ -513,6 +515,16 @@ decideNXWildcard dom DB{..} = loop ls0 dbNode
         Just node'
             | nodeDelegated node' -> Nothing
             | otherwise -> loop ls node'
+
+----------------------------------------------------------------
+
+foldNode :: (Node -> ([a], Bool)) -> Node -> [a]
+foldNode extract root = walk root
+  where
+    walk n = xs ++ if deeper then dig (nodeMap n) else []
+      where
+        (xs, deeper) = extract n
+    dig m = M.foldr (\n xs -> walk n ++ xs) [] m
 
 ----------------------------------------------------------------
 
