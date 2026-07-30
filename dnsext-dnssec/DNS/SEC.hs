@@ -36,6 +36,9 @@ module DNS.SEC (
     -- *** NSEC3 RR
     RD_NSEC3 (..),
     rd_nsec3,
+    NSEC3Next,
+    toNSEC3Next,
+    fromNSEC3Next,
 
     -- *** NSEC3PARAM RR
     RD_NSEC3PARAM (..),

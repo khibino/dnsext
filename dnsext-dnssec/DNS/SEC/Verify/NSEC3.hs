@@ -35,7 +35,7 @@ rangeImpl =
     , nrangeTake = takeRange
     , nrangeRefine = refineRange
     , nrangeLower = n3range_hashed_owner
-    , nrangeUpper = nsec3_next_hashed_owner_name . snd . n3range_data
+    , nrangeUpper = fromNSEC3Next . nsec3_next_hashed_owner_name . snd . n3range_data
     }
   where
     takeRange ResourceRecord{..} = (,) rrname <$> fromRData rdata
@@ -279,7 +279,7 @@ n3RefineWithRanges zone ranges0 = do
             | (NSEC3_Refined{..}, hash) <- ranges
             , let owner = n3range_hashed_owner
                   rangeData@(_, RD_NSEC3{..}) = n3range_data
-                  next = nsec3_next_hashed_owner_name {- binary hashed value, not base32hex -}
+                  next = fromNSEC3Next nsec3_next_hashed_owner_name {- binary hashed value, not base32hex -}
                   rotated = owner > next
                   refineWithRange cover qname
                     {- owner and next are decoded range, not base32hex -}
