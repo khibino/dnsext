@@ -147,10 +147,10 @@ makeDBforPrimary zone doSign (soarr : rrs)
             nsecSigned <- makeNSECforPrimary doSign node
             let allrr =
                     getRRs True (unsafeHead ssSigned)
-                        ++ concat (map (getRRs True) isSigned)
+                        ++ concatMap (getRRs True) isSigned
                         ++ ns
-                        ++ concat (map (getRRs True) dsSigned)
-                        ++ concat (map (getRRs True) nsecSigned)
+                        ++ concatMap (getRRs True) dsSigned
+                        ++ concatMap (getRRs True) nsecSigned
                         ++ gs
                         ++ _os
                         ++ [soarr] -- for AXFR
