@@ -396,6 +396,8 @@ makeNSECDB vals = NSECDB $ M.fromList $ zip keys vals
     modifyTail [(x, y)] = [Range x (modify y)]
     modifyTail ((x, y) : xys) = Range x y : modifyTail xys
 
+    -- jp, aa.jp, bb.jp, cc.jp, jp ->
+    -- jp, aa.jp, bb.jp, cc.jp, jp0
     zero :: Short.ShortByteString
     zero = "\x00"
     modify :: Domain -> Domain
