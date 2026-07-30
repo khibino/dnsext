@@ -86,19 +86,20 @@ getRRs False RRSetSig{..} = rrsetsigRRs
 emptyDB :: DB
 emptyDB =
     DB
-        { dbZone = "."
+        { dbZone = zone
         , dbLabelsCount = 0
         , dbSOA = (soa, soarrsetsig)
-        , dbNode = emptyNode
+        , dbNode = emptyNode zone
         , dbAll = []
         , dbNsecMap = emptyNSECDB
         }
   where
-    soard = rd_soa "." "." 0 0 0 0 0
+    zone = "."
+    soard = rd_soa zone "." 0 0 0 0 0
     soa = fromJust $ fromRData soard
     soarr =
         ResourceRecord
-            { rrname = "."
+            { rrname = zone
             , rrtype = SOA
             , rrclass = IN
             , rrttl = 0
@@ -106,7 +107,7 @@ emptyDB =
             }
     soarrsetsig =
         RRSetSig
-            { rrsetsigName = "."
+            { rrsetsigName = zone
             , rrsetsigType = SOA
             , rrsetsigRRs = [soarr]
             , rrsetsigSig = Nothing
@@ -198,7 +199,7 @@ makeDBFinal zone soa ns gs ssSigned isSigned dsSigned nsecSigned allrr =
         }
   where
     n = labelsCount zone
-    node = makeNode n (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
+    node = makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
 
 ----------------------------------------------------------------
 
@@ -408,45 +409,60 @@ makeNSECDB vals = NSECDB $ M.fromList $ zip keys vals
 ----------------------------------------------------------------
 
 data Node = Node
-    { nodeMap :: M.Map Label Node
+    { nodeName :: Domain
+    , nodeMap :: M.Map Label Node
     , nodeRRs :: [RRSetSig]
     , nodeDelegated :: Bool
     }
     deriving (Show)
 
-emptyNode :: Node
-emptyNode = Node M.empty [] False
+emptyNode :: Domain -> Node
+emptyNode dom =
+    Node
+        { nodeName = dom
+        , nodeMap = M.empty
+        , nodeRRs = []
+        , nodeDelegated = False
+        }
 
-makeNode :: Int -> [RRSetSig] -> Node
-makeNode n rrs0 = foldr (\(ls, ts) node -> insert ls ts node) emptyNode kvs
+makeNode :: Domain -> [RRSetSig] -> Node
+makeNode zone rrs0 = foldr (\((name, ls), ts) node -> insert ls name ts node) zoneRoot kvs
   where
+    n = labelsCount zone
+    zoneRoot = emptyNode zone
     rrs :: [RRSetSig]
     rrs = nub $ sort rrs0
     rrss :: [[RRSetSig]]
     rrss = groupBy ((==) `on` rrsetsigName) rrs
-    kvs :: [([Label], [RRSetSig])]
+    kvs :: [((Domain, [Label]), [RRSetSig])]
     kvs = map (\xs -> (getLabels xs, xs)) rrss
-    getLabels xs = drop n $ revLabels $ rrsetsigName $ unsafeHead xs
+    getLabels xs = (name, ls)
+      where
+        name = rrsetsigName $ unsafeHead xs
+        ls = drop n $ revLabels name
 
 checkDelegated :: [RRSetSig] -> Bool
 checkDelegated rrs = any (\x -> rrsetsigType x `elem` [NS, DS]) rrs
 
-insert :: [Label] -> [RRSetSig] -> Node -> Node
-insert [] rrs node = node{nodeRRs = rrs}
-insert [l] rrs node@Node{..} =
+insert :: [Label] -> Domain -> [RRSetSig] -> Node -> Node
+insert [] _ rrs node = node{nodeRRs = rrs}
+insert [l] dom rrs node@Node{..} =
     let n = case M.lookup l nodeMap of
-            Nothing -> emptyNode
+            Nothing -> emptyNode dom
             Just n0 -> n0
         deleg = checkDelegated rrs
         n' = n{nodeRRs = rrs, nodeDelegated = deleg}
         m' = M.insert l n' nodeMap
         node' = node{nodeMap = m'}
      in node'
-insert (l : ls) rrs node@Node{..} =
+insert (l : ls) dom rrs node@Node{..} =
     let n = case M.lookup l nodeMap of
-            Nothing -> emptyNode
+            -- Empty non terminal
+            Nothing ->
+                let nm = fromWireLabels $ drop (length ls) $ wireLabels dom
+                 in emptyNode nm
             Just n0 -> n0
-        n' = insert ls rrs n
+        n' = insert ls dom rrs n
         m' = M.insert l n' nodeMap
         node' = node{nodeMap = m'}
      in node'
