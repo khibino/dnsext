@@ -351,6 +351,16 @@ data RD_NSEC3PARAM = RD_NSEC3PARAM
     deriving (Eq, Ord, Show)
 {- FOURMOLU_ENABLE -}
 
+-- | From RFC 9276, "Guidance for NSEC3 Parameter Settings"
+defaultNSEC3PARAM :: RD_NSEC3PARAM
+defaultNSEC3PARAM =
+    RD_NSEC3PARAM
+        { nsec3param_hashalg = Hash_SHA1
+        , nsec3param_flags = 0
+        , nsec3param_iterations = 0
+        , nsec3param_salt = ""
+        }
+
 instance ResourceData RD_NSEC3PARAM where
     resourceDataType _ = NSEC3PARAM
     resourceDataSize RD_NSEC3PARAM{..} =

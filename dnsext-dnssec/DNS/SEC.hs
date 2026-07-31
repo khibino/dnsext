@@ -43,6 +43,7 @@ module DNS.SEC (
     -- *** NSEC3PARAM RR
     RD_NSEC3PARAM (..),
     rd_nsec3param,
+    defaultNSEC3PARAM,
 
     -- *** CDS RR
     RD_CDS (..),
