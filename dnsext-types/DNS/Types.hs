@@ -178,6 +178,7 @@ module DNS.Types (
     Domain,
     Label,
     domainSize,
+    consDomain,
     unconsDomain,
     wireLabels,
     revLabels,

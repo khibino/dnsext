@@ -13,6 +13,7 @@ module DNS.Types.Domain (
     isSubDomainOf,
     labelsCount,
     domainSize,
+    consDomain,
     unconsDomain,
     wireLabels_,
     wireLabels,
@@ -217,6 +218,9 @@ instance IsRepresentation Domain String where
 -- 12
 domainSize :: Domain -> Int
 domainSize (Domain d) = foldr (\l a -> Short.length l + 1 + a) 0 d + 1
+
+consDomain :: Label -> Domain -> Domain
+consDomain l dom = fromWireLabels (lowercase l : wireLabels dom)
 
 -- | Uncos a domain
 --
