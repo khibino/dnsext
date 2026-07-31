@@ -21,7 +21,7 @@ import DNS.SEC.Verify.Types
 -- | range type guaranteed to yield a lower boundary (hashed-owner) and upper boundary (next-hashed-owner)
 data NSEC3_Refined =
     NSEC3_Refined
-    { n3range_hashed_owner :: Opaque
+    { n3range_hashed_owner :: Opaque -- with Base32 decoded
     , n3range_data :: NSEC3_Range
     }
     deriving Show
@@ -35,7 +35,7 @@ rangeImpl =
     , nrangeTake = takeRange
     , nrangeRefine = refineRange
     , nrangeLower = n3range_hashed_owner
-    , nrangeUpper = nsec3_next_hashed_owner_name . snd . n3range_data
+    , nrangeUpper = fromNSEC3Next . nsec3_next_hashed_owner_name . snd . n3range_data
     }
   where
     takeRange ResourceRecord{..} = (,) rrname <$> fromRData rdata
@@ -46,7 +46,11 @@ refineRange zone range@(rrn, _rd) = do
     (owner32h, zname) <- unconsLabels rrn (Left "NSEC3.range: owner has no zone-name") (curry Right)
     when (zname /= zone) $ Left $ mismatch zname
     ownerBytes <- either (Left . ("NSEC3.range: " ++)) Right $ Opaque.fromBase32Hex $ fromShort owner32h
-    Right $ NSEC3_Refined ownerBytes range
+    Right $
+        NSEC3_Refined
+            { n3range_hashed_owner = ownerBytes
+            , n3range_data = range
+            }
   where
     mismatch zname = "NSEC3.range: owner-zone: " ++ show zname ++ " =/= zone: " ++ show zone
 
@@ -279,7 +283,7 @@ n3RefineWithRanges zone ranges0 = do
             | (NSEC3_Refined{..}, hash) <- ranges
             , let owner = n3range_hashed_owner
                   rangeData@(_, RD_NSEC3{..}) = n3range_data
-                  next = nsec3_next_hashed_owner_name {- binary hashed value, not base32hex -}
+                  next = fromNSEC3Next nsec3_next_hashed_owner_name {- binary hashed value, not base32hex -}
                   rotated = owner > next
                   refineWithRange cover qname
                     {- owner and next are decoded range, not base32hex -}

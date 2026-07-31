@@ -279,6 +279,14 @@ rd_dnskey a b c d = toRData $ RD_DNSKEY a b c d
 
 ----------------------------------------------------------------
 
+newtype NSEC3Next = NSEC3Next {fromNSEC3Next :: Opaque} deriving (Eq, Ord)
+
+instance Show NSEC3Next where
+    show (NSEC3Next opaque) = show $ Opaque.toBase32Hex opaque
+
+toNSEC3Next :: Opaque -> NSEC3Next
+toNSEC3Next = NSEC3Next
+
 {- FOURMOLU_DISABLE -}
 -- | DNSSEC hashed denial of existence (RFC5155)
 data RD_NSEC3 = RD_NSEC3
@@ -286,7 +294,7 @@ data RD_NSEC3 = RD_NSEC3
     , nsec3_flags                  :: [NSEC3_Flag]
     , nsec3_iterations             :: Word16
     , nsec3_salt                   :: Opaque
-    , nsec3_next_hashed_owner_name :: Opaque
+    , nsec3_next_hashed_owner_name :: NSEC3Next
     , nsec3_types                  :: [TYPE]
     }
     deriving (Eq, Ord, Show)
@@ -301,14 +309,14 @@ instance ResourceData RD_NSEC3 where
             + 1
             + Opaque.length nsec3_salt
             + 1
-            + Opaque.length nsec3_next_hashed_owner_name
+            + Opaque.length (fromNSEC3Next nsec3_next_hashed_owner_name)
             + sum (map (\(_, l, _) -> l + 2) $ groupType nsec3_types)
     putResourceData _ RD_NSEC3{..} = \wbuf ref -> do
         putHashAlg nsec3_hashalg wbuf ref
         putNSEC3flags nsec3_flags wbuf ref
         put16 wbuf nsec3_iterations
         putLenOpaque nsec3_salt wbuf ref
-        putLenOpaque nsec3_next_hashed_owner_name wbuf ref
+        putLenOpaque (fromNSEC3Next nsec3_next_hashed_owner_name) wbuf ref
         putNsecTypes nsec3_types wbuf ref
 
 {- FOURMOLU_DISABLE -}
@@ -319,7 +327,7 @@ get_nsec3 len rbuf ref = do
     nsec3_flags                  <- getNSEC3flags rbuf ref
     nsec3_iterations             <- get16 rbuf
     nsec3_salt                   <- getLenOpaque rbuf ref
-    nsec3_next_hashed_owner_name <- getLenOpaque rbuf ref
+    nsec3_next_hashed_owner_name <- toNSEC3Next <$> getLenOpaque rbuf ref
     tpos <- position rbuf
     nsec3_types                  <- getNsecTypes (dend - tpos) rbuf ref
     return RD_NSEC3{..}
@@ -328,7 +336,7 @@ get_nsec3 len rbuf ref = do
 -- | Smart constructor.
 rd_nsec3
     :: HashAlg -> [NSEC3_Flag] -> Word16 -> Opaque -> Opaque -> [TYPE] -> RData
-rd_nsec3 a b c d e f = toRData $ RD_NSEC3 a b c d e f
+rd_nsec3 a b c d e f = toRData $ RD_NSEC3 a b c d (NSEC3Next e) f
 
 ----------------------------------------------------------------
 

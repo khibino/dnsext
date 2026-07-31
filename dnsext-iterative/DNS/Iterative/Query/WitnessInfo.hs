@@ -41,7 +41,7 @@ showN3 :: Domain -> String
 showN3 name = "H(" ++ show name ++ ")"
 
 getUpperN3 :: RD_NSEC3 -> Domain
-getUpperN3 = fromRepresentation . Opaque.toBase32Hex . nsec3_next_hashed_owner_name
+getUpperN3 = fromRepresentation . Opaque.toBase32Hex . fromNSEC3Next . nsec3_next_hashed_owner_name
 
 ---
 
