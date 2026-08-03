@@ -196,18 +196,27 @@ makeDBforSecondary zone (soarr : rrs0)
         Nothing -> return Nothing
         Just soa -> do
             let (sigs, rrs1) = partition (\r -> rrtype r == RRSIG) rrs0
-                (nsec, rrs) = partition (\r -> rrtype r == NSEC) rrs1
+                nsec3params = filter (\r -> rrtype r == NSEC3PARAM) rrs0
+                (nsec, rrs)
+                    | null nsec3params = partition (\r -> rrtype r == NSEC) rrs1
+                    | otherwise = partition (\r -> rrtype r == NSEC3) rrs1
             let (is, ns, ds, gs, _os) = divide zone rrs
                 sigDB = M.fromList $ catMaybes $ map rrsigKV sigs
                 ssSigned = groupAndSig sigDB [soarr]
                 isSigned = groupAndSig sigDB is
                 dsSigned = groupAndSig sigDB ds
             let node = makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
-            -- fixme: NSEC3, find NSEC3PARAM
             let nsecSigned = makeNSECforSecondary sigDB nsec
-                nsecdb = makeNSECDB nsecSigned
+                nsecdb
+                    | null nsec3params = makeNSECDB nsecSigned
+                    | otherwise = makeNSEC3DB zone nsecSigned
             let allrr = [soarr] ++ rrs ++ [soarr] -- for AXFR
-                db = makeDBFinal zone soa ssSigned node allrr nsecdb Nothing -- fixme
+                mconv = case nsec3params of
+                    [] -> Nothing
+                    nsec3param : _ -> case fromRData $ rdata nsec3param of
+                        Nothing -> Nothing
+                        Just n3p -> Just $ hashedDomain zone n3p
+                db = makeDBFinal zone soa ssSigned node allrr nsecdb mconv
             return $ Just db
 
 ----------------------------------------------------------------
@@ -371,12 +380,6 @@ makeNSECforPrimary ttl doSign root = doSign False $ map pack zipped
         xs
             | null types = []
             | otherwise = [(nodeName, types)]
-
-makeNSEC3forSecondary
-    :: M.Map (Domain, TYPE) ResourceRecord
-    -> [ResourceRecord]
-    -> [RRSetSig]
-makeNSEC3forSecondary db rrs0 = map (bindSIG db) $ map (: []) rrs0
 
 ----------------------------------------------------------------
 

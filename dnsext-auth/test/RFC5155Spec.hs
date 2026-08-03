@@ -35,6 +35,8 @@ spec = describe "authoritative algorithm" $ do
         makeDBforPrimary zone (Just n3p) doSign (rrs ++ [dnskey])
     let db = fromJust edb
     doit db
+    db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)
+    doit db2
 
 -- fixme
 -- db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)
