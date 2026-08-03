@@ -94,13 +94,23 @@ emptyAccumulator =
         }
 
 updateAccumulator :: Accumulator -> [ResourceRecord] -> [ResourceRecord] -> [ResourceRecord] -> RCODE -> Accumulator
-updateAccumulator acc ans auth add code =
+updateAccumulator acc ans0 auth0 add0 code =
     acc
         { accRCODE = code
-        , accAnswer = accAnswer acc ++ ans
-        , accAuthority = accAuthority acc ++ auth
-        , accAdditional = accAdditional acc ++ add
+        , accAnswer = ans
+        , accAuthority = auth
+        , accAdditional = add
         }
+  where
+    ans
+        | null ans0 = accAnswer acc
+        | otherwise = accAnswer acc ++ ans0
+    auth
+        | null auth0 = accAuthority acc
+        | otherwise = accAuthority acc ++ auth0
+    add
+        | null add0 = accAdditional acc
+        | otherwise = accAdditional acc ++ add0
 
 ----------------------------------------------------------------
 
