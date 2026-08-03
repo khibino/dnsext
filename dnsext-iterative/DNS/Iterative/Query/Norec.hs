@@ -32,12 +32,13 @@ import DNS.Iterative.Query.SteppedWait (steppedWait)
 {- FOURMOLU_DISABLE -}
 norec :: MonadIO m => Env -> WorkerStatOP -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
 norec cxt wstat dnssecOK aservers name typ =
-    liftIO $ blockingIO_ $ steppedWait TimeoutExpired RetryLimitExceeded 250_000 actions
+    liftIO $ steppedWait TimeoutExpired RetryLimitExceeded 250_000 actions
   where
-    blockingIO_ = blockingIO wstat $ show name ++ " " ++ show typ ++ ": " ++ tag
-    actions = [(tag ++ ".q1", action), (tag ++ ".q2", action)]
+    actions = [apair (tag ++ ".q1"), apair (tag ++ ".q2")]
     tag = let (a:|as) = aservers in show (a:as)
+    apair tag_ = (tag_, blockingIO_ tag_ $ action)
     action = norec_ 500_000 cxt dnssecOK aservers name typ
+    blockingIO_ tag_ = blockingIO wstat $ show name ++ " " ++ show typ ++ ": " ++ tag_
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
