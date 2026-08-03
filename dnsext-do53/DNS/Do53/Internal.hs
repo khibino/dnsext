@@ -7,8 +7,6 @@ module DNS.Do53.Internal (
     -- * Virtual circuit
     sendVC,
     recvVC,
-    encodeVCLength,
-    decodeVCLength,
     BS,
 
     -- * Resolver
@@ -32,7 +30,6 @@ module DNS.Do53.Internal (
     ResolveInfo (..),
     defaultResolveInfo,
     UDPRetry,
-    VCLimit (..),
     ResolveActions (..),
     defaultResolveActions,
 

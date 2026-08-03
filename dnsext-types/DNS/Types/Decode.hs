@@ -18,6 +18,7 @@ module DNS.Types.Decode (
     decodeRData,
     decodeDomain,
     decodeMailbox,
+    decodeVCLength,
 ) where
 
 import qualified Data.ByteString as BS
@@ -109,3 +110,9 @@ decodeDomain bs = runParser getDomain bs
 -- separately from the enclosing DNS message.  This is an internal function.
 decodeMailbox :: ByteString -> Either DNSError Mailbox
 decodeMailbox bs = runParser getMailbox bs
+
+-- | Decoding the length from the first two bytes.
+decodeVCLength :: ByteString -> Int
+decodeVCLength bs = case BS.unpack bs of
+    [hi, lo] -> 256 * fromIntegral hi + fromIntegral lo
+    _ -> 0 -- never reached
