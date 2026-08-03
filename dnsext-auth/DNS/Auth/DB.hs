@@ -19,11 +19,14 @@ module DNS.Auth.DB (
     Result (..),
     lookupDB,
     decideNXWildcard,
+    NSEC3Proof (..),
+    decideNSEC3Proof,
     CNAMECheck (..),
     checkCNAME,
 ) where
 
 import qualified Data.ByteString.Short as Short
+import Data.Either
 import Data.Function (on)
 import Data.List (groupBy, nub, partition, sort)
 import qualified Data.Map.Strict as M
@@ -34,6 +37,7 @@ import GHC.Stack
 import DNS.SEC
 import DNS.SEC.Verify
 import DNS.Types
+import qualified DNS.Types.Opaque as Opaque
 import qualified DNS.ZoneFile as ZF
 
 ----------------------------------------------------------------
@@ -64,8 +68,8 @@ data DB = DB
     , dbNode :: Node
     , dbAll :: [ResourceRecord]
     , dbNsecMap :: NSECDB
+    , dbNsec3conv :: Maybe (Domain -> Domain)
     }
-    deriving (Show)
 
 dbRD_SOA :: DB -> RD_SOA
 dbRD_SOA db = soa
@@ -92,6 +96,7 @@ emptyDB =
         , dbNode = emptyNode zone
         , dbAll = []
         , dbNsecMap = emptyNSECDB
+        , dbNsec3conv = Nothing
         }
   where
     zone = "."
@@ -127,34 +132,58 @@ loadZoneFile zone file = catMaybes . map fromResource <$> ZF.parseFile file zone
 
 makeDBforPrimary
     :: Domain
+    -> (Maybe RD_NSEC3PARAM)
     -> (Bool -> [ResourceRecord] -> IO [RRSetSig])
     -> [ResourceRecord]
     -> IO (Maybe DB)
-makeDBforPrimary _ _ [] = return Nothing
+makeDBforPrimary _ _ _ [] = return Nothing
 -- RFC 1035 Sec 5.2
 -- Exactly one SOA RR should be present at the top of the zone.
-makeDBforPrimary zone doSign (soarr : rrs)
+makeDBforPrimary zone mn3p doSign (soarr : rrs)
     | rrtype soarr /= SOA = return Nothing
     | otherwise = case fromRData $ rdata soarr of
         Nothing -> return Nothing
         Just soa -> do
+            let ttl = soa_minimum soa
             let (is, ns, ds, gs, _os) = divide zone rrs
             ssSigned <- doSign True [soarr]
             isSigned <- doSign True is
             dsSigned <- doSign True ds
+            n3pSigned <- case mn3p of
+                Nothing -> return []
+                Just n3p -> do
+                    let n3prr =
+                            ResourceRecord
+                                { rrname = zone
+                                , rrtype = NSEC3PARAM
+                                , rdata = toRData n3p
+                                , rrclass = IN
+                                , rrttl = ttl -- fixme
+                                }
+                    doSign True [n3prr]
             -- In-domain NS/DS should have NSEC.
-            let node = makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
-            nsecSigned <- makeNSECforPrimary doSign node
+            let node = makeNode zone (ssSigned ++ n3pSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
+            (nsecSigned, nsecdb, mconv) <- case mn3p of
+                Nothing -> do
+                    xs <- makeNSECforPrimary ttl doSign node
+                    let ndb = makeNSECDB xs
+                    return (xs, ndb, Nothing)
+                Just n3p -> do
+                    xs <- makeNSEC3forPrimary ttl zone doSign n3p node
+                    let ndb = makeNSEC3DB zone xs
+                        conv = hashedDomain zone n3p
+                    return (xs, ndb, Just conv)
             let allrr =
                     getRRs True (unsafeHead ssSigned)
                         ++ concatMap (getRRs True) isSigned
+                        ++ concatMap (getRRs True) n3pSigned
                         ++ ns
                         ++ concatMap (getRRs True) dsSigned
                         ++ concatMap (getRRs True) nsecSigned
                         ++ gs
                         ++ _os
                         ++ [soarr] -- for AXFR
-                db = makeDBFinal zone soa ssSigned node nsecSigned allrr
+                db = makeDBFinal zone soa ssSigned node allrr nsecdb mconv
             return $ Just db
 
 makeDBforSecondary :: Domain -> [ResourceRecord] -> IO (Maybe DB)
@@ -174,9 +203,11 @@ makeDBforSecondary zone (soarr : rrs0)
                 isSigned = groupAndSig sigDB is
                 dsSigned = groupAndSig sigDB ds
             let node = makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
+            -- fixme: NSEC3, find NSEC3PARAM
             let nsecSigned = makeNSECforSecondary sigDB nsec
+                nsecdb = makeNSECDB nsecSigned
             let allrr = [soarr] ++ rrs ++ [soarr] -- for AXFR
-                db = makeDBFinal zone soa ssSigned node nsecSigned allrr
+                db = makeDBFinal zone soa ssSigned node allrr nsecdb Nothing -- fixme
             return $ Just db
 
 ----------------------------------------------------------------
@@ -186,17 +217,19 @@ makeDBFinal
     -> RD_SOA
     -> [RRSetSig]
     -> Node
-    -> [RRSetSig]
     -> [ResourceRecord]
+    -> NSECDB
+    -> Maybe (Domain -> Domain)
     -> DB
-makeDBFinal zone soa ssSigned node nsecSigned allrr =
+makeDBFinal zone soa ssSigned node allrr nsecdb mconv =
     DB
         { dbZone = zone
         , dbLabelsCount = n
         , dbSOA = (soa, unsafeHead ssSigned)
         , dbNode = node
         , dbAll = allrr
-        , dbNsecMap = makeNSECDB nsecSigned
+        , dbNsecMap = nsecdb
+        , dbNsec3conv = mconv
         }
   where
     n = labelsCount zone
@@ -308,10 +341,11 @@ fromResource _ = Nothing
 ----------------------------------------------------------------
 
 makeNSECforPrimary
-    :: (Bool -> [ResourceRecord] -> IO [RRSetSig])
+    :: TTL
+    -> (Bool -> [ResourceRecord] -> IO [RRSetSig])
     -> Node
     -> IO [RRSetSig]
-makeNSECforPrimary doSign root = doSign False $ map pack zipped
+makeNSECforPrimary ttl doSign root = doSign False $ map pack zipped
   where
     packedNameTypes :: [(Domain, [TYPE])]
     packedNameTypes = foldNode skipENTandUnderDelegated root
@@ -324,7 +358,7 @@ makeNSECforPrimary doSign root = doSign False $ map pack zipped
             { rrname = dom
             , rrclass = IN
             , rrtype = NSEC
-            , rrttl = 3600
+            , rrttl = ttl
             , -- RFC 4035 Sec 2.3: The type bitmap of every NSEC
               -- resource record in a signed zone MUST indicate the
               -- presence of both the NSEC record itself and its
@@ -336,6 +370,61 @@ makeNSECforPrimary doSign root = doSign False $ map pack zipped
         types = map rrsetsigType nodeRRs
         xs
             | null types = []
+            | otherwise = [(nodeName, types)]
+
+makeNSEC3forSecondary
+    :: M.Map (Domain, TYPE) ResourceRecord
+    -> [ResourceRecord]
+    -> [RRSetSig]
+makeNSEC3forSecondary db rrs0 = map (bindSIG db) $ map (: []) rrs0
+
+----------------------------------------------------------------
+
+n3hash :: RD_NSEC3PARAM -> Domain -> Opaque
+n3hash n3p x = fromRight (error "n3hash") $ hashNSEC3PARAM n3p x
+
+encB32 :: Opaque -> Short.ShortByteString
+encB32 = Short.toShort . Opaque.toBase32Hex
+
+hashedDomain :: Domain -> RD_NSEC3PARAM -> Domain -> Domain
+hashedDomain zone n3p d = label `consDomain` zone
+  where
+    label = encB32 $ n3hash n3p d
+
+expandHashedLabel :: Opaque -> Domain -> Domain
+expandHashedLabel l zone = encB32 l `consDomain` zone
+
+makeNSEC3forPrimary
+    :: TTL
+    -> Domain
+    -> (Bool -> [ResourceRecord] -> IO [RRSetSig])
+    -> RD_NSEC3PARAM
+    -> Node
+    -> IO [RRSetSig]
+makeNSEC3forPrimary ttl zone doSign n3p@RD_NSEC3PARAM{..} root = doSign False $ map pack zipped
+  where
+    packedNameTypes :: [(Domain, [TYPE])]
+    packedNameTypes = foldNode skipUnderDelegated root
+    -- not base32
+    hashedNameTypes = sort $ map (\(d, ts) -> (n3hash n3p d, ts)) $ packedNameTypes
+    h = unsafeHead hashedNameTypes
+    slided = drop 1 hashedNameTypes ++ [h]
+    zipped :: [((Opaque, [TYPE]), (Opaque, [TYPE]))]
+    zipped = zip hashedNameTypes slided
+    pack ((hashedLbl, types), (nxt, _)) =
+        ResourceRecord
+            { rrname = expandHashedLabel hashedLbl zone
+            , rrclass = IN
+            , rrtype = NSEC3
+            , rrttl = ttl
+            , rdata = rd_nsec3 nsec3param_hashalg [] nsec3param_iterations nsec3param_salt nxt (RRSIG : types)
+            }
+    skipUnderDelegated Node{..} = (xs, not nodeDelegated)
+      where
+        types = map rrsetsigType nodeRRs
+        xs
+            -- fixme: OptOut flag
+            | nodeDelegated = if DS `elem` types then [(nodeName, types)] else []
             | otherwise = [(nodeName, types)]
 
 makeNSECforSecondary
@@ -408,6 +497,32 @@ makeNSECDB vals = NSECDB $ M.fromList $ zip keys vals
         [] -> fromWireLabels [zero]
         l : ls -> fromWireLabels (l <> zero : ls)
 
+makeNSEC3DB :: Domain -> [RRSetSig] -> NSECDB
+makeNSEC3DB zone vals = NSECDB $ M.fromList $ zip keys vals
+  where
+    keys = modifyTail $ catMaybes $ map unpack vals
+    unpack :: RRSetSig -> Maybe (Domain, Domain)
+    unpack rss = case fromRData $ rdata r of
+        Nothing -> Nothing
+        Just nsec3 ->
+            let label = Opaque.toBase32Hex $ fromNSEC3Next $ nsec3_next_hashed_owner_name nsec3
+                next = consDomain (Short.toShort label) zone
+             in Just (rrsetsigName rss, next)
+      where
+        r = unsafeHead $ rrsetsigRRs rss
+    modifyTail [] = []
+    modifyTail [(x, y)] = [Range x (modify y)]
+    modifyTail ((x, y) : xys) = Range x y : modifyTail xys
+
+    -- 00.jp, 11,jp, 22.jp, 33.jp, 00.jp
+    -- 00.jp, 11,jp, 22.jp, 33.jp, 00.jp0
+    zero :: Short.ShortByteString
+    zero = "\x00"
+    modify :: Domain -> Domain
+    modify dom = case toWireLabels dom of
+        _ : l : ls -> fromWireLabels (l <> zero : ls)
+        _ -> dom -- never reach
+
 ----------------------------------------------------------------
 
 data Node = Node
@@ -415,6 +530,7 @@ data Node = Node
     , nodeMap :: M.Map Label Node
     , nodeRRs :: [RRSetSig]
     , nodeDelegated :: Bool
+    , nodeHasDS :: Bool
     }
     deriving (Show)
 
@@ -425,6 +541,7 @@ emptyNode dom =
         , nodeMap = M.empty
         , nodeRRs = []
         , nodeDelegated = False
+        , nodeHasDS = False
         }
 
 makeNode :: Domain -> [RRSetSig] -> Node
@@ -444,7 +561,10 @@ makeNode zone rrs0 = foldr (\((name, ls), ts) node -> insert ls name ts node) zo
         ls = drop n $ revLabels name
 
 checkDelegated :: [RRSetSig] -> Bool
-checkDelegated rrs = any (\x -> rrsetsigType x `elem` [NS, DS]) rrs
+checkDelegated rrs = any (\x -> rrsetsigType x == NS) rrs
+
+checkDS :: [RRSetSig] -> Bool
+checkDS rrs = any (\x -> rrsetsigType x == DS) rrs
 
 insert :: [Label] -> Domain -> [RRSetSig] -> Node -> Node
 insert [] _ rrs node = node{nodeRRs = rrs}
@@ -453,7 +573,12 @@ insert [l] dom rrs node@Node{..} =
             Nothing -> emptyNode dom
             Just n0 -> n0
         deleg = checkDelegated rrs
-        n' = n{nodeRRs = rrs, nodeDelegated = deleg}
+        n' =
+            n
+                { nodeRRs = rrs
+                , nodeDelegated = deleg
+                , nodeHasDS = if deleg then checkDS rrs else False
+                }
         m' = M.insert l n' nodeMap
         node' = node{nodeMap = m'}
      in node'
@@ -510,11 +635,48 @@ decideNXWildcard dom DB{..} = loop ls0 dbNode
     loop (l : ls) node = case M.lookup l $ nodeMap node of
         Nothing ->
             let len = labelsCount dom - length ls - 1
-                wild = fromWireLabels ("*" : reverse (take len rls))
+                closest = reverse $ take len rls
+                wild = fromWireLabels ("*" : closest)
              in Just wild
         Just node'
             | nodeDelegated node' -> Nothing
             | otherwise -> loop ls node'
+
+data NSEC3Proof = NSEC3Proof
+    { closestEncloser :: Domain
+    , proofNextCloser :: Domain
+    , proofWildcardCloser :: Domain
+    }
+
+decideNSEC3Proof :: Domain -> DB -> Maybe NSEC3Proof
+decideNSEC3Proof dom DB{..} = loop ls0 dbNode
+  where
+    rls :: [Label]
+    rls = revLabels dom
+    ls0 = drop dbLabelsCount $ revLabels dom
+    loop :: [Label] -> Node -> Maybe NSEC3Proof
+    loop [] _ = Nothing -- Exist
+    loop (l : ls) node = case M.lookup l $ nodeMap node of
+        Nothing -> Just $ makeProof l ls
+        Just node'
+            | nodeDelegated node' && nodeHasDS node' ->
+                let proof = makeProof l ls
+                 in -- proofNextCloser etc are dummy
+                    Just $ proof{closestEncloser = proofNextCloser proof}
+            | nodeDelegated node' -> Just $ makeProof l ls
+            | otherwise -> loop ls node'
+    makeProof l ls =
+        NSEC3Proof
+            { closestEncloser = encloser
+            , proofNextCloser = next
+            , proofWildcardCloser = wild
+            }
+      where
+        len = labelsCount dom - length ls - 1
+        closest = reverse $ take len rls
+        encloser = fromWireLabels closest
+        next = fromWireLabels (l : closest)
+        wild = fromWireLabels ("*" : closest)
 
 ----------------------------------------------------------------
 

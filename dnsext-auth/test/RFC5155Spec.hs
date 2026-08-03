@@ -1,0 +1,157 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+module RFC5155Spec where
+
+import Test.Hspec
+
+import DNS.Auth.Algorithm
+import DNS.Auth.DB
+import DNS.SEC
+import DNS.SEC.Verify
+import DNS.Types
+import qualified DNS.Types.Opaque as Opaque
+
+import Data.Either
+import Data.Maybe
+
+spec :: Spec
+spec = describe "authoritative algorithm" $ do
+    runIO $ runInitIO $ addResourceDataForDNSSEC
+    let zone = "example."
+    edb <- runIO $ do
+        rrs <- loadZoneFile zone "test/rfc5155.zone"
+        (_pub, _pri, dnskey, _ds, doSign) <-
+            prepareDNSSEC $
+                DNSSECinfo
+                    { dnssecInfoZone = zone
+                    , dnssecInfoPubAlg = ED25519
+                    , dnssecInfoDigestAlg = SHA256
+                    , dnssecInfoTTL = 3600
+                    , dnssecInfoDuration = 86400
+                    }
+        let salt = fromRight (error "fromBase16") $ Opaque.fromBase16 "aabbccdd"
+            n3p = RD_NSEC3PARAM Hash_SHA1 0 12 salt
+
+        makeDBforPrimary zone (Just n3p) doSign (rrs ++ [dnskey])
+    let db = fromJust edb
+    doit db
+
+-- fixme
+-- db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)
+-- doit db2
+
+doit :: DB -> Spec
+doit db = do
+    it "passes the test in Appendix B.1 (Name Error)" $ do
+        let query = dnssecQuery{question = Question "a.c.x.w.example." A IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NXDomain
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 8
+        authority ans `shouldSatisfy` include "example." SOA
+        authority ans `shouldSatisfy` includeRRSIG "example." SOA
+        authority ans `shouldSatisfy` include "0p9mhaveqvm6t7vbl5lop2u3t2rp3tom.example." NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "0p9mhaveqvm6t7vbl5lop2u3t2rp3tom.example." NSEC3
+        authority ans `shouldSatisfy` include "b4um86eghhds6nea196smvmlo4ors995.example." NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "b4um86eghhds6nea196smvmlo4ors995.example." NSEC3
+        authority ans `shouldSatisfy` include "35mthgpgcu1qg68fab165klnsnk3dpvl.example." NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "35mthgpgcu1qg68fab165klnsnk3dpvl.example." NSEC3
+        length (additional ans) `shouldBe` 0
+        flags ans `shouldSatisfy` authAnswer
+
+    it "passes the test in Appendix B.2 (No Data)" $ do
+        let query = dnssecQuery{question = Question "ns1.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 4
+        authority ans `shouldSatisfy` include "example." SOA
+        authority ans `shouldSatisfy` includeRRSIG "example." SOA
+        authority ans `shouldSatisfy` include "2t7b4g4vsa5smi47k61mv5bv1a22bojr.example." NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "2t7b4g4vsa5smi47k61mv5bv1a22bojr.example." NSEC3
+        length (additional ans) `shouldBe` 0
+        flags ans `shouldSatisfy` authAnswer
+
+    it "passes the test in Appendix B.3 (Referral to an Opt-Out Unsigned Zone)" $ do
+        let query = dnssecQuery{question = Question "mc.c.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 6
+        authority ans `shouldSatisfy` includeNS "ns1.c.example."
+        authority ans `shouldSatisfy` includeNS "ns2.c.example."
+        authority ans `shouldSatisfy` include "35mthgpgcu1qg68fab165klnsnk3dpvl.example." NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "0p9mhaveqvm6t7vbl5lop2u3t2rp3tom.example." NSEC3
+        authority ans `shouldSatisfy` include "0p9mhaveqvm6t7vbl5lop2u3t2rp3tom.example." NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "35mthgpgcu1qg68fab165klnsnk3dpvl.example." NSEC3
+        length (additional ans) `shouldBe` 2
+        flags ans `shouldSatisfy` not . authAnswer
+
+    it "passes the test in Appendix B.4 (Wildcard Expansion)" $ do
+        let query = dnssecQuery{question = Question "a.z.w.example." MX IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 2
+        answer ans `shouldSatisfy` include "a.z.w.example." MX
+        answer ans `shouldSatisfy` includeRRSIG "a.z.w.example." MX
+        length (authority ans) `shouldBe` 2
+        authority ans `shouldSatisfy` include "q04jkcevqvmu85r014c7dkba38o0ji5r.example" NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "q04jkcevqvmu85r014c7dkba38o0ji5r.example" NSEC3
+        length (additional ans) `shouldBe` 4
+        flags ans `shouldSatisfy` authAnswer
+
+    it "passes the test in Appendix B.5 (Wildcard No Data Error)" $ do
+        let query = dnssecQuery{question = Question "a.z.w.example." AAAA IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 8
+        authority ans `shouldSatisfy` include "example." SOA
+        authority ans `shouldSatisfy` includeRRSIG "example." SOA
+        authority ans `shouldSatisfy` include "k8udemvp1j2f7eg6jebps17vp3n8i58h.example" NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "k8udemvp1j2f7eg6jebps17vp3n8i58h.example" NSEC3
+        authority ans `shouldSatisfy` include "q04jkcevqvmu85r014c7dkba38o0ji5r.example" NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "q04jkcevqvmu85r014c7dkba38o0ji5r.example" NSEC3
+        authority ans `shouldSatisfy` include "r53bq7cc2uvmubfu5ocmm6pers9tk9en.example" NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "r53bq7cc2uvmubfu5ocmm6pers9tk9en.example" NSEC3
+        length (additional ans) `shouldBe` 0
+        flags ans `shouldSatisfy` authAnswer
+
+    it "passes the test in Appendix B.6 (DS Child Zone No Data Error)" $ do
+        let query = dnssecQuery{question = Question "example." DS IN}
+            ans = getAnswer db query
+        rcode ans `shouldBe` NoErr
+        length (answer ans) `shouldBe` 0
+        length (authority ans) `shouldBe` 4
+        authority ans `shouldSatisfy` include "example." SOA
+        authority ans `shouldSatisfy` includeRRSIG "example." SOA
+        authority ans `shouldSatisfy` include "0p9mhaveqvm6t7vbl5lop2u3t2rp3tom.example" NSEC3
+        authority ans `shouldSatisfy` includeRRSIG "0p9mhaveqvm6t7vbl5lop2u3t2rp3tom.example" NSEC3
+        length (additional ans) `shouldBe` 0
+        flags ans `shouldSatisfy` authAnswer
+
+includeRRSIG :: Domain -> TYPE -> [ResourceRecord] -> Bool
+includeRRSIG dom typ rs = any has rs
+  where
+    has r =
+        rrname r == dom && rrtype r == RRSIG && case fromRData $ rdata r of
+            Nothing -> False
+            Just rd -> rrsig_type rd == typ
+
+includeNS :: Domain -> [ResourceRecord] -> Bool
+includeNS dom rs = any has rs
+  where
+    has r = case fromRData $ rdata r of
+        Nothing -> False
+        Just rd -> ns_domain rd == dom
+
+include :: Domain -> TYPE -> [ResourceRecord] -> Bool
+include dom typ rs = any has rs
+  where
+    has r = rrname r == dom && rrtype r == typ
+
+dnssecQuery :: DNSMessage
+dnssecQuery =
+    defaultQuery
+        { ednsHeader = EDNSheader defaultEDNS{ednsDnssecOk = True}
+        }

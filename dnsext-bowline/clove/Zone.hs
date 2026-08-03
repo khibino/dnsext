@@ -69,7 +69,7 @@ loadSource env zone serial source = case source of
                                 }
                     -- fixme:
                     print ds
-                    makeDBforPrimary zone doSign (rrs ++ [dnskey])
+                    makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
 
 ----------------------------------------------------------------
 

@@ -175,10 +175,16 @@ processCNAME db q@Question{..} name acc0 reply rrs0 mwild0 cnt = case checkCNAME
     Canon ->
         let ans = fromRRSetSig dnssecOK (filter (\x -> rrsetsigType x == qtype)) rrs0
             auth
-                | dnssecOK && not (null ans) && isJust mwild0 =
-                    -- RFC 4035
-                    -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Res
-                    lookupN name db
+                | dnssecOK && not (null ans) && isJust mwild0 = case dbNsec3conv db of
+                    Nothing ->
+                        -- RFC 4035
+                        -- Sec 3.1.3.3.  Including NSEC RRs: Wildcard Answer Response
+                        lookupN name db
+                    Just conv -> case decideNSEC3Proof qname db of
+                        -- RFC 5155
+                        -- Sec 7.2.6.  Wildcard Answer Responses
+                        Nothing -> [] -- never reach
+                        Just NSEC3Proof{..} -> lookupN (conv proofNextCloser) db
                 | otherwise = []
             add
                 | qtype `elem` [NS, MX] = findAdditional db dnssecOK ans
@@ -204,9 +210,19 @@ processDelegation db Question{..} acc0 reply rrs = makePositiveReply reply acc
     (nss, dss) = partition (\r -> rrtype r == NS) allrrs
     auth
         | not dnssecOK = nss
-        -- RFC 4035
-        -- Sec 3.1.4.  Including DS RRs in a Response
-        | null dss = allrrs ++ lookupN qname db
+        | null dss =
+            allrrs ++ case dbNsec3conv db of
+                -- RFC 4035
+                -- Sec 3.1.4.  Including DS RRs in a Response
+                Nothing -> lookupN qname db
+                -- RFC 5155
+                -- Sec 7.2.7.  Referrals to Unsigned Subzones
+                -- fixme
+                Just conv -> case decideNSEC3Proof qname db of
+                    Nothing -> []
+                    Just NSEC3Proof{..} ->
+                        lookupN (conv closestEncloser) db
+                            ++ lookupN (conv proofNextCloser) db
         | otherwise = allrrs
     add = findAdditional db dnssecOK auth
     acc = updateAccumulator acc0 [] auth add NoErr
@@ -255,31 +271,56 @@ makeNegativeReply db dom reply Accumulator{..} mwild =
     reply
         { answer = accAnswer -- CNAME sometime
         -- wildcard may produce duplicated NSEC RRs
-        , authority = auth ++ nub (sort nsec)
+        , authority = auth ++ nub (sort proof)
         , additional = accAdditional
         , rcode = accRCODE
         , flags = (flags reply){authAnswer = True}
         }
   where
     auth = dbSOArr accDO db
-    nsec
+    proof
         | not accDO = []
-        | otherwise = case mwild of
-            Nothing
-                | accRCODE == NXDomain -> case lookupN dom db of
-                    [] -> []
-                    -- RFC 4035
-                    -- 3.1.3.2.  Including NSEC RRs: Name Error Response
-                    xs -> case decideNXWildcard dom db of
-                        Nothing -> xs
-                        Just wild -> xs ++ lookupN wild db
-                | otherwise ->
-                    -- RFC 4035
-                    -- 3.1.3.1.  Including NSEC RRs: No Data Response
-                    lookupN dom db
-            -- RFC 4035
-            -- Sec 3.1.3.4.  Including NSEC RRs: Wildcard No Data Response
-            Just wild -> lookupN dom db ++ lookupN wild db
+        | otherwise = case dbNsec3conv db of
+            Nothing -> findNSEC mwild
+            Just conv -> findNSEC3 conv mwild
+
+    findNSEC Nothing
+        -- RFC 4035
+        -- 3.1.3.2.  Including NSEC RRs: Name Error Response
+        | accRCODE == NXDomain = case lookupN dom db of
+            [] -> []
+            xs -> case decideNXWildcard dom db of
+                Nothing -> xs
+                Just wild -> xs ++ lookupN wild db
+        -- RFC 4035
+        -- 3.1.3.1.  Including NSEC RRs: No Data Response
+        | otherwise = lookupN dom db
+    -- RFC 4035
+    -- Sec 3.1.3.4.  Including NSEC RRs: Wildcard No Data Response
+    findNSEC (Just wild) = lookupN dom db ++ lookupN wild db
+
+    findNSEC3 conv Nothing
+        -- RFC 5155
+        -- Sec 7.2.2. Name Error Responses
+        | accRCODE == NXDomain = case decideNSEC3Proof dom db of
+            Nothing -> [] -- never reached
+            Just NSEC3Proof{..} ->
+                lookupN (conv closestEncloser) db
+                    ++ lookupN (conv proofNextCloser) db
+                    ++ lookupN (conv proofWildcardCloser) db
+        -- RFC 5155
+        -- Sec 7.2.3.  No Data Responses, QTYPE is not DS
+        --
+        -- "dom" exists
+        | otherwise = lookupN (conv dom) db
+    -- RFC 5155
+    -- Sec 7.2.5.  Wildcard No Data Responses
+    findNSEC3 conv (Just _wild) = case decideNSEC3Proof dom db of
+        Nothing -> [] -- never reached
+        Just NSEC3Proof{..} ->
+            lookupN (conv closestEncloser) db
+                ++ lookupN (conv proofNextCloser) db
+                ++ lookupN (conv proofWildcardCloser) db
 
 makeErrorReply :: DNSMessage -> RCODE -> DNSMessage
 makeErrorReply reply code =
