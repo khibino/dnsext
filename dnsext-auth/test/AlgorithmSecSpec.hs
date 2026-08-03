@@ -27,7 +27,7 @@ spec = describe "authoritative algorithm" $ do
                     , dnssecInfoTTL = 3600
                     , dnssecInfoDuration = 86400
                     }
-        makeDBforPrimary zone doSign (rrs ++ [dnskey])
+        makeDBforPrimary zone Nothing doSign (rrs ++ [dnskey])
     let db = fromJust edb
     doit db
     db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)

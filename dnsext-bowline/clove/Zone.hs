@@ -53,18 +53,23 @@ loadSource env zone serial source = case source of
     FromFile fn -> do
         -- head rrs is soa
         rrs <- loadZoneFile zone fn
-        (_pub, _pri, dnskey, ds, doSign) <-
-            prepareDNSSEC $
-                DNSSECinfo
-                    { dnssecInfoZone = zone
-                    , dnssecInfoPubAlg = ED25519
-                    , dnssecInfoDigestAlg = SHA256
-                    , dnssecInfoTTL = 3600
-                    , dnssecInfoDuration = 86400
-                    }
-        -- fixme:
-        print ds
-        makeDBforPrimary zone doSign (rrs ++ [dnskey])
+        case rrs of
+            [] -> E.throwIO $ CloveException "Zone file is empty"
+            soarr : _rest -> case fromRData $ rdata soarr of
+                Nothing -> E.throwIO $ CloveException "SOA does not exist"
+                Just soa -> do
+                    (_pub, _pri, dnskey, ds, doSign) <-
+                        prepareDNSSEC $
+                            DNSSECinfo
+                                { dnssecInfoZone = zone
+                                , dnssecInfoPubAlg = ED25519
+                                , dnssecInfoDigestAlg = SHA256
+                                , dnssecInfoTTL = soa_minimum soa
+                                , dnssecInfoDuration = 86400
+                                }
+                    -- fixme:
+                    print ds
+                    makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
 
 ----------------------------------------------------------------
 
