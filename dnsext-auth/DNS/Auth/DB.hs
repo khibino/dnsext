@@ -501,9 +501,9 @@ makeNSECDB vals = NSECDB $ M.fromList $ zip keys vals
         l : ls -> fromWireLabels (l <> zero : ls)
 
 makeNSEC3DB :: Domain -> [RRSetSig] -> NSECDB
-makeNSEC3DB zone vals = NSECDB $ M.fromList $ zip keys vals
+makeNSEC3DB zone vals = NSECDB $ M.fromList $ zip keys (last vals : vals)
   where
-    keys = modifyTail $ catMaybes $ map unpack vals
+    keys = modifyHead $ modifyTail $ catMaybes $ map unpack vals
     unpack :: RRSetSig -> Maybe (Domain, Domain)
     unpack rss = case fromRData $ rdata r of
         Nothing -> Nothing
@@ -513,18 +513,21 @@ makeNSEC3DB zone vals = NSECDB $ M.fromList $ zip keys vals
              in Just (rrsetsigName rss, next)
       where
         r = unsafeHead $ rrsetsigRRs rss
+
+    --     00.jp, 11,jp, 22.jp, 33.jp, 00.jp
+    -- jp, 00.jp, 11,jp, 22.jp, 33.jp, 00.jp0
+    modifyHead ls@((Range x _) : _) = Range zone x : ls
+    modifyHead ls = ls -- never reach
     modifyTail [] = []
-    modifyTail [(x, y)] = [Range x (modify y)]
+    modifyTail [(x, _)] = [Range x modifiedZone]
     modifyTail ((x, y) : xys) = Range x y : modifyTail xys
 
-    -- 00.jp, 11,jp, 22.jp, 33.jp, 00.jp
-    -- 00.jp, 11,jp, 22.jp, 33.jp, 00.jp0
     zero :: Short.ShortByteString
     zero = "\x00"
-    modify :: Domain -> Domain
-    modify dom = case toWireLabels dom of
-        _ : l : ls -> fromWireLabels (l <> zero : ls)
-        _ -> dom -- never reach
+    modifiedZone :: Domain
+    modifiedZone = case toWireLabels zone of
+        l : ls -> fromWireLabels (l <> zero : ls)
+        _ -> zone -- never reach
 
 ----------------------------------------------------------------
 
