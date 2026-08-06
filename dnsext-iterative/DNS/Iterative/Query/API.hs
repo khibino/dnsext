@@ -21,13 +21,13 @@ import qualified DNS.Types as DNS
 
 -- this package
 import DNS.Iterative.Imports hiding (local)
-import DNS.Iterative.WorkerStats (WorkerStatOP)
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Helpers
 import DNS.Iterative.Query.Local (takeLocalResult)
 import DNS.Iterative.Query.Resolve
 import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils (clogLinesIO, logLn, pprMessage)
+import DNS.Iterative.WorkerStats (WorkerStatOP)
 
 -----
 

@@ -24,10 +24,10 @@ import DNS.Types
 
 -- this package
 import DNS.Iterative.Imports
-import DNS.Iterative.WorkerStats
 import DNS.Iterative.Query.Class
-import DNS.Iterative.Query.SteppedWait (steppedWait)
 import DNS.Iterative.Query.Resolver53 (udpTcpResolver1)
+import DNS.Iterative.Query.SteppedWait (steppedWait)
+import DNS.Iterative.WorkerStats
 
 {- FOURMOLU_DISABLE -}
 norec :: MonadIO m => Env -> WorkerStatOP -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)

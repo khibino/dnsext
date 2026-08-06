@@ -22,13 +22,13 @@ import qualified DNS.Types as DNS
 
 -- this package
 import DNS.Iterative.Imports
-import DNS.Iterative.WorkerStats (noopWorkerStat)
 import DNS.Iterative.Query.Cache
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Helpers
 import DNS.Iterative.Query.ResolveJust
 import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils
+import DNS.Iterative.WorkerStats (noopWorkerStat)
 
 -- | Getting the final result.
 runResolve

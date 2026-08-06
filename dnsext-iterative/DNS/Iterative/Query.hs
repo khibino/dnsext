@@ -13,10 +13,10 @@ module DNS.Iterative.Query (
 ) where
 
 import DNS.Do53.Client
-import DNS.Iterative.WorkerStats (noopWorkerStat)
 import DNS.Iterative.Query.API
 import DNS.Iterative.Query.Env
 import DNS.Iterative.Query.Types (VResult (..))
+import DNS.Iterative.WorkerStats (noopWorkerStat)
 import DNS.Types
 
 resolveResponseIterative :: Env -> Question -> QueryControls -> IO (Either String DNSMessage)

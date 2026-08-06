@@ -14,7 +14,7 @@ import Network.Socket
 import qualified Network.Socket.ByteString as NSB
 
 -- dnsext packages
-import DNS.Do53.Client (QueryControls, FlagOp (FlagClear), ednsEnabled)
+import DNS.Do53.Client (FlagOp (FlagClear), QueryControls, ednsEnabled)
 import DNS.Do53.Internal
 import qualified DNS.Log as Log
 import DNS.Types
@@ -22,7 +22,6 @@ import DNS.Types.Decode
 
 -- this package
 import DNS.Iterative.Imports
-
 
 -- | Check response for a matching identifier and question.  If we ever do
 -- pipelined TCP, we'll need to handle out of order responses.  See:

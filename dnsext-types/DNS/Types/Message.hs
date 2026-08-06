@@ -10,8 +10,8 @@ import qualified Control.Monad.State.Strict as ST
 
 import DNS.Types.Dict
 import DNS.Types.Domain
-import DNS.Types.Error (DNSError (DecodeError))
 import DNS.Types.EDNS
+import DNS.Types.Error (DNSError (DecodeError))
 import DNS.Types.Imports
 import DNS.Types.RData
 import DNS.Types.Seconds

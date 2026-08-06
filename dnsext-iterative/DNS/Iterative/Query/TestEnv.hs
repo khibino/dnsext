@@ -12,10 +12,10 @@ import DNS.Types.Time
 
 -- this package
 import DNS.Iterative.Imports hiding (insert)
-import DNS.Iterative.WorkerStats (WorkerStatOP, noopWorkerStat)
 import DNS.Iterative.Query.Class (Address)
 import DNS.Iterative.Query.Env (Env (..), newEmptyEnv)
 import DNS.Iterative.Query.Norec (norec)
+import DNS.Iterative.WorkerStats (WorkerStatOP, noopWorkerStat)
 
 newTestEnvNoCache :: ([String] -> IO ()) -> Bool -> IO Env
 newTestEnvNoCache putLines disableV6NS = (\env -> env{logLines_ = \_ _ -> putLines, disableV6NS_ = disableV6NS}) <$> newEmptyEnv

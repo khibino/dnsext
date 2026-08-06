@@ -43,7 +43,6 @@ import System.Console.ANSI.Types
 
 -- this package
 import DNS.Iterative.Imports
-import DNS.Iterative.WorkerStats (noopWorkerStat)
 import DNS.Iterative.Query.Cache
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Delegation
@@ -54,6 +53,7 @@ import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils
 import qualified DNS.Iterative.Query.Verify as Verify
 import qualified DNS.Iterative.Query.ZoneMap as ZMap
+import DNS.Iterative.WorkerStats (noopWorkerStat)
 
 -- import for doctest
 import DNS.Iterative.Query.TestEnv

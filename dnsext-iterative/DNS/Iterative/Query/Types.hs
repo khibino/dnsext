@@ -28,9 +28,9 @@ import qualified DNS.Types as DNS
 
 -- this package
 import DNS.Iterative.Imports
-import DNS.Iterative.WorkerStats (WorkerStatOP)
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Norec (norec)
+import DNS.Iterative.WorkerStats (WorkerStatOP)
 
 ----------
 

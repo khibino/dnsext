@@ -9,9 +9,10 @@ import Data.List (sortBy)
 import Data.Ord (comparing)
 
 -- dnsext-* packages
+
+import qualified DNS.ThreadStats as TStat
 import DNS.Types (Question (..))
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
-import qualified DNS.ThreadStats as TStat
 
 -- this package
 import DNS.Iterative.Types (DoX (..))
@@ -144,6 +145,7 @@ instance Show BlockingContext where
         showQ (Question qn ty cls) = unwords [show qn, show ty, show cls]
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 pprBlockingStat :: (BlockingStat, BlockingContext, BlockingCause, DiffTime) -> String
 pprBlockingStat (bstate, context, cause, diff) =
     pad ++ diffStr ++ ": " ++ show bstate ++ npp (show context) ++ ": " ++ show cause
@@ -152,8 +154,9 @@ pprBlockingStat (bstate, context, cause, diff) =
     pad = replicate (width - length diffStr) ' '
     width = 7
     npp s
-        | null s     = ""
-        | otherwise  = ": " ++ s
+        | null s    = ""
+        | otherwise = ": " ++ s
+{- FOURMOLU_ENABLE -}
 
 ------------------------------------------------------------
 

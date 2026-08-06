@@ -17,8 +17,8 @@ import System.Console.ANSI.Types
 
 -- this package
 import DNS.Iterative.Imports
-import DNS.Iterative.WorkerStats
 import DNS.Iterative.Query.Class
+import DNS.Iterative.WorkerStats
 
 clogLinesIO :: Env -> WorkerStatOP -> Log.Level -> Maybe Color -> [String] -> IO ()
 clogLinesIO env wstat level color xs = do
