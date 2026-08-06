@@ -1,3 +1,5 @@
+{-# LANGUAGE BinaryLiterals #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -131,6 +133,7 @@ arCountEDNS DNSMessage{..} = ifEDNS ednsHeader (arCount0 + 1) arCount0
   where
     arCount0 = length additional
 
+{- FOURMOLU_DISABLE -}
 putDNSMessage :: DNSMessage -> Builder ()
 putDNSMessage DNSMessage{..} wbuf ref = do
     putIdentifier wbuf identifier
@@ -168,12 +171,21 @@ putDNSMessage DNSMessage{..} wbuf ref = do
             name' = "."
             type' = OPT
             class' = CLASS (maxUdpSize `min` (minUdpSize `max` ednsUdpSize edns))
-            ttl0' = fromIntegral (rc' .&. 0xff0) `shiftL` 20
-            vers' = fromIntegral (ednsVersion edns) `shiftL` 16
-            ttl'
-                | ednsDnssecOk edns = ttl0' `setBit` 15 .|. vers'
-                | otherwise = ttl0' .|. vers'
+            ext_rc' = fromIntegral (rc' .&. 0xff0)    `shiftL` 20
+            vers'   = fromIntegral (ednsVersion edns) `shiftL` 16
+            doF
+                | ednsDnssecOk edns  = 0b1000_0000_0000_0000
+                | otherwise          = 0
+            coF
+                | ednsCmptAnsOk edns = 0b0100_0000_0000_0000
+                | otherwise          = 0
+            deF
+                | ednsDelegExt edns  = 0b0010_0000_0000_0000
+                | otherwise          = 0
+            flags' = doF .|. coF .|. deF
+            ttl' = ext_rc' .|. vers' .|. flags'
             rdata' = RData $ RD_OPT $ ednsOptions edns
+{- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
 getDNSMessage :: Parser DNSMessage
@@ -207,11 +219,21 @@ getDNSMessage rbuf ref = do
       where
         -- \| Extract EDNS information from an OPT RR.
         mkEDNS udpsiz ttl' opts =
-            (EDNSheader $ EDNS vers udpsiz secok opts, toRCODE $ fromIntegral erc)
+            (EDNSheader edns, toRCODE $ fromIntegral erc)
           where
+            edns = EDNS
+                    { ednsVersion   = vers
+                    , ednsUdpSize   = udpsiz
+                    , ednsDnssecOk  = secok
+                    , ednsCmptAnsOk = cpaok
+                    , ednsDelegExt  = dlgen
+                    , ednsOptions   = opts
+                    }
             hrc = fromIntegral rc .&. 0x0f
             erc = shiftR (ttl' .&. 0xff000000) 20 .|. hrc
             secok = ttl' `testBit` 15
+            cpaok = ttl' `testBit` 14
+            dlgen = ttl' `testBit` 13
             vers = fromIntegral $ shiftR (ttl' .&. 0x00ff0000) 16
 {- FOURMOLU_ENABLE -}
 

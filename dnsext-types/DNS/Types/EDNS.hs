@@ -70,7 +70,11 @@ data EDNS = EDNS
     -- unless the signatures will be validated.  Just setting the 'AD' bit in
     -- the query and checking it in the response is sufficient (but often
     -- subject to man-in-the-middle forgery) if all that's wanted is whether
-    -- the server validated the response.
+    -- the server validated the response. (RFC 3225)
+    , ednsCmptAnsOk :: Bool
+    -- ^ The Compact Answers OK (CO) flag defined in RFC 9824.
+    , ednsDelegExt :: Bool
+    -- ^ The Delegation Extensions (DE) flag.
     , ednsOptions :: [OData]
     -- ^ EDNS options (e.g. 'OD_NSID', 'OD_ClientSubnet', ...)
     }
@@ -85,10 +89,12 @@ data EDNS = EDNS
 --
 -- @
 -- defaultEDNS = EDNS
---     { ednsVersion = 0      -- The default EDNS version is 0
---     , ednsUdpSize = 1232   -- IPv6-safe UDP MTU (RIPE recommendation)
---     , ednsDnssecOk = False -- We don't do DNSSEC validation
---     , ednsOptions = []     -- No EDNS options by default
+--     { ednsVersion   = 0     -- The default EDNS version is 0
+--     , ednsUdpSize   = 1232  -- IPv6-safe UDP MTU (RIPE recommendation)
+--     , ednsDnssecOk  = False -- We don't do DNSSEC validation
+--     , ednsCmptAnsOk = False -- We don't accept compact answer
+--     , ednsDelegExt  = False -- We don't accept delegation extension
+--     , ednsOptions   = []    -- No EDNS options by default
 --     }
 -- @
 defaultEDNS :: EDNS
@@ -97,6 +103,8 @@ defaultEDNS =
         { ednsVersion = 0 -- The default EDNS version is 0
         , ednsUdpSize = 1232 -- IPv6-safe UDP MTU (1280 - 40 - 8)
         , ednsDnssecOk = False -- We don't do DNSSEC validation
+        , ednsCmptAnsOk = False
+        , ednsDelegExt = False
         , ednsOptions = [] -- No EDNS options by default
         }
 
