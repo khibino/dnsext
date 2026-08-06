@@ -44,6 +44,8 @@ spec = describe "authoritative algorithm" $ do
 
 doit :: DB -> Spec
 doit db = do
+    it "builds two entries for the last range" $ do
+        lookupN "00000000000000000000000000000000.example." db `shouldSatisfy` include "t644ebqk9bibcna874givr6joj62mlhv.example." NSEC3
     it "passes the test in Appendix B.1 (Name Error)" $ do
         let query = dnssecQuery{question = Question "a.c.x.w.example." A IN}
             ans = getAnswer db query

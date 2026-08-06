@@ -28,7 +28,13 @@ fromQuery query =
   where
     -- RFC 6891: Sec 6.1.1
     ednsH = case ednsHeader query of
-        EDNSheader _ -> EDNSheader defaultEDNS
+        EDNSheader edns ->
+            EDNSheader $
+                defaultEDNS
+                    { -- RFC 3225 Sec 3:  The DO bit of the query MUST
+                      -- be copied in the response.
+                      ednsDnssecOk = ednsDnssecOk edns
+                    }
         _ -> NoEDNS
     flgs =
         DNSFlags
