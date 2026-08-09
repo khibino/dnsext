@@ -151,19 +151,31 @@ pprBlockingStat context bstate cause diff =
 
 ------------------------------------------------------------
 
+class OpBlockingStat op where
+    setBlocking       :: op -> BlockingCause -> IO ()
+    setUnblocked      :: op -> IO ()
+    withBlockingStat  :: op -> (BlockingStat -> BlockingCause -> DiffTime -> IO a) -> IO a
+
+------------------------------------------------------------
+
 {- FOURMOLU_DISABLE -}
 data WorkerStatOP =
     WorkerStatOP
-    { setQuery          :: DoX -> Question -> IO ()
-    , setRequest        :: IO ()
-    , setBlocking       :: BlockingCause -> IO ()
-    , setUnblocked      :: IO ()
-    , withBlockingStat  :: forall a . (BlockingContext -> BlockingStat -> BlockingCause  -> DiffTime -> IO a) -> IO a
+    { setQuery           :: DoX -> Question -> IO ()
+    , setRequest         :: IO ()
+    , setBlocking_       :: BlockingCause -> IO ()
+    , setUnblocked_      :: IO ()
+    , withBlockingStat_  :: forall a . (BlockingContext -> BlockingStat -> BlockingCause  -> DiffTime -> IO a) -> IO a
     }
+
+instance OpBlockingStat WorkerStatOP where
+    setBlocking       = setBlocking_
+    setUnblocked      = setUnblocked_
+    withBlockingStat  = \op k -> withBlockingStat_ op (\_ctx bs bc dt -> k bs bc dt)
 {- FOURMOLU_ENABLE -}
 
 getBlockingStat  :: WorkerStatOP -> IO (BlockingContext, BlockingStat, BlockingCause, DiffTime)
-getBlockingStat op = withBlockingStat op (\cx bs bc dt -> return (cx, bs, bc, dt))
+getBlockingStat op = withBlockingStat_ op (\cx bs bc dt -> return (cx, bs, bc, dt))
 
 data WBStatStore = WBStatStore BlockingStat TimeStamp
 
@@ -181,9 +193,9 @@ noopWorkerStat =
     WorkerStatOP
     { setQuery         = \_ _ -> return ()
     , setRequest       = return ()
-    , setBlocking      = \_ -> return ()
-    , setUnblocked     = return ()
-    , withBlockingStat = \k -> k ContextRequest StatBlocking CauseUndef (DiffT (-1))
+    , setBlocking_       = \_ -> return ()
+    , setUnblocked_      = return ()
+    , withBlockingStat_  = \k -> k ContextRequest StatBlocking CauseUndef (DiffT (-1))
     }
 {- FOURMOLU_ENABLE -}
 
@@ -196,9 +208,9 @@ getWorkerStatOP = do
         WorkerStatOP
         { setQuery         = \dox q -> writeIORef ctxRef $ ContextQuery dox q
         , setRequest       = writeIORef ctxRef ContextRequest
-        , setBlocking      = blocking  blkRef
-        , setUnblocked     = unblocked blkRef
-        , withBlockingStat = withBlkStat ctxRef blkRef
+        , setBlocking_       = blocking  blkRef
+        , setUnblocked_      = unblocked blkRef
+        , withBlockingStat_  = withBlkStat ctxRef blkRef
         }
   where
     mkBsStore bstat = WBStatStore bstat <$> getTimeStamp
@@ -227,12 +239,12 @@ contextClear = setRequest
 
 {- FOURMOLU_DISABLE -}
 eventLogWS :: WorkerStatOP -> IO ()
-eventLogWS wstat = withBlockingStat wstat $ \context bstate cause diff -> do
+eventLogWS wstat = withBlockingStat_ wstat $ \context bstate cause diff -> do
     let wspp = pprBlockingStat context bstate cause diff
     TStat.eventLog $ "iter.st " ++ wspp
 {- FOURMOLU_ENABLE -}
 
-bracketBlocking :: WorkerStatOP -> BlockingCause -> IO a -> IO a
+bracketBlocking :: OpBlockingStat op => op -> BlockingCause -> IO a -> IO a
 bracketBlocking wstat cause = bracket_ (setBlocking wstat cause) (setUnblocked wstat)
 
 blockingRequest :: WorkerStatOP -> IO a -> IO a
@@ -244,10 +256,10 @@ blockingResponse wstat x = bracketBlocking wstat CauseResponse (eventLogWS wstat
 blockingEnqueue :: WorkerStatOP -> String -> IO a -> IO a
 blockingEnqueue wstat note x = bracketBlocking wstat (CauseEnqueue note) (eventLogWS wstat >> x)
 
-blockingLog :: WorkerStatOP -> String -> IO a -> IO a
+blockingLog :: OpBlockingStat op => op -> String -> IO a -> IO a
 blockingLog wstat note = bracketBlocking wstat (CauseLog note)
 
-blockingIO :: WorkerStatOP -> String -> IO a -> IO a
+blockingIO :: OpBlockingStat op => op -> String -> IO a -> IO a
 blockingIO wstat note = bracketBlocking wstat (CauseIO note)
 
 ------------------------------------------------------------
