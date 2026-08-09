@@ -29,7 +29,6 @@ module DNS.Iterative.Server (
     -- * WorkerStat
     WorkerStatOP (..),
     pprWorkerStats,
-    pprWorkerStat,
 
     -- * Stats
     getStats,
