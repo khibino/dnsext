@@ -54,17 +54,6 @@ pprWorkerStats _pn ops = do
         | otherwise  = "  " ++ show n
 {- FOURMOLU_ENABLE -}
 
-pprWorkerStat :: (WorkerStat, DiffTime) -> String
-pprWorkerStat (stat, diff) = pad ++ diffStr ++ ": " ++ show stat
-  where
-    diffStr = showDiffSec1 diff
-    pad = replicate (width - length diffStr) ' '
-    width = 7
-
-------------------------------------------------------------
-
-type WorkerStat = ()
-
 ------------------------------------------------------------
 
 {- FOURMOLU_DISABLE -}
@@ -170,8 +159,6 @@ data WorkerStatOP =
     , getBlockingStat  :: IO (BlockingStat, BlockingContext, BlockingCause, DiffTime)
     }
 {- FOURMOLU_ENABLE -}
-
-data WStatStore = WSStore WorkerStat TimeStamp
 
 data WBStatStore = WBStatStore BlockingStat TimeStamp
 
