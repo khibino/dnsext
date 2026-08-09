@@ -25,7 +25,7 @@ import DNS.Types
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
-import DNS.Iterative.Query.Resolver53 (udpTcpResolver1)
+import DNS.Iterative.Query.Do53Stub (udpTcpResolver1)
 import DNS.Iterative.Query.SteppedWait (steppedWait)
 import DNS.Iterative.WorkerStats
 
