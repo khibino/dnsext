@@ -148,6 +148,9 @@ pprBlockingStat pwidth ctx bstate cause diff =
         | otherwise  = ": " ++ s
 {- FOURMOLU_ENABLE -}
 
+pprTaskBlockingStat :: BlockingStat -> BlockingCause -> DiffTime -> String
+pprTaskBlockingStat = pprBlockingStat 9 ""
+
 pprCtxBlockingStat :: BlockingContext -> BlockingStat -> BlockingCause -> DiffTime -> String
 pprCtxBlockingStat context =
     pprBlockingStat pwidth (show context)
