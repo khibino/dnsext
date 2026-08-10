@@ -49,7 +49,7 @@ pprWorkerStats _pn ops = do
 
     return $ map pprq sorted ++ [pprdeq, pprenq]
   where
-    pprBlkStat (context, bstate, cause, diff) = pprBlockingStat context bstate cause diff
+    pprBlkStat (context, bstate, cause, diff) = pprCtxBlockingStat context bstate cause diff
     showDec3 n
         | 100 <= n   = show n
         | 10  <= n   = ' ' : show n
@@ -137,17 +137,22 @@ instance Show BlockingContext where
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-pprBlockingStat :: BlockingContext -> BlockingStat -> BlockingCause -> DiffTime -> String
-pprBlockingStat context bstate cause diff =
-    pad ++ diffStr ++ ": " ++ show bstate ++ npp (show context) ++ ": " ++ show cause
+pprBlockingStat :: Int -> String -> BlockingStat -> BlockingCause -> DiffTime -> String
+pprBlockingStat pwidth ctx bstate cause diff =
+    pad ++ diffStr ++ ": " ++ show bstate ++ npp ctx ++ ": " ++ show cause
   where
     diffStr = showDiffSec1 diff
-    pad = replicate (width - length diffStr) ' '
-    width = 7
+    pad = replicate (pwidth - length diffStr) ' '
     npp s
         | null s     = ""
         | otherwise  = ": " ++ s
 {- FOURMOLU_ENABLE -}
+
+pprCtxBlockingStat :: BlockingContext -> BlockingStat -> BlockingCause -> DiffTime -> String
+pprCtxBlockingStat context =
+    pprBlockingStat pwidth (show context)
+  where
+    pwidth = 7
 
 ------------------------------------------------------------
 
@@ -263,7 +268,7 @@ contextClear = setRequest
 {- FOURMOLU_DISABLE -}
 eventLogWS :: WorkerStatOP -> IO ()
 eventLogWS wstat = withContext wstat $ \context -> withBlockingStat wstat $ \bstate cause diff -> do
-    let wspp = pprBlockingStat context bstate cause diff
+    let wspp = pprCtxBlockingStat context bstate cause diff
     TStat.eventLog $ "iter.st " ++ wspp
 {- FOURMOLU_ENABLE -}
 
