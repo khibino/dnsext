@@ -21,18 +21,18 @@ import DNS.Iterative.Types (DoX (..))
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
-    stats <- zip [1 :: Int ..] <$> mapM getBlockingStat ops
-    let isBkStat p (_n, (_ctx, bks, _cause, _diff)) = p bks
+    stats <- zip3 [1 :: Int ..] <$> mapM getBlockingStat ops <*> mapM pprTasks ops
+    let isBkStat p (_n, (_ctx, bks, _cause, _diff), _ts) = p bks
         ablockings  = filter (isBkStat (== StatBlocking))  stats
         runnings    = filter (isBkStat (== StatUnblocked)) stats
-        isBkCause p (_n, (_ctx, _bks, cause, _diff)) = p cause
+        isBkCause p (_n, (_ctx, _bks, cause, _diff), _ts) = p cause
         requests    = filter (isBkCause (== CauseRequest))  ablockings
         responses   = filter (isBkCause (== CauseResponse)) ablockings
         blockings   = filter (isBkCause (`notElem` [CauseRequest, CauseResponse])) ablockings
         {- sorted by query span -}
-        getDiffT (_n, (_bks, _ctx, _cause, diff)) = diff
+        getDiffT (_n, (_bks, _ctx, _cause, diff), _ts) = diff
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) $ runnings ++ blockings
-        pprEnq  p (wn, wbs@(ContextQuery dox _q, _, _, _))
+        pprEnq  p (wn, wbs@(ContextQuery dox _q, _, _, _), _ts)
             | p dox  = ((show wn ++ ":" ++ pprBlkStat wbs) :)
         pprEnq _p  _  = id
         pprEnqs
@@ -43,13 +43,15 @@ pprWorkerStats _pn ops = do
                 xs  = foldr (pprEnq (\x -> x /= H2 && x /= DoT)) [] responses
                 pp = unwords (h2 ++ dot ++ xs)
 
-        pprq (wn, bks) = showDec3 wn ++ ": " ++ pprBlkStat bks
+        pprq (wn, bks, ppts) = [showDec3 wn ++ ": " ++ pprBlkStat bks] ++ ppts
         pprdeq = " waiting dequeues: " ++ show (length requests) ++ " workers"
         pprenq = " waiting enqueues: " ++ pprEnqs
 
-    return $ map pprq sorted ++ [pprdeq, pprenq]
+    return $ concatMap pprq sorted ++ [pprdeq, pprenq]
   where
     pprBlkStat (context, bstate, cause, diff) = pprCtxBlockingStat context bstate cause diff
+    pprTasks op = getTasks op >>= mapM pprTask
+    pprTask bs = withBlockingStat bs $ \bstat cause dtime -> return (pprTaskBlockingStat bstat cause dtime)
     showDec3 n
         | 100 <= n   = show n
         | 10  <= n   = ' ' : show n
