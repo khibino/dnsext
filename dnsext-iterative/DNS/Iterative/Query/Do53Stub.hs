@@ -88,19 +88,20 @@ udpTcpResolver1 ri@ResolveInfo{rinfoActions = ResolveActions{..}} q qctl0 = time
 --   - ignoring rinfoUDPRetry
 --   - no fallback for NoEDNS case
 udpResolver1 :: OneshotResolver
-udpResolver1 ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q qctl0 = do
+udpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl0 = do
     logNoShort qtag
     tryDNS qtag (go qctl0)
   where
-    logNoShort s = unless ractionShortLog (ractionLog Log.DEMO Nothing [s])
+    logNoShort s = unless ractionShortLog (blockingIO "log" $ ractionLog Log.DEMO Nothing [s])
     tag = nameTag ri "UDP"
     ~qtag = queryTag q tag qctl0
+    blockingIO n = raBlockingIO ra ("udp-rslv." ++ n ++ ": " ++ qtag)
 
     -- Using only one socket and the same identifier.
-    go qctl = bracket open close $ \sock -> do
+    go qctl = bracket open close_ $ \sock -> do
         ractionSetSockOpt sock
-        let send bs = NSB.send sock bs
-            recv = NSB.recv sock 2048
+        let send bs = blockingIO "send" (NSB.send sock bs)
+            recv = blockingIO "recv" (NSB.recv sock 2048)
         ident <- ractionGenId
         sendQueryRecvAnswer ident qctl send recv
 
@@ -145,23 +146,27 @@ udpResolver1 ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q qctl0 = do
             port = show rinfoPort
             hints = defaultHints{addrSocketType = Datagram, addrFlags = [AI_ADDRCONFIG]}
         addr <- NE.head <$> getAddrInfo (Just hints) (Just host) (Just port)
-        E.bracketOnError (openSocket addr) close $ \s -> do
+        E.bracketOnError (openSocket addr) close_ $ \s -> do
             let sa = addrAddress addr
-            connect s sa
+            blockingIO "connect" (connect s sa)
             return s
+
+    close_ s = blockingIO "close" (close s)
 
 -- | A resolver using TCP.
 tcpResolver1 :: OneshotResolver
-tcpResolver1 ri@ResolveInfo{rinfoActions = ResolveActions{..}, ..} q qctl =
+tcpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl =
     -- Using a fresh connection
-    bracket open close $ \sock -> do
+    bracket open close_ $ \sock -> do
         ractionSetSockOpt sock
-        let send bs = sendVC (sendTCP sock) bs
-            recv = recvVC rinfoVCLimit $ recvTCP sock
+        let send bs = sendVC (\xs -> blockingIO "sendTCP" $ sendTCP sock xs) bs
+            recv = recvVC rinfoVCLimit $ blockingIO "recvTCP" $ recvTCP sock
         vcResolver1 tag send recv ri q qctl
   where
     tag = nameTag ri "TCP"
-    open = openTCP rinfoIP rinfoPort
+    blockingIO n = raBlockingIO ra ("tcp-rslv." ++ n ++ ": " ++ fromNameTag tag)
+    open = blockingIO "openTCP" (openTCP rinfoIP rinfoPort)
+    close_ s = blockingIO "close" (close s)
 
 -- | Generic resolver for virtual circuit.
 vcResolver1 :: NameTag -> (BS -> IO ()) -> IO BS -> OneshotResolver
@@ -197,3 +202,7 @@ vcResolver1 tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q qctl0
                             , replyRxBytes = BS.length bs
                             }
                 Just err -> E.throwIO err
+
+raBlockingIO :: ResolveActions -> String -> IO a -> IO a
+raBlockingIO ResolveActions{..} tag action =
+    bracket_ (ractionIoBlocking tag) ractionIoUnblocked action
