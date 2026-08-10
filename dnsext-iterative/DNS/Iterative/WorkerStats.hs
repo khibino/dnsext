@@ -22,17 +22,17 @@ import DNS.Iterative.Types (DoX (..))
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
     stats <- zip [1 :: Int ..] <$> mapM getBlockingStat ops
-    let isBkStat p (_n, (bks, _ctx, _cause, _diff)) = p bks
+    let isBkStat p (_n, (_ctx, bks, _cause, _diff)) = p bks
         ablockings  = filter (isBkStat (== StatBlocking))  stats
         runnings    = filter (isBkStat (== StatUnblocked)) stats
-        isBkCause p (_n, (_bks, _ctx, cause, _diff)) = p cause
+        isBkCause p (_n, (_ctx, _bks, cause, _diff)) = p cause
         requests    = filter (isBkCause (== CauseRequest))  ablockings
         responses   = filter (isBkCause (== CauseResponse)) ablockings
         blockings   = filter (isBkCause (`notElem` [CauseRequest, CauseResponse])) ablockings
         {- sorted by query span -}
         getDiffT (_n, (_bks, _ctx, _cause, diff)) = diff
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) $ runnings ++ blockings
-        pprEnq  p (wn, wbs@(_, ContextQuery dox _q, _, _))
+        pprEnq  p (wn, wbs@(ContextQuery dox _q, _, _, _))
             | p dox  = ((show wn ++ ":" ++ pprBlkStat wbs) :)
         pprEnq _p  _  = id
         pprEnqs
@@ -49,7 +49,7 @@ pprWorkerStats _pn ops = do
 
     return $ map pprq sorted ++ [pprdeq, pprenq]
   where
-    pprBlkStat (bstate, context, cause, diff) = pprBlockingStat context bstate cause diff
+    pprBlkStat (context, bstate, cause, diff) = pprBlockingStat context bstate cause diff
     showDec3 n
         | 100 <= n   = show n
         | 10  <= n   = ' ' : show n
@@ -162,8 +162,8 @@ data WorkerStatOP =
     }
 {- FOURMOLU_ENABLE -}
 
-getBlockingStat  :: WorkerStatOP -> IO (BlockingStat, BlockingContext, BlockingCause, DiffTime)
-getBlockingStat op = withBlockingStat op (\cx bs bc dt -> return (bs, cx, bc, dt))
+getBlockingStat  :: WorkerStatOP -> IO (BlockingContext, BlockingStat, BlockingCause, DiffTime)
+getBlockingStat op = withBlockingStat op (\cx bs bc dt -> return (cx, bs, bc, dt))
 
 data WBStatStore = WBStatStore BlockingStat TimeStamp
 
