@@ -182,6 +182,9 @@ data WorkerStatOP =
     , setRequest   :: IO ()
     , withContext  :: forall a . (BlockingContext -> IO a) -> IO a
     , blockingOP   :: BlockingStatOP
+    , setTasks     :: [BlockingStatOP] -> IO ()
+    , getTasks     :: IO [BlockingStatOP]
+    , clearTasks   :: IO ()
     }
 
 instance OpBlockingStat WorkerStatOP where
@@ -216,6 +219,9 @@ noopWorkerStat =
       , setUnblocked_      = return ()
       , withBlockingStat_  = \k -> k StatBlocking CauseUndef (DiffT (-1))
       }
+    , setTasks         = \_ -> return ()
+    , getTasks         = return []
+    , clearTasks       = return ()
     }
 {- FOURMOLU_ENABLE -}
 
@@ -250,12 +256,16 @@ getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
     ctxRef  <- newIORef     ContextRequest
     blkOp   <- getBlockingStatOP
+    tskRef  <- newIORef     []
     return
         WorkerStatOP
         { setQuery         = \dox q -> writeIORef ctxRef $ ContextQuery dox q
         , setRequest       = writeIORef ctxRef ContextRequest
         , withContext      = \k -> readIORef ctxRef >>= k
         , blockingOP       = blkOp
+        , setTasks         = writeIORef tskRef
+        , getTasks         = readIORef tskRef
+        , clearTasks       = writeIORef tskRef []
         }
 {- FOURMOLU_ENABLE -}
 
