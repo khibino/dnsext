@@ -12,7 +12,6 @@ import DNS.Types
 import qualified DNS.Types.Opaque as Opaque
 
 import Data.Either
-import Data.Maybe
 
 import Common
 
@@ -20,7 +19,7 @@ spec :: Spec
 spec = describe "authoritative algorithm" $ do
     runIO $ runInitIO $ addResourceDataForDNSSEC
     let zone = "example."
-    edb <- runIO $ do
+    db <- runIO $ do
         rrs <- loadZoneFile zone "test/rfc5155.zone"
         (_pub, _pri, dnskey, _ds, doSign) <-
             prepareDNSSEC $
@@ -35,9 +34,8 @@ spec = describe "authoritative algorithm" $ do
             n3p = RD_NSEC3PARAM Hash_SHA1 0 12 salt
 
         makeDBforPrimary zone (Just n3p) doSign (rrs ++ [dnskey])
-    let db = fromJust edb
     doit db
-    db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)
+    db2 <- runIO (makeDBforSecondary zone $ dbAll db)
     doit db2
 
 -- fixme
