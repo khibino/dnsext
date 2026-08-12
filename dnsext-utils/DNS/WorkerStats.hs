@@ -4,6 +4,7 @@
 module DNS.WorkerStats where
 
 -- GHC packages
+import Control.Concurrent (ThreadId, killThread, myThreadId)
 import Control.Exception (bracket_)
 import Data.IORef
 import Data.List (sortBy)
@@ -77,6 +78,8 @@ data BlockingCause
     | CauseEnqueue  String
     | CauseLog      String
     | CauseIO       String
+    | CauseKill     String
+    | CauseThrowTo  String
     deriving Eq
 
 instance Show BlockingCause where
@@ -86,6 +89,8 @@ instance Show BlockingCause where
     show (CauseEnqueue  note)  = "enqueue: " ++ note
     show (CauseLog      note)  = "logging: " ++ note
     show (CauseIO       note)  = "I/O: " ++ note
+    show (CauseKill     note)  = "killThread: " ++ note
+    show (CauseThrowTo  note)  = "throwTo: " ++ note
 
 -- |
 --  BlockingContext transition in worker/cacher
@@ -309,6 +314,11 @@ blockingLog wstat note = bracketBlocking wstat (CauseLog note)
 
 blockingIO :: OpBlockingStat op => op -> String -> IO a -> IO a
 blockingIO wstat note = bracketBlocking wstat (CauseIO note)
+
+blockingKillThread :: OpBlockingStat op => op -> String -> ThreadId -> IO ()
+blockingKillThread wstat note to = do
+    fr <- myThreadId
+    bracketBlocking wstat (CauseKill (note ++ ": " ++ show fr ++ " -> " ++ show to)) (killThread to)
 
 ------------------------------------------------------------
 
