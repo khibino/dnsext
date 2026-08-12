@@ -1,11 +1,5 @@
-module DNS.Iterative.Types where
+module DNS.Iterative.Types {-# DEPRECATED "import DNS.Transport.Types instead of this" #-} (
+    module DNS.Transport.Types,
+) where
 
-data DoX
-    = UDP
-    | TCP
-    | DoT
-    | H2
-    | H2C
-    | H3
-    | DoQ
-    deriving (Eq, Show)
+import DNS.Transport.Types

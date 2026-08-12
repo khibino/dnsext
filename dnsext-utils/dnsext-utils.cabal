@@ -20,6 +20,8 @@ library
         DNS.ThreadAsync
         DNS.ThreadStats
         DNS.TimeCache
+        DNS.Transport.Types
+        DNS.WorkerStats
         DNS.ZoneFile
 
     other-modules:
