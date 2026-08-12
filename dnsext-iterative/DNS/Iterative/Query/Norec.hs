@@ -65,8 +65,6 @@ norec_ utimeout cxt dnssecOK asps name typ = do
                 , ractionLog          = logLines_ cxt
                 , ractionShortLog     = shortLog_ cxt
                 , ractionBlockingStat = bstatOP
-                , ractionIoBlocking   = \tag -> setBlocking bstatOP (CauseIO tag)
-                , ractionIoUnblocked  = setUnblocked bstatOP
                 , ractionTimeoutTime  = utimeout
                 }
         ris =
