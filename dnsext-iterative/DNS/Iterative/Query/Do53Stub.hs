@@ -9,16 +9,21 @@ import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
 import System.Timeout (timeout)
 
--- other packages
-import Network.Socket
-import qualified Network.Socket.ByteString as NSB
+-- dnsext-types
+import DNS.Types
+import DNS.Types.Decode
+
+-- dnsext-utils
+import qualified DNS.Log as Log
+import qualified DNS.WorkerStats as WStats
 
 -- dnsext packages
 import DNS.Do53.Client (FlagOp (FlagClear), QueryControls, ednsEnabled)
 import DNS.Do53.Internal
-import qualified DNS.Log as Log
-import DNS.Types
-import DNS.Types.Decode
+
+-- other packages
+import Network.Socket
+import qualified Network.Socket.ByteString as NSB
 
 -- this package
 import DNS.Iterative.Imports
@@ -204,5 +209,4 @@ vcResolver1 tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q qctl0
                 Just err -> E.throwIO err
 
 raBlockingIO :: ResolveActions -> String -> IO a -> IO a
-raBlockingIO ResolveActions{..} tag action =
-    bracket_ (ractionIoBlocking tag) ractionIoUnblocked action
+raBlockingIO ResolveActions{..} = WStats.blockingIO ractionBlockingStat

@@ -212,18 +212,23 @@ data WBlockingStore =
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
+noopBlockingStat :: BlockingStatOP
+noopBlockingStat =
+    BlockingStatOP
+    { setBlocking_       = \_ -> return ()
+    , setUnblocked_      = return ()
+    , withBlockingStat_  = \k -> k StatBlocking CauseUndef (DiffT (-1))
+    }
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
 noopWorkerStat :: WorkerStatOP
 noopWorkerStat =
     WorkerStatOP
     { setQuery         = \_ _ -> return ()
     , setRequest       = return ()
     , withContext      = \k -> k ContextRequest
-    , blockingOP =
-      BlockingStatOP
-      { setBlocking_       = \_ -> return ()
-      , setUnblocked_      = return ()
-      , withBlockingStat_  = \k -> k StatBlocking CauseUndef (DiffT (-1))
-      }
+    , blockingOP       = noopBlockingStat
     , setTasks         = \_ -> return ()
     , getTasks         = return []
     , clearTasks       = return ()
