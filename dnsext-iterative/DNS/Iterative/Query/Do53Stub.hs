@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module DNS.Iterative.Query.Resolver53 where
+module DNS.Iterative.Query.Do53Stub where
 
 -- GHC packages
 import Control.Exception as E
