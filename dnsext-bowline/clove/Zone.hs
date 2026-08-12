@@ -1,7 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 
-module Zone where
+module Zone (
+    newZones,
+    updateZone,
+    findZoneAlist,
+    toZoneAlist,
+) where
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
@@ -44,7 +49,14 @@ readSource s
 
 ----------------------------------------------------------------
 
-loadSource :: Env -> Domain -> Serial -> Source -> IO (Either AuthException DB)
+extractTTL :: [ResourceRecord] -> IO Seconds
+extractTTL [] = E.throwIO $ AuthException "No RRs"
+extractTTL (soarr : _rest) = case fromRData $ rdata soarr of
+    Nothing -> E.throwIO $ AuthException "SOA does not exist"
+    Just soa -> return $ soa_minimum soa
+
+-- | This function throws 'AuthException'.
+loadSource :: Env -> Domain -> Serial -> Source -> IO DB
 loadSource env zone serial source = case source of
     FromUpstream4 ip4 ->
         Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
@@ -53,23 +65,19 @@ loadSource env zone serial source = case source of
     FromFile fn -> do
         -- head rrs is soa
         rrs <- loadZoneFile zone fn
-        case rrs of
-            [] -> E.throwIO $ AuthException "Zone file is empty"
-            soarr : _rest -> case fromRData $ rdata soarr of
-                Nothing -> E.throwIO $ AuthException "SOA does not exist"
-                Just soa -> do
-                    (_pub, _pri, dnskey, ds, doSign) <-
-                        prepareDNSSEC $
-                            DNSSECinfo
-                                { dnssecInfoZone = zone
-                                , dnssecInfoPubAlg = ED25519
-                                , dnssecInfoDigestAlg = SHA256
-                                , dnssecInfoTTL = soa_minimum soa
-                                , dnssecInfoDuration = 86400
-                                }
-                    -- fixme:
-                    print ds
-                    makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
+        ttl <- extractTTL rrs
+        let info =
+                DNSSECinfo
+                    { dnssecInfoZone = zone
+                    , dnssecInfoPubAlg = ED25519
+                    , dnssecInfoDigestAlg = SHA256
+                    , dnssecInfoTTL = ttl
+                    , dnssecInfoDuration = 86400
+                    }
+        (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info
+        -- fixme:
+        print ds
+        makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
 
 ----------------------------------------------------------------
 
@@ -90,9 +98,9 @@ newZones env zcs = mapM (newZone env) zcs
 
 newZone :: Env -> ZoneConf -> IO Zone
 newZone env ZoneConf{..} = do
-    edb <- loadSource env zone (Serial 0) source
+    edb <- E.try $ loadSource env zone (Serial 0) source
     let (db, ready) = case edb of
-            Left _ -> (emptyDB, False)
+            Left (AuthException _) -> (emptyDB, False)
             Right db' -> (db', True)
     let (a4, a6) = readIPRange cnf_allow_transfer_addrs
         t4 = fromList $ map (,True) a4
@@ -128,9 +136,9 @@ updateZone :: Env -> IORef Zone -> IO ()
 updateZone env zoneref = do
     Zone{..} <- readIORef zoneref
     let serial = soa_serial $ dbRD_SOA zoneDB
-    edb <- loadSource env zoneName serial zoneSource
+    edb <- E.try $ loadSource env zoneName serial zoneSource
     case edb of
-        Left _ -> return ()
+        Left (AuthException _) -> return ()
         Right db -> atomicModifyIORef' zoneref $ modify db
   where
     modify db zone = (zone', ())

@@ -128,7 +128,8 @@ instance E.Exception AuthException
 
 ----------------------------------------------------------------
 
-loadDB :: Domain -> FilePath -> IO (Either AuthException DB)
+-- | This function throws 'AuthException'.
+loadDB :: Domain -> FilePath -> IO DB
 loadDB zone file = do
     rss <- loadZoneFile zone file
     makeDBforSecondary zone $ filter (\r -> rrtype r /= DS) rss
@@ -138,19 +139,20 @@ loadZoneFile zone file = catMaybes . map fromResource <$> ZF.parseFile file zone
 
 ----------------------------------------------------------------
 
+-- | This function throws 'AuthException'.
 makeDBforPrimary
     :: Domain
     -> (Maybe RD_NSEC3PARAM)
     -> (Bool -> [ResourceRecord] -> IO [RRSetSig])
     -> [ResourceRecord]
-    -> IO (Either AuthException DB)
-makeDBforPrimary _ _ _ [] = return $ Left $ AuthException "No resource records"
+    -> IO DB
+makeDBforPrimary _ _ _ [] = E.throwIO $ AuthException "No resource records"
 -- RFC 1035 Sec 5.2
 -- Exactly one SOA RR should be present at the top of the zone.
 makeDBforPrimary zone mn3p doSign (soarr : rrs)
-    | rrtype soarr /= SOA = return $ Left $ AuthException "SOA does not exist"
+    | rrtype soarr /= SOA = E.throwIO $ AuthException "SOA does not exist"
     | otherwise = case fromRData $ rdata soarr of
-        Nothing -> return $ Left $ AuthException "SOA is broken"
+        Nothing -> E.throwIO $ AuthException "SOA is broken"
         Just soa -> do
             let ttl = soa_minimum soa
             let (is, ns, ds, gs, _os) = divide zone rrs
@@ -192,16 +194,17 @@ makeDBforPrimary zone mn3p doSign (soarr : rrs)
                         ++ _os
                         ++ [soarr] -- for AXFR
                 db = makeDBFinal zone soa ssSigned node allrr nsecdb mconv
-            return $ Right db
+            return db
 
-makeDBforSecondary :: Domain -> [ResourceRecord] -> IO (Either AuthException DB)
-makeDBforSecondary _ [] = return $ Left $ AuthException "No resource records"
+-- | This function throws 'AuthException'.
+makeDBforSecondary :: Domain -> [ResourceRecord] -> IO DB
+makeDBforSecondary _ [] = E.throwIO $ AuthException "No resource records"
 -- RFC 1035 Sec 5.2
 -- Exactly one SOA RR should be present at the top of the zone.
 makeDBforSecondary zone (soarr : rrs0)
-    | rrtype soarr /= SOA = return $ Left $ AuthException "SOA does not exist"
+    | rrtype soarr /= SOA = E.throwIO $ AuthException "SOA does not exist"
     | otherwise = case fromRData $ rdata soarr of
-        Nothing -> return $ Left $ AuthException "SOA is broken"
+        Nothing -> E.throwIO $ AuthException "SOA is broken"
         Just soa -> do
             let (sigs, rrs1) = partition (\r -> rrtype r == RRSIG) rrs0
                 nsec3params = filter (\r -> rrtype r == NSEC3PARAM) rrs0
@@ -225,7 +228,7 @@ makeDBforSecondary zone (soarr : rrs0)
                         Nothing -> Nothing
                         Just n3p -> Just $ hashedDomain zone n3p
                 db = makeDBFinal zone soa ssSigned node allrr nsecdb mconv
-            return $ Right db
+            return db
 
 ----------------------------------------------------------------
 
