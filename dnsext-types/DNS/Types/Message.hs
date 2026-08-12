@@ -263,7 +263,7 @@ minUdpSize = 512
 -- the message 'DNSHeader' and 'EDNSheader'.
 --
 -- >>> defaultQuery
--- DNSMessage {identifier = 0, opcode = OP_STD, rcode = NoError, flags = DNSFlags {isResponse = False, authAnswer = False, trunCation = False, recDesired = True, recAvailable = False, authenData = False, chkDisable = False}, ednsHeader = EDNSheader (EDNS {ednsVersion = 0, ednsUdpSize = 1232, ednsDnssecOk = False, ednsOptions = []}), question = Question {qname = ".", qtype = A, qclass = IN}, answer = [], authority = [], additional = []}
+-- DNSMessage {identifier = 0, opcode = OP_STD, rcode = NoError, flags = DNSFlags {isResponse = False, authAnswer = False, trunCation = False, recDesired = True, recAvailable = False, authenData = False, chkDisable = False}, ednsHeader = EDNSheader (EDNS {ednsVersion = 0, ednsUdpSize = 1232, ednsDnssecOk = False, ednsCmptAnsOk = False, ednsDelegExt = False, ednsOptions = []}), question = Question {qname = ".", qtype = A, qclass = IN}, answer = [], authority = [], additional = []}
 defaultQuery :: DNSMessage
 defaultQuery =
     DNSMessage
