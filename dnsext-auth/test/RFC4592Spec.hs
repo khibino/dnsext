@@ -12,6 +12,8 @@ import DNS.Types
 
 import Data.Maybe
 
+import Common
+
 spec :: Spec
 spec = describe "authoritative algorithm" $ do
     runIO $ runInitIO $ addResourceDataForDNSSEC
@@ -111,29 +113,3 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NXDomain
         length (answer ans) `shouldBe` 0
-
-includeRRSIG :: Domain -> TYPE -> [ResourceRecord] -> Bool
-includeRRSIG dom typ rs = any has rs
-  where
-    has r =
-        rrname r == dom && rrtype r == RRSIG && case fromRData $ rdata r of
-            Nothing -> False
-            Just rd -> rrsig_type rd == typ
-
-includeNS :: Domain -> [ResourceRecord] -> Bool
-includeNS dom rs = any has rs
-  where
-    has r = case fromRData $ rdata r of
-        Nothing -> False
-        Just rd -> ns_domain rd == dom
-
-include :: Domain -> TYPE -> [ResourceRecord] -> Bool
-include dom typ rs = any has rs
-  where
-    has r = rrname r == dom && rrtype r == typ
-
-dnssecQuery :: DNSMessage
-dnssecQuery =
-    defaultQuery
-        { ednsHeader = EDNSheader defaultEDNS{ednsDnssecOk = True}
-        }

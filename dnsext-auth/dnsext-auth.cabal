@@ -32,6 +32,7 @@ test-suite spec
     hs-source-dirs:     test
     other-modules:      AlgorithmSecSpec
                         AlgorithmSpec
+                        Common
                         RFC4035Spec
                         RFC4592Spec
                         RFC5155Spec

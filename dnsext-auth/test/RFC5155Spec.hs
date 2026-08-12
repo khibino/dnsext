@@ -14,6 +14,8 @@ import qualified DNS.Types.Opaque as Opaque
 import Data.Either
 import Data.Maybe
 
+import Common
+
 spec :: Spec
 spec = describe "authoritative algorithm" $ do
     runIO $ runInitIO $ addResourceDataForDNSSEC
@@ -133,29 +135,3 @@ doit db = do
         authority ans `shouldSatisfy` includeRRSIG "0p9mhaveqvm6t7vbl5lop2u3t2rp3tom.example" NSEC3
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
-
-includeRRSIG :: Domain -> TYPE -> [ResourceRecord] -> Bool
-includeRRSIG dom typ rs = any has rs
-  where
-    has r =
-        rrname r == dom && rrtype r == RRSIG && case fromRData $ rdata r of
-            Nothing -> False
-            Just rd -> rrsig_type rd == typ
-
-includeNS :: Domain -> [ResourceRecord] -> Bool
-includeNS dom rs = any has rs
-  where
-    has r = case fromRData $ rdata r of
-        Nothing -> False
-        Just rd -> ns_domain rd == dom
-
-include :: Domain -> TYPE -> [ResourceRecord] -> Bool
-include dom typ rs = any has rs
-  where
-    has r = rrname r == dom && rrtype r == typ
-
-dnssecQuery :: DNSMessage
-dnssecQuery =
-    defaultQuery
-        { ednsHeader = EDNSheader defaultEDNS{ednsDnssecOk = True}
-        }

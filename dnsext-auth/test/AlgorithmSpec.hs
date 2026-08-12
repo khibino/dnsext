@@ -11,6 +11,8 @@ import DNS.Types
 
 import Data.Maybe
 
+import Common
+
 spec :: Spec
 spec = describe "authoritative algorithm" $ do
     let zone = "example.jp."
@@ -246,15 +248,3 @@ doit db = do
         authority ans `shouldSatisfy` include "example.jp." SOA
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
-
-includeNS :: Domain -> [ResourceRecord] -> Bool
-includeNS dom rs = any has rs
-  where
-    has r = case fromRData $ rdata r of
-        Nothing -> False
-        Just rd -> ns_domain rd == dom
-
-include :: Domain -> TYPE -> [ResourceRecord] -> Bool
-include dom typ rs = any has rs
-  where
-    has r = rrname r == dom && rrtype r == typ
