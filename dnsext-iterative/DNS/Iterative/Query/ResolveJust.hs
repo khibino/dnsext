@@ -26,20 +26,27 @@ import qualified Data.Set as Set
 
 -- other packages
 
--- dnsext packages
-import DNS.Do53.Client (QueryControls (..))
+-- dnsext-types
+import DNS.Types
+import qualified DNS.Types as DNS
+import Data.IP (IP)
+
+-- dnsext-dnssec
+import DNS.SEC
+
+-- dnsext-utils
 import qualified DNS.Log as Log
 import DNS.RRCache (
     rankedAnswer,
     rankedAuthority,
  )
 import qualified DNS.RRCache as Cache
-import DNS.SEC
 import qualified DNS.ThreadStats as TStat
-import DNS.Types
-import qualified DNS.Types as DNS
-import Data.IP (IP)
+import DNS.WorkerStats (noopWorkerStat)
 import System.Console.ANSI.Types
+
+-- dnsext-do53
+import DNS.Do53.Client (QueryControls (..))
 
 -- this package
 import DNS.Iterative.Imports
@@ -53,7 +60,6 @@ import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils
 import qualified DNS.Iterative.Query.Verify as Verify
 import qualified DNS.Iterative.Query.ZoneMap as ZMap
-import DNS.Iterative.WorkerStats (noopWorkerStat)
 
 -- import for doctest
 import DNS.Iterative.Query.TestEnv

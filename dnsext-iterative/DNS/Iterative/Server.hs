@@ -5,7 +5,7 @@ module DNS.Iterative.Server (
     -- * Types
     module DNS.Iterative.Query.Env,
     module DNS.Iterative.Server.Types,
-    module DNS.Iterative.Types,
+    module DNS.Transport.Types,
     module DNS.RRCache,
     module DNS.TimeCache,
 
@@ -57,6 +57,17 @@ module DNS.Iterative.Server (
     module DNS.Iterative.Server.CtlRecv,
 ) where
 
+-- GHC packages
+import Data.ByteString.Builder
+
+-- dnsext-utils
+import DNS.RRCache (RRCache, RRCacheConf (..), RRCacheOps (..), newRRCache, newRRCacheOps)
+import qualified DNS.RRCache as RRCache
+import DNS.TimeCache
+import DNS.Transport.Types
+import DNS.WorkerStats
+
+-- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Env
 import DNS.Iterative.Server.CtlRecv
@@ -70,13 +81,6 @@ import DNS.Iterative.Server.TLS
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Server.UDP
 import DNS.Iterative.Stats
-import DNS.Iterative.Types
-import DNS.Iterative.WorkerStats
-import DNS.RRCache (RRCache, RRCacheConf (..), RRCacheOps (..), newRRCache, newRRCacheOps)
-import qualified DNS.RRCache as RRCache
-import DNS.TimeCache
-
-import Data.ByteString.Builder
 
 getStats :: Env -> Builder -> IO Builder
 getStats Env{..} prefix =

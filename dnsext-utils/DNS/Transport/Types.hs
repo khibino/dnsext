@@ -1,4 +1,4 @@
-module DNS.Iterative.Types where
+module DNS.Transport.Types where
 
 data DoX
     = UDP

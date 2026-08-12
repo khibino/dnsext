@@ -1,7 +1,7 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RankNTypes #-}
 
-module DNS.Iterative.WorkerStats where
+module DNS.WorkerStats where
 
 -- GHC packages
 import Control.Exception (bracket_)
@@ -16,7 +16,7 @@ import DNS.Types (Question (..))
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
 
 -- this package
-import DNS.Iterative.Types (DoX (..))
+import DNS.Transport.Types (DoX (..))
 
 {- FOURMOLU_DISABLE -}
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]

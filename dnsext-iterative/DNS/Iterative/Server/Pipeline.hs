@@ -49,14 +49,18 @@ import GHC.Event (TimeoutKey, TimerManager, getSystemTimerManager, registerTimeo
 
 -- libs
 
--- dnsext packages
-import qualified DNS.Log as Log
-import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOH, DOQ, DOT))
-import qualified DNS.TAP.Schema as DNSTAP
+-- dnsext-types
 import DNS.Types
 import qualified DNS.Types.Decode as DNS
 import qualified DNS.Types.Encode as DNS
 import DNS.Types.Time
+
+-- dnsext-utils
+import qualified DNS.Log as Log
+import DNS.TAP.Schema (HttpProtocol (..), SocketProtocol (DOH, DOQ, DOT))
+import qualified DNS.TAP.Schema as DNSTAP
+import DNS.Transport.Types
+import DNS.WorkerStats
 
 -- this package
 import DNS.Iterative.Imports
@@ -65,8 +69,6 @@ import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseIterat
 import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats
-import DNS.Iterative.Types
-import DNS.Iterative.WorkerStats
 
 ----------------------------------------------------------------
 

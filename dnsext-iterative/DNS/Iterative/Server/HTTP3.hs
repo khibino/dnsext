@@ -9,6 +9,9 @@ module DNS.Iterative.Server.HTTP3 (
 import Control.Monad (when)
 import Data.Functor
 
+-- dnsext-utils
+import DNS.Transport.Types
+
 -- other packages
 import qualified Network.HTTP3.Server as H3
 import qualified Network.QUIC.Server as QUIC
@@ -21,7 +24,6 @@ import DNS.Iterative.Server.QUIC
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Server.UDP
 import DNS.Iterative.Stats (incStatsDoH3, sessionStatsDoH3)
-import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 http3Servers :: VcServerConfig -> ServerActions

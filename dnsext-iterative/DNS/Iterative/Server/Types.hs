@@ -27,20 +27,22 @@ module DNS.Iterative.Server.Types (
 import Data.ByteString (ByteString)
 import System.IO.Error (ioeSetLocation, tryIOError)
 
--- libs
+-- dnsext-types
+import DNS.Types (DNSMessage)
+import DNS.Types.Time (EpochTimeUsec)
 import Data.IP (fromSockAddr)
+
+-- dnsext-utils
+import DNS.Transport.Types (DoX (..))
+
+-- other packages
 import qualified Network.HTTP2.Server.Internal as H2I
 import qualified Network.QUIC as QUIC
 import Network.Socket
 import Network.TLS (Credentials (..), SessionManager)
 
--- dnsext
-import DNS.Types (DNSMessage)
-import DNS.Types.Time (EpochTimeUsec)
-
 -- this package
 import DNS.Iterative.Query (Env)
-import DNS.Iterative.Types (DoX (..))
 
 data SuperStream = StreamH2 H2I.Stream | StreamQUIC QUIC.Stream deriving (Show)
 

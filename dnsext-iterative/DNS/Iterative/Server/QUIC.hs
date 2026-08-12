@@ -7,9 +7,12 @@ module DNS.Iterative.Server.QUIC where
 -- GHC packages
 import Control.Concurrent.STM (atomically, isEmptyTQueue)
 
--- dnsext-* packages
-import qualified DNS.Do53.Internal as DNS
+-- dnsext-utils
 import qualified DNS.ThreadAsync as TAsync
+import DNS.Transport.Types
+
+-- dnsext-do53 packages
+import qualified DNS.Do53.Internal as DNS
 
 -- other packages
 import qualified Network.QUIC as QUIC
@@ -25,7 +28,6 @@ import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Server.UDP
 import DNS.Iterative.Stats (incStatsDoQ, sessionStatsDoQ)
-import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 

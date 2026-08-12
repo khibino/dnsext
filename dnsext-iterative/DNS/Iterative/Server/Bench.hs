@@ -11,6 +11,9 @@ import Control.Monad (forever)
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
 
+-- dnsext-utils
+import DNS.Transport.Types
+
 -- other packages
 import Network.Socket
 
@@ -18,7 +21,6 @@ import Network.Socket
 import DNS.Iterative.Internal
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
-import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

@@ -12,12 +12,19 @@ module DNS.Iterative.Query.API (
 
 -- other packages
 
--- dnsext packages
-import DNS.Do53.Client (QueryControls)
-import qualified DNS.Log as Log
-import DNS.SEC (TYPE (..))
+-- dnsext-types
 import DNS.Types
 import qualified DNS.Types as DNS
+
+-- dnsext-dnssec
+import DNS.SEC (TYPE (..))
+
+-- dnsext-utils
+import qualified DNS.Log as Log
+import DNS.WorkerStats (WorkerStatOP)
+
+-- dnsext-do53
+import DNS.Do53.Client (QueryControls)
 
 -- this package
 import DNS.Iterative.Imports hiding (local)
@@ -27,7 +34,6 @@ import DNS.Iterative.Query.Local (takeLocalResult)
 import DNS.Iterative.Query.Resolve
 import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils (clogLinesIO, logLn, pprMessage)
-import DNS.Iterative.WorkerStats (WorkerStatOP)
 
 -----
 

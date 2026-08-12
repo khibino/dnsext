@@ -8,17 +8,20 @@ module DNS.Iterative.Query.Resolve (
 ) where
 
 -- GHC packages
-
--- other packages
 import Control.Monad.Trans.Maybe hiding (liftCallCC, liftCatch, liftListen, liftPass)
 
--- dnsext packages
-import DNS.Do53.Client (QueryControls (..))
+-- dnsext-types
+import DNS.Types
+import qualified DNS.Types as DNS
+
+-- dnsext-utils
 import qualified DNS.Log as Log
 import DNS.RRCache (Ranking (RankAdditional))
 import qualified DNS.RRCache as Cache
-import DNS.Types
-import qualified DNS.Types as DNS
+import DNS.WorkerStats (noopWorkerStat)
+
+-- dnsext-do53
+import DNS.Do53.Client (QueryControls (..))
 
 -- this package
 import DNS.Iterative.Imports
@@ -28,7 +31,6 @@ import DNS.Iterative.Query.Helpers
 import DNS.Iterative.Query.ResolveJust
 import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils
-import DNS.Iterative.WorkerStats (noopWorkerStat)
 
 -- | Getting the final result.
 runResolve
