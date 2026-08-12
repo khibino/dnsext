@@ -15,6 +15,7 @@ import DNS.Types.Decode
 
 -- dnsext-utils
 import qualified DNS.Log as Log
+import qualified DNS.WorkerStats as WStats
 
 -- dnsext packages
 import DNS.Do53.Client (FlagOp (FlagClear), QueryControls, ednsEnabled)
@@ -208,5 +209,4 @@ vcResolver1 tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q qctl0
                 Just err -> E.throwIO err
 
 raBlockingIO :: ResolveActions -> String -> IO a -> IO a
-raBlockingIO ResolveActions{..} tag action =
-    bracket_ (ractionIoBlocking tag) ractionIoUnblocked action
+raBlockingIO ResolveActions{..} = WStats.blockingIO ractionBlockingStat
