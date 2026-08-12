@@ -44,7 +44,7 @@ readSource s
 
 ----------------------------------------------------------------
 
-loadSource :: Env -> Domain -> Serial -> Source -> IO (Maybe DB)
+loadSource :: Env -> Domain -> Serial -> Source -> IO (Either AuthException DB)
 loadSource env zone serial source = case source of
     FromUpstream4 ip4 ->
         Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
@@ -54,9 +54,9 @@ loadSource env zone serial source = case source of
         -- head rrs is soa
         rrs <- loadZoneFile zone fn
         case rrs of
-            [] -> E.throwIO $ CloveException "Zone file is empty"
+            [] -> E.throwIO $ AuthException "Zone file is empty"
             soarr : _rest -> case fromRData $ rdata soarr of
-                Nothing -> E.throwIO $ CloveException "SOA does not exist"
+                Nothing -> E.throwIO $ AuthException "SOA does not exist"
                 Just soa -> do
                     (_pub, _pri, dnskey, ds, doSign) <-
                         prepareDNSSEC $
@@ -90,10 +90,10 @@ newZones env zcs = mapM (newZone env) zcs
 
 newZone :: Env -> ZoneConf -> IO Zone
 newZone env ZoneConf{..} = do
-    mdb <- loadSource env zone (Serial 0) source
-    let (db, ready) = case mdb of
-            Nothing -> (emptyDB, False)
-            Just db' -> (db', True)
+    edb <- loadSource env zone (Serial 0) source
+    let (db, ready) = case edb of
+            Left _ -> (emptyDB, False)
+            Right db' -> (db', True)
     let (a4, a6) = readIPRange cnf_allow_transfer_addrs
         t4 = fromList $ map (,True) a4
         t6 = fromList $ map (,True) a6
@@ -128,10 +128,10 @@ updateZone :: Env -> IORef Zone -> IO ()
 updateZone env zoneref = do
     Zone{..} <- readIORef zoneref
     let serial = soa_serial $ dbRD_SOA zoneDB
-    mdb <- loadSource env zoneName serial zoneSource
-    case mdb of
-        Nothing -> return ()
-        Just db -> atomicModifyIORef' zoneref $ modify db
+    edb <- loadSource env zoneName serial zoneSource
+    case edb of
+        Left _ -> return ()
+        Right db -> atomicModifyIORef' zoneref $ modify db
   where
     modify db zone = (zone', ())
       where
