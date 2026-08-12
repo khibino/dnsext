@@ -11,10 +11,13 @@ where
 import Control.Concurrent.STM (atomically)
 import Data.Functor
 
--- dnsext-* packages
-import qualified DNS.Do53.Internal as DNS
+-- dnsext-utils packages
 import qualified DNS.Log as Log
 import qualified DNS.ThreadAsync as TAsync
+import DNS.Transport.Types
+
+-- dnsext-do53 packages
+import qualified DNS.Do53.Internal as DNS
 
 -- other packages
 import Network.Run.TCP
@@ -26,7 +29,6 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsTCP53, sessionStatsTCP53)
-import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 

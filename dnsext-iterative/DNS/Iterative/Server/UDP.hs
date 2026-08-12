@@ -11,8 +11,9 @@ where
 import Control.Concurrent.STM
 import Control.Monad (void, when)
 
--- dnsext-* packages
+-- dnsext-utils
 import qualified DNS.ThreadAsync as TAsync
+import DNS.Transport.Types
 
 -- other packages
 import Network.Socket (
@@ -27,7 +28,6 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsUDP53)
-import DNS.Iterative.Types
 
 ----------------------------------------------------------------
 

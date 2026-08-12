@@ -15,9 +15,10 @@ import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.Functor
 
--- dnsext-* packages
+-- dnsext-utils packages
 import qualified DNS.Log as Log
 import qualified DNS.ThreadAsync as TAsync
+import DNS.Transport.Types
 
 -- other packages
 import Data.ByteString.Base64.URL
@@ -32,7 +33,6 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsDoH2, incStatsDoH2C, sessionStatsDoH2, sessionStatsDoH2C)
-import DNS.Iterative.Types
 
 http2Servers :: VcServerConfig -> ServerActions
 http2Servers conf env toCacher ss =

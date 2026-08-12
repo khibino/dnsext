@@ -17,11 +17,14 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Functor
 
--- dnsext-* packages
-import qualified DNS.Do53.Internal as DNS
+-- dnsext-utils
 import qualified DNS.Log as Log
 import qualified DNS.ThreadAsync as TAsync
 import qualified DNS.ThreadStats as TStat
+import DNS.Transport.Types
+
+-- dnsext-do53 packages
+import qualified DNS.Do53.Internal as DNS
 
 -- other packages
 import qualified Network.HTTP2.TLS.Server as H2
@@ -31,7 +34,6 @@ import DNS.Iterative.Internal (Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsDoT, sessionStatsDoT)
-import DNS.Iterative.Types
 
 tlsServers :: VcServerConfig -> ServerActions
 tlsServers conf env toCacher ss =
