@@ -10,6 +10,8 @@ module DNS.Do53.Query (
     adFlag,
     cdFlag,
     doFlag,
+    coFlag,
+    deFlag,
     aaFlag,
     ednsEnabled,
     ednsSetVersion,
@@ -37,8 +39,9 @@ import qualified Data.Semigroup as Sem
 --
 -- The header flag controls are: 'rdFlag', 'adFlag' and 'cdFlag'.
 --
--- The EDNS feature controls are: 'doFlag', 'ednsEnabled', 'ednsSetVersion',
--- 'ednsSetUdpSize' and 'ednsSetOptions'.  When EDNS is disabled, all the other
+-- The EDNS feature controls are: 'doFlag', 'coFlag', 'deFlag',
+-- 'ednsEnabled', 'ednsSetVersion', 'ednsSetUdpSize' and
+-- 'ednsSetOptions'.  When EDNS is disabled, all the other
 -- EDNS-related controls have no effect.
 --
 -- __Example:__ Disable DNSSEC checking on the server, and request signatures and
@@ -149,6 +152,20 @@ ednsSetUdpSize sz = mempty{qctlEdns = mempty{extSz = sz}}
 doFlag :: FlagOp -> QueryControls
 doFlag d0 = mempty{qctlEdns = mempty{extDO = d0}}
 
+-- | Generator of 'QueryControls' that adjusts the 'EDNS' CO (Compact Answers OK) bit.
+--
+-- >>> coFlag FlagSet
+-- edns.cobit:1
+coFlag :: FlagOp -> QueryControls
+coFlag co = mempty{qctlEdns = mempty{extCO = co}}
+
+-- | Generator of 'QueryControls' that adjusts the 'EDNS' DE (Delegation Extensions bit.
+--
+-- >>> deFlag FlagSet
+-- edns.debit:1
+deFlag :: FlagOp -> QueryControls
+deFlag de = mempty{qctlEdns = mempty{extDE = de}}
+
 -- | Generator of 'QueryControls' that adjusts the list of 'EDNS' options.
 --
 -- >>> :seti -XOverloadedStrings
@@ -255,22 +272,28 @@ data EdnsControls = EdnsControls
     -- ^ UDP Size
     , extDO :: FlagOp
     -- ^ DNSSEC OK (DO) bit
+    , extCO :: FlagOp
+    -- ^ Compact Answers OK (CO) bit
+    , extDE :: FlagOp
+    -- ^ Delegation Extensions (DE) bit
     , extOd :: ODataOp
     -- ^ EDNS option list tweaks
     }
     deriving (Eq)
 
 instance Sem.Semigroup EdnsControls where
-    (EdnsControls en1 vn1 sz1 do1 od1) <> (EdnsControls en2 vn2 sz2 do2 od2) =
+    (EdnsControls en1 vn1 sz1 do1 co1 de1 od1) <> (EdnsControls en2 vn2 sz2 do2 co2 de2 od2) =
         EdnsControls
             (en1 <> en2)
             (vn1 <|> vn2)
             (sz1 <|> sz2)
             (do1 <> do2)
+            (co1 <> co2)
+            (de1 <> de2)
             (od1 <> od2)
 
 instance Monoid EdnsControls where
-    mempty = EdnsControls FlagKeep Nothing Nothing FlagKeep mempty
+    mempty = EdnsControls FlagKeep Nothing Nothing FlagKeep FlagKeep FlagKeep mempty
 #if !(MIN_VERSION_base(4,11,0))
     -- this is redundant starting with base-4.11 / GHC 8.4
     -- if you want to avoid CPP, you can define `mappend = (<>)` unconditionally
@@ -278,12 +301,14 @@ instance Monoid EdnsControls where
 #endif
 
 instance Show EdnsControls where
-    show (EdnsControls en vn sz d0 od) =
+    show (EdnsControls en vn sz d0 co de od) =
         _showOpts
             [ _showFlag "edns.enabled" en
             , _showWord "edns.version" vn
             , _showWord "edns.udpsize" sz
             , _showFlag "edns.dobit" d0
+            , _showFlag "edns.cobit" co
+            , _showFlag "edns.debit" de
             , _showOdOp "edns.options" $
                 map (show . odataToOptCode) $
                     _odataDedup od
@@ -440,7 +465,7 @@ queryControls h ctls = h (queryDNSFlags hctls) (queryEdns ehctls) (queryOpcode o
 
     -- \| Construct a list of 0 or 1 EDNS OPT RRs based on EdnsControls setting.
     queryEdns :: EdnsControls -> EDNSheader
-    queryEdns (EdnsControls en vn sz d0 od) =
+    queryEdns (EdnsControls en vn sz d0 co de od) =
         let d = defaultEDNS -- fixme: ednsHeader query?
          in if en == FlagClear
                 then NoEDNS
@@ -450,6 +475,8 @@ queryControls h ctls = h (queryDNSFlags hctls) (queryEdns ehctls) (queryOpcode o
                             { ednsVersion = fromMaybe (ednsVersion d) vn
                             , ednsUdpSize = fromMaybe (ednsUdpSize d) sz
                             , ednsDnssecOk = applyFlag d0 (ednsDnssecOk d)
+                            , ednsCmptAnsOk = applyFlag co (ednsCmptAnsOk d)
+                            , ednsDelegExt = applyFlag de (ednsDelegExt d)
                             , ednsOptions = _odataDedup od
                             }
 
