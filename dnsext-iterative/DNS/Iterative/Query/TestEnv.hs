@@ -5,17 +5,19 @@ module DNS.Iterative.Query.TestEnv where
 -- GHC packages
 import Data.IORef (newIORef, readIORef, writeIORef)
 
--- dnsext-* packages
-import qualified DNS.RRCache as Cache
+-- dnsext-types
 import DNS.Types
 import DNS.Types.Time
+
+-- dnsext-utils
+import qualified DNS.RRCache as Cache
+import DNS.WorkerStats (WorkerStatOP, noopWorkerStat)
 
 -- this package
 import DNS.Iterative.Imports hiding (insert)
 import DNS.Iterative.Query.Class (Address)
 import DNS.Iterative.Query.Env (Env (..), newEmptyEnv)
 import DNS.Iterative.Query.Norec (norec)
-import DNS.Iterative.WorkerStats (WorkerStatOP, noopWorkerStat)
 
 newTestEnvNoCache :: ([String] -> IO ()) -> Bool -> IO Env
 newTestEnvNoCache putLines disableV6NS = (\env -> env{logLines_ = \_ _ -> putLines, disableV6NS_ = disableV6NS}) <$> newEmptyEnv

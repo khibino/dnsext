@@ -8,7 +8,13 @@ import Control.Exception (bracket_)
 
 -- other packages
 
--- dnsext packages
+-- dnsext-types
+import DNS.Types
+
+-- dnsext-utils
+import DNS.WorkerStats
+
+-- dnsext-do53
 import DNS.Do53.Client (
     FlagOp (..),
     defaultResolveActions,
@@ -21,14 +27,12 @@ import DNS.Do53.Internal (
     defaultResolveInfo,
  )
 import qualified DNS.Do53.Internal as DNS
-import DNS.Types
 
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Do53Stub (udpTcpResolver1)
 import DNS.Iterative.Query.SteppedWait (steppedWait)
-import DNS.Iterative.WorkerStats
 
 {- FOURMOLU_DISABLE -}
 norec :: MonadIO m => Env -> WorkerStatOP -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)

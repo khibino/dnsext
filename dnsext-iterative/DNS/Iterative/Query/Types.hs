@@ -25,12 +25,12 @@ import DNS.Do53.Client (QueryControls)
 import DNS.Do53.Internal (queryControls)
 import DNS.Types
 import qualified DNS.Types as DNS
+import DNS.WorkerStats (WorkerStatOP)
 
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Norec (norec)
-import DNS.Iterative.WorkerStats (WorkerStatOP)
 
 ----------
 

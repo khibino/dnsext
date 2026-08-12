@@ -51,20 +51,26 @@ import Data.IP (IP, IPv4, IPv6)
 import Data.Map.Strict (Map)
 import Network.Socket (PortNumber)
 
--- dnsext packages
-import DNS.Do53.Client (Reply)
+-- dnsext-types
+import DNS.Types hiding (flags)
+import qualified DNS.Types as DNS
+
+-- dnsext-dnssec
+import DNS.SEC (RD_DNSKEY, RD_DS, RD_RRSIG)
+
+-- dnsext-utils
 import qualified DNS.Log as Log
 import DNS.RRCache (Cache, Ranking)
 import qualified DNS.RRCache as Cache
-import DNS.SEC (RD_DNSKEY, RD_DS, RD_RRSIG)
 import qualified DNS.TAP.Schema as DNSTAP
-import DNS.Types hiding (flags)
-import qualified DNS.Types as DNS
+import DNS.WorkerStats (WorkerStatOP)
+
+-- dnsext-do53
+import DNS.Do53.Client (Reply)
 
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Stats (Stats)
-import DNS.Iterative.WorkerStats (WorkerStatOP)
 
 ----------
 -- tagless-final effect interfaces

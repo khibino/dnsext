@@ -7,18 +7,18 @@ module DNS.Iterative.Query.Utils where
 -- GHC packages
 import Data.List.NonEmpty (toList)
 
--- other packages
-
--- dnsext packages
-import qualified DNS.Log as Log
+-- dnsext-types
 import DNS.Types (DNSMessage (..))
 import Data.IP (IP (IPv4, IPv6))
+
+-- dnsext-utils
+import qualified DNS.Log as Log
+import DNS.WorkerStats
 import System.Console.ANSI.Types
 
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
-import DNS.Iterative.WorkerStats
 
 clogLinesIO :: Env -> WorkerStatOP -> Log.Level -> Maybe Color -> [String] -> IO ()
 clogLinesIO env wstat level color xs = do
