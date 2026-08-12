@@ -29,68 +29,6 @@ import Types
 
 ----------------------------------------------------------------
 
-readIP :: [String] -> [IP]
-readIP ss = mapMaybe readMaybe ss
-
-readIPRange :: [String] -> ([AddrRange IPv4], [AddrRange IPv6])
-readIPRange ss0 = loop id id ss0
-  where
-    loop b4 b6 [] = (b4 [], b6 [])
-    loop b4 b6 (s : ss)
-        | Just a6 <- readMaybe s = loop b4 (b6 . (a6 :)) ss
-        | Just a4 <- readMaybe s = loop (b4 . (a4 :)) b6 ss
-        | otherwise = loop b4 b6 ss
-
-readSource :: String -> Source
-readSource s
-    | Just a6 <- readMaybe s = FromUpstream6 a6
-    | Just a4 <- readMaybe s = FromUpstream4 a4
-    | otherwise = FromFile s
-
-----------------------------------------------------------------
-
-extractTTL :: [ResourceRecord] -> IO Seconds
-extractTTL [] = E.throwIO $ AuthException "No RRs"
-extractTTL (soarr : _rest) = case fromRData $ rdata soarr of
-    Nothing -> E.throwIO $ AuthException "SOA does not exist"
-    Just soa -> return $ soa_minimum soa
-
--- | This function throws 'AuthException'.
-loadSource :: Env -> Domain -> Serial -> Source -> IO DB
-loadSource env zone serial source = case source of
-    FromUpstream4 ip4 ->
-        Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
-    FromUpstream6 ip6 ->
-        Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
-    FromFile fn -> do
-        -- head rrs is soa
-        rrs <- loadZoneFile zone fn
-        ttl <- extractTTL rrs
-        let info =
-                DNSSECinfo
-                    { dnssecInfoZone = zone
-                    , dnssecInfoPubAlg = ED25519
-                    , dnssecInfoDigestAlg = SHA256
-                    , dnssecInfoTTL = ttl
-                    , dnssecInfoDuration = 86400
-                    }
-        (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info
-        -- fixme:
-        print ds
-        makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
-
-----------------------------------------------------------------
-
-findZoneAlist :: Domain -> ZoneAlist -> Maybe (Domain, IORef Zone)
-findZoneAlist dom alist = find (\(k, _) -> dom `isSubDomainOf` k) alist
-
-toZoneAlist :: [Zone] -> IO ZoneAlist
-toZoneAlist zones = do
-    refs <- mapM newIORef zones
-    return $ zip names refs
-  where
-    names = map zoneName zones
-
 newZones :: Env -> [ZoneConf] -> IO [Zone]
 newZones env zcs = mapM (newZone env) zcs
 
@@ -130,6 +68,24 @@ shouldReload :: Source -> Bool
 shouldReload (FromFile _) = False
 shouldReload _ = True
 
+initSync :: IO (WakeUp, Wait)
+initSync = do
+    var <- newTVarIO False
+    tmgr <- getSystemTimerManager
+    return (wakeup var, wait var tmgr)
+  where
+    wakeup var = atomically $ writeTVar var True
+    wait var tmgr tout
+        | tout == 0 = waitBody var
+        | otherwise = E.bracket register cancel $ \_ -> waitBody var
+      where
+        register = registerTimeout tmgr (tout * 1000000) $ wakeup var
+        cancel = unregisterTimeout tmgr
+    waitBody var = atomically $ do
+        v <- readTVar var
+        check v
+        writeTVar var False
+
 ----------------------------------------------------------------
 
 updateZone :: Env -> IORef Zone -> IO ()
@@ -151,20 +107,64 @@ updateZone env zoneref = do
 
 ----------------------------------------------------------------
 
-initSync :: IO (WakeUp, Wait)
-initSync = do
-    var <- newTVarIO False
-    tmgr <- getSystemTimerManager
-    return (wakeup var, wait var tmgr)
+extractTTL :: [ResourceRecord] -> IO Seconds
+extractTTL [] = E.throwIO $ AuthException "No RRs"
+extractTTL (soarr : _rest) = case fromRData $ rdata soarr of
+    Nothing -> E.throwIO $ AuthException "SOA does not exist"
+    Just soa -> return $ soa_minimum soa
+
+-- | This function throws 'AuthException'.
+loadSource :: Env -> Domain -> Serial -> Source -> IO DB
+loadSource env zone serial source = case source of
+    FromUpstream4 ip4 ->
+        Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
+    FromUpstream6 ip6 ->
+        Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
+    FromFile fn -> do
+        -- head rrs is soa
+        rrs <- loadZoneFile zone fn
+        ttl <- extractTTL rrs
+        let info =
+                DNSSECinfo
+                    { dnssecInfoZone = zone
+                    , dnssecInfoPubAlg = ED25519
+                    , dnssecInfoDigestAlg = SHA256
+                    , dnssecInfoTTL = ttl
+                    , dnssecInfoDuration = 86400
+                    }
+        (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info
+        -- fixme:
+        print ds
+        makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
+
+----------------------------------------------------------------
+
+readIP :: [String] -> [IP]
+readIP ss = mapMaybe readMaybe ss
+
+readIPRange :: [String] -> ([AddrRange IPv4], [AddrRange IPv6])
+readIPRange ss0 = loop id id ss0
   where
-    wakeup var = atomically $ writeTVar var True
-    wait var tmgr tout
-        | tout == 0 = waitBody var
-        | otherwise = E.bracket register cancel $ \_ -> waitBody var
-      where
-        register = registerTimeout tmgr (tout * 1000000) $ wakeup var
-        cancel = unregisterTimeout tmgr
-    waitBody var = atomically $ do
-        v <- readTVar var
-        check v
-        writeTVar var False
+    loop b4 b6 [] = (b4 [], b6 [])
+    loop b4 b6 (s : ss)
+        | Just a6 <- readMaybe s = loop b4 (b6 . (a6 :)) ss
+        | Just a4 <- readMaybe s = loop (b4 . (a4 :)) b6 ss
+        | otherwise = loop b4 b6 ss
+
+readSource :: String -> Source
+readSource s
+    | Just a6 <- readMaybe s = FromUpstream6 a6
+    | Just a4 <- readMaybe s = FromUpstream4 a4
+    | otherwise = FromFile s
+
+----------------------------------------------------------------
+
+findZoneAlist :: Domain -> ZoneAlist -> Maybe (Domain, IORef Zone)
+findZoneAlist dom alist = find (\(k, _) -> dom `isSubDomainOf` k) alist
+
+toZoneAlist :: [Zone] -> IO ZoneAlist
+toZoneAlist zones = do
+    refs <- mapM newIORef zones
+    return $ zip names refs
+  where
+    names = map zoneName zones
