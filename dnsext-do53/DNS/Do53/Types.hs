@@ -54,6 +54,7 @@ import DNS.Do53.Query
 import DNS.Log (PutLines)
 import DNS.RRCache
 import DNS.Types
+import DNS.WorkerStats (BlockingStatOP, noopBlockingStat)
 
 ----------------------------------------------------------------
 
@@ -292,6 +293,8 @@ data ResolveActions = ResolveActions
     -- ^ Logging.
     , ractionShortLog :: Bool
     -- ^ flag for short-log mode
+    , ractionBlockingStat :: BlockingStatOP
+    -- ^ blocking state store for thread
     , ractionIoBlocking ::String -> IO ()
     -- ^ action to enable I/O blocking state, with tag-info
     , ractionIoUnblocked ::IO ()
@@ -333,6 +336,7 @@ defaultResolveActions =
         , ractionSetSockOpt = rsso
         , ractionLog = \_ _ ~_ -> return ()
         , ractionShortLog = False
+        , ractionBlockingStat = noopBlockingStat
         , ractionIoBlocking = \_ -> return ()
         , ractionIoUnblocked = return ()
         , ractionKeyLog = defaultKeyLogger
