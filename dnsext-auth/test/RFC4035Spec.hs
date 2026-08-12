@@ -12,6 +12,8 @@ import DNS.Types
 
 import Data.Maybe
 
+import Common
+
 spec :: Spec
 spec = describe "authoritative algorithm" $ do
     runIO $ runInitIO $ addResourceDataForDNSSEC
@@ -108,8 +110,8 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 4
-        authority ans `shouldSatisfy` includeNS "ns1.a.example."
-        authority ans `shouldSatisfy` includeNS "ns2.a.example."
+        authority ans `shouldSatisfy` includeNS "a.example." "ns1.a.example."
+        authority ans `shouldSatisfy` includeNS "a.example." "ns2.a.example."
         authority ans `shouldSatisfy` include "a.example." DS
         authority ans `shouldSatisfy` includeRRSIG "a.example." DS
         length (additional ans) `shouldBe` 2
@@ -123,8 +125,8 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 4
-        authority ans `shouldSatisfy` includeNS "ns1.b.example."
-        authority ans `shouldSatisfy` includeNS "ns2.b.example."
+        authority ans `shouldSatisfy` includeNS "b.example." "ns1.b.example."
+        authority ans `shouldSatisfy` includeNS "b.example." "ns2.b.example."
         authority ans `shouldSatisfy` include "b.example." NSEC
         authority ans `shouldSatisfy` includeRRSIG "b.example." NSEC
         length (additional ans) `shouldBe` 2
@@ -180,29 +182,3 @@ doit db = do
         authority ans `shouldSatisfy` includeRRSIG "example." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
-
-includeRRSIG :: Domain -> TYPE -> [ResourceRecord] -> Bool
-includeRRSIG dom typ rs = any has rs
-  where
-    has r =
-        rrname r == dom && rrtype r == RRSIG && case fromRData $ rdata r of
-            Nothing -> False
-            Just rd -> rrsig_type rd == typ
-
-includeNS :: Domain -> [ResourceRecord] -> Bool
-includeNS dom rs = any has rs
-  where
-    has r = case fromRData $ rdata r of
-        Nothing -> False
-        Just rd -> ns_domain rd == dom
-
-include :: Domain -> TYPE -> [ResourceRecord] -> Bool
-include dom typ rs = any has rs
-  where
-    has r = rrname r == dom && rrtype r == typ
-
-dnssecQuery :: DNSMessage
-dnssecQuery =
-    defaultQuery
-        { ednsHeader = EDNSheader defaultEDNS{ednsDnssecOk = True}
-        }

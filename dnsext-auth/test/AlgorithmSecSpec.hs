@@ -12,6 +12,8 @@ import DNS.Types
 
 import Data.Maybe
 
+import Common
+
 spec :: Spec
 spec = describe "authoritative algorithm" $ do
     runIO $ runInitIO $ addResourceDataForDNSSEC
@@ -94,9 +96,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 5
-        authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.in.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.sibling.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "unrelated.com."
         authority ans `shouldSatisfy` include "in.example.jp." NSEC
         authority ans `shouldSatisfy` includeRRSIG "in.example.jp." NSEC
         length (additional ans) `shouldBe` 2
@@ -110,9 +112,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 5
-        authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated2.com."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "ns.in2.example.jp."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "ns.sibling2.example.jp."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "unrelated2.com."
         authority ans `shouldSatisfy` include "in2.example.jp." DS
         authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." DS
         length (additional ans) `shouldBe` 2
@@ -126,9 +128,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 5
-        authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.in.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.sibling.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "unrelated.com."
         authority ans `shouldSatisfy` include "in.example.jp." NSEC
         authority ans `shouldSatisfy` includeRRSIG "in.example.jp." NSEC
         length (additional ans) `shouldBe` 2
@@ -142,9 +144,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 5
-        authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated2.com."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "ns.in2.example.jp."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "ns.sibling2.example.jp."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "unrelated2.com."
         authority ans `shouldSatisfy` include "in2.example.jp." DS
         authority ans `shouldSatisfy` includeRRSIG "in2.example.jp." DS
         length (additional ans) `shouldBe` 2
@@ -168,9 +170,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 5
-        authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.in.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.sibling.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "unrelated.com."
         authority ans `shouldSatisfy` include "in.example.jp." NSEC
         authority ans `shouldSatisfy` includeRRSIG "in.example.jp." NSEC
         length (additional ans) `shouldBe` 2
@@ -183,7 +185,7 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 2
-        answer ans `shouldSatisfy` includeNS "ns.example.jp."
+        answer ans `shouldSatisfy` includeNS "example.jp." "ns.example.jp."
         answer ans `shouldSatisfy` includeRRSIG "example.jp." NS
         length (authority ans) `shouldBe` 0
         length (additional ans) `shouldBe` 2
@@ -260,9 +262,9 @@ doit db = do
         answer ans `shouldSatisfy` include "in-cname.example.jp." CNAME
         answer ans `shouldSatisfy` includeRRSIG "in-cname.example.jp." CNAME
         length (authority ans) `shouldBe` 5
-        authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.in.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.sibling.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "unrelated.com."
         authority ans `shouldSatisfy` include "in-cname.example.jp." NSEC
         authority ans `shouldSatisfy` includeRRSIG "in-cname.example.jp." NSEC
         length (additional ans) `shouldBe` 2
@@ -341,29 +343,3 @@ doit db = do
         authority ans `shouldSatisfy` includeRRSIG "b.example.jp." NSEC
         length (additional ans) `shouldBe` 0
         flags ans `shouldSatisfy` authAnswer
-
-includeRRSIG :: Domain -> TYPE -> [ResourceRecord] -> Bool
-includeRRSIG dom typ rs = any has rs
-  where
-    has r =
-        rrname r == dom && rrtype r == RRSIG && case fromRData $ rdata r of
-            Nothing -> False
-            Just rd -> rrsig_type rd == typ
-
-includeNS :: Domain -> [ResourceRecord] -> Bool
-includeNS dom rs = any has rs
-  where
-    has r = case fromRData $ rdata r of
-        Nothing -> False
-        Just rd -> ns_domain rd == dom
-
-include :: Domain -> TYPE -> [ResourceRecord] -> Bool
-include dom typ rs = any has rs
-  where
-    has r = rrname r == dom && rrtype r == typ
-
-dnssecQuery :: DNSMessage
-dnssecQuery =
-    defaultQuery
-        { ednsHeader = EDNSheader defaultEDNS{ednsDnssecOk = True}
-        }
