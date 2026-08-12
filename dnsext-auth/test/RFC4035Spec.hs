@@ -110,8 +110,8 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 4
-        authority ans `shouldSatisfy` includeNS "ns1.a.example."
-        authority ans `shouldSatisfy` includeNS "ns2.a.example."
+        authority ans `shouldSatisfy` includeNS "a.example." "ns1.a.example."
+        authority ans `shouldSatisfy` includeNS "a.example." "ns2.a.example."
         authority ans `shouldSatisfy` include "a.example." DS
         authority ans `shouldSatisfy` includeRRSIG "a.example." DS
         length (additional ans) `shouldBe` 2
@@ -125,8 +125,8 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 4
-        authority ans `shouldSatisfy` includeNS "ns1.b.example."
-        authority ans `shouldSatisfy` includeNS "ns2.b.example."
+        authority ans `shouldSatisfy` includeNS "b.example." "ns1.b.example."
+        authority ans `shouldSatisfy` includeNS "b.example." "ns2.b.example."
         authority ans `shouldSatisfy` include "b.example." NSEC
         authority ans `shouldSatisfy` includeRRSIG "b.example." NSEC
         length (additional ans) `shouldBe` 2

@@ -8,12 +8,13 @@ include dom typ rs = any has rs
   where
     has r = rrname r == dom && rrtype r == typ
 
-includeNS :: Domain -> [ResourceRecord] -> Bool
-includeNS dom rs = any has rs
+includeNS :: Domain -> Domain -> [ResourceRecord] -> Bool
+includeNS dom ref rs = any has rs
   where
-    has r = case fromRData $ rdata r of
-        Nothing -> False
-        Just rd -> ns_domain rd == dom
+    has r =
+        rrname r == dom && case fromRData $ rdata r of
+            Nothing -> False
+            Just rd -> ns_domain rd == ref
 
 includeRRSIG :: Domain -> TYPE -> [ResourceRecord] -> Bool
 includeRRSIG dom typ rs = any has rs

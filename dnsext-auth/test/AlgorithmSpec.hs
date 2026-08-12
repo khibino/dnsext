@@ -57,9 +57,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 3
-        authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.in.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.sibling.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "unrelated.com."
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
@@ -71,9 +71,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 3
-        authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated2.com."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "ns.in2.example.jp."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "ns.sibling2.example.jp."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "unrelated2.com."
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in2.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
@@ -85,9 +85,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 3
-        authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.in.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.sibling.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "unrelated.com."
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
@@ -99,9 +99,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 3
-        authority ans `shouldSatisfy` includeNS "ns.in2.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling2.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated2.com."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "ns.in2.example.jp."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "ns.sibling2.example.jp."
+        authority ans `shouldSatisfy` includeNS "in2.example.jp." "unrelated2.com."
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in2.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling2.example.jp." A
@@ -113,9 +113,9 @@ doit db = do
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 0
         length (authority ans) `shouldBe` 3
-        authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.in.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.sibling.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "unrelated.com."
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
@@ -126,7 +126,7 @@ doit db = do
             ans = getAnswer db query
         rcode ans `shouldBe` NoErr
         length (answer ans) `shouldBe` 1
-        answer ans `shouldSatisfy` includeNS "ns.example.jp."
+        answer ans `shouldSatisfy` includeNS "example.jp." "ns.example.jp."
         length (authority ans) `shouldBe` 0
         length (additional ans) `shouldBe` 1
         additional ans `shouldSatisfy` include "ns.example.jp." A
@@ -186,9 +186,9 @@ doit db = do
         length (answer ans) `shouldBe` 1
         answer ans `shouldSatisfy` include "in-cname.example.jp." CNAME
         length (authority ans) `shouldBe` 3
-        authority ans `shouldSatisfy` includeNS "ns.in.example.jp."
-        authority ans `shouldSatisfy` includeNS "ns.sibling.example.jp."
-        authority ans `shouldSatisfy` includeNS "unrelated.com."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.in.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "ns.sibling.example.jp."
+        authority ans `shouldSatisfy` includeNS "in.example.jp." "unrelated.com."
         length (additional ans) `shouldBe` 2
         additional ans `shouldSatisfy` include "ns.in.example.jp." A
         additional ans `shouldSatisfy` include "ns.sibling.example.jp." A
