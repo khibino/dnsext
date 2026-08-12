@@ -292,6 +292,10 @@ data ResolveActions = ResolveActions
     -- ^ Logging.
     , ractionShortLog :: Bool
     -- ^ flag for short-log mode
+    , ractionIoBlocking ::String -> IO ()
+    -- ^ action to enable I/O blocking state, with tag-info
+    , ractionIoUnblocked ::IO ()
+    -- ^ action to clear I/O blocking state
     , ractionKeyLog :: String -> IO ()
     -- ^ Logging for TLS main secrets.
     , ractionResumptionInfo :: NameTag -> IO [ByteString]
@@ -329,6 +333,8 @@ defaultResolveActions =
         , ractionSetSockOpt = rsso
         , ractionLog = \_ _ ~_ -> return ()
         , ractionShortLog = False
+        , ractionIoBlocking = \_ -> return ()
+        , ractionIoUnblocked = return ()
         , ractionKeyLog = defaultKeyLogger
         , ractionResumptionInfo = \_ -> return []
         , ractionOnResumptionInfo = \_ _ -> return ()

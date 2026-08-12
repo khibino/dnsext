@@ -4,18 +4,19 @@
 module DNS.Iterative.Query.Norec where
 
 -- GHC packages
+import Control.Exception (bracket_)
 
 -- other packages
 
 -- dnsext packages
 import DNS.Do53.Client (
     FlagOp (..),
-    ResolveActions (..),
     defaultResolveActions,
  )
 import qualified DNS.Do53.Client as DNS
 import DNS.Do53.Internal (
     ResolveEnv (..),
+    ResolveActions (..),
     ResolveInfo (..),
     defaultResolveInfo,
  )
@@ -36,8 +37,13 @@ norec cxt wstat dnssecOK aservers name typ =
   where
     actions = [apair (tag ++ ".q1"), apair (tag ++ ".q2")]
     tag = let (a:|as) = aservers in show (a:as)
-    apair tag_ = (tag_, blockingIO_ tag_ $ action)
-    action = norec_ 500_000 cxt dnssecOK aservers name typ
+    apair tag_ = (tag_, getWithBStats >>= \asps -> blockingIO_ tag_ (action asps))
+    action asps@(x:|xs) =
+        bracket_ openTasks closeTasks (norec_ 500_000 cxt dnssecOK asps name typ)
+      where
+        openTasks   = setTasks wstat [bstat | (_, bstat) <- x:xs]
+        closeTasks  = clearTasks wstat
+    getWithBStats = mapM (\x -> (,) x <$> getBlockingStatOP) aservers
     blockingIO_ tag_ = blockingIO wstat $ show name ++ " " ++ show typ ++ ": " ++ tag_
 {- FOURMOLU_ENABLE -}
 
@@ -46,25 +52,27 @@ norec cxt wstat dnssecOK aservers name typ =
    Note about flags in request to an authoritative server.
   * RD (Recursion Desired) must be 0 for request to authoritative server
   * EDNS must be enable for DNSSEC OK request -}
-norec_ :: Int -> Env -> Bool -> NonEmpty Address -> Domain -> TYPE -> IO (Either DNSError DNSMessage)
-norec_ utimeout cxt dnssecOK aservers name typ = do
-    let riActions =
+norec_ :: Int -> Env -> Bool -> NonEmpty (Address, BlockingStatOP) -> Domain -> TYPE -> IO (Either DNSError DNSMessage)
+norec_ utimeout cxt dnssecOK asps name typ = do
+    let riActions bstatOP =
             defaultResolveActions
                 { ractionGenId        = idGen_ cxt
                 , ractionGetTime      = currentSeconds_ cxt
                 , ractionLog          = logLines_ cxt
                 , ractionShortLog     = shortLog_ cxt
+                , ractionIoBlocking   = \tag -> setBlocking bstatOP (CauseIO tag)
+                , ractionIoUnblocked  = setUnblocked bstatOP
                 , ractionTimeoutTime  = utimeout
                 }
         ris =
             [ defaultResolveInfo
                 { rinfoIP        = aserver
                 , rinfoPort      = port
-                , rinfoActions   = riActions
+                , rinfoActions   = riActions bstatOP
                 , rinfoUDPRetry  = 1
                 , rinfoVCLimit   = 8 * 1024
                 }
-            | (aserver, port) <- aservers
+            | ((aserver, port), bstatOP) <- asps
             ]
         renv =
             ResolveEnv
