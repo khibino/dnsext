@@ -23,7 +23,8 @@ module DNS.TAP.FastStream (
     bye,
 ) where
 
-import Control.Exception as E
+import Control.Exception (Exception, throwIO)
+import qualified Control.Exception as E
 import Control.Monad
 import qualified Data.ByteString.Char8 as C8
 import Data.Word
