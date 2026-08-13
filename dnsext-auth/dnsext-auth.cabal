@@ -33,6 +33,7 @@ test-suite spec
     other-modules:      AlgorithmSecSpec
                         AlgorithmSpec
                         Common
+                        DBSpec
                         RFC4035Spec
                         RFC4592Spec
                         RFC5155Spec
