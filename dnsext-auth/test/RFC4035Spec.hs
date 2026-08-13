@@ -10,15 +10,13 @@ import DNS.SEC
 import DNS.SEC.Verify
 import DNS.Types
 
-import Data.Maybe
-
 import Common
 
 spec :: Spec
 spec = describe "authoritative algorithm" $ do
     runIO $ runInitIO $ addResourceDataForDNSSEC
     let zone = "example."
-    edb <- runIO $ do
+    db <- runIO $ do
         rrs <- loadZoneFile zone "test/rfc4035.zone"
         (_pub, _pri, dnskey, _ds, doSign) <-
             prepareDNSSEC $
@@ -30,9 +28,8 @@ spec = describe "authoritative algorithm" $ do
                     , dnssecInfoDuration = 86400
                     }
         makeDBforPrimary zone Nothing doSign (rrs ++ [dnskey])
-    let db = fromJust edb
     doit db
-    db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)
+    db2 <- runIO (makeDBforSecondary zone $ dbAll db)
     doit db2
 
 -- Canonical order:

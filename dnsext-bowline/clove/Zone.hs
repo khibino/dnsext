@@ -1,7 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 
-module Zone where
+module Zone (
+    newZones,
+    updateZone,
+    findZoneAlist,
+    toZoneAlist,
+) where
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
@@ -24,65 +29,6 @@ import Types
 
 ----------------------------------------------------------------
 
-readIP :: [String] -> [IP]
-readIP ss = mapMaybe readMaybe ss
-
-readIPRange :: [String] -> ([AddrRange IPv4], [AddrRange IPv6])
-readIPRange ss0 = loop id id ss0
-  where
-    loop b4 b6 [] = (b4 [], b6 [])
-    loop b4 b6 (s : ss)
-        | Just a6 <- readMaybe s = loop b4 (b6 . (a6 :)) ss
-        | Just a4 <- readMaybe s = loop (b4 . (a4 :)) b6 ss
-        | otherwise = loop b4 b6 ss
-
-readSource :: String -> Source
-readSource s
-    | Just a6 <- readMaybe s = FromUpstream6 a6
-    | Just a4 <- readMaybe s = FromUpstream4 a4
-    | otherwise = FromFile s
-
-----------------------------------------------------------------
-
-loadSource :: Env -> Domain -> Serial -> Source -> IO (Maybe DB)
-loadSource env zone serial source = case source of
-    FromUpstream4 ip4 ->
-        Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
-    FromUpstream6 ip6 ->
-        Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
-    FromFile fn -> do
-        -- head rrs is soa
-        rrs <- loadZoneFile zone fn
-        case rrs of
-            [] -> E.throwIO $ CloveException "Zone file is empty"
-            soarr : _rest -> case fromRData $ rdata soarr of
-                Nothing -> E.throwIO $ CloveException "SOA does not exist"
-                Just soa -> do
-                    (_pub, _pri, dnskey, ds, doSign) <-
-                        prepareDNSSEC $
-                            DNSSECinfo
-                                { dnssecInfoZone = zone
-                                , dnssecInfoPubAlg = ED25519
-                                , dnssecInfoDigestAlg = SHA256
-                                , dnssecInfoTTL = soa_minimum soa
-                                , dnssecInfoDuration = 86400
-                                }
-                    -- fixme:
-                    print ds
-                    makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
-
-----------------------------------------------------------------
-
-findZoneAlist :: Domain -> ZoneAlist -> Maybe (Domain, IORef Zone)
-findZoneAlist dom alist = find (\(k, _) -> dom `isSubDomainOf` k) alist
-
-toZoneAlist :: [Zone] -> IO ZoneAlist
-toZoneAlist zones = do
-    refs <- mapM newIORef zones
-    return $ zip names refs
-  where
-    names = map zoneName zones
-
 newZones :: Env -> [ZoneConf] -> IO [Zone]
 newZones env zcs = mapM (newZone env) zcs
 
@@ -90,10 +36,10 @@ newZones env zcs = mapM (newZone env) zcs
 
 newZone :: Env -> ZoneConf -> IO Zone
 newZone env ZoneConf{..} = do
-    mdb <- loadSource env zone (Serial 0) source
-    let (db, ready) = case mdb of
-            Nothing -> (emptyDB, False)
-            Just db' -> (db', True)
+    edb <- E.try $ loadSource env zone (Serial 0) source
+    let (db, ready) = case edb of
+            Left (AuthException _) -> (emptyDB, False)
+            Right db' -> (db', True)
     let (a4, a6) = readIPRange cnf_allow_transfer_addrs
         t4 = fromList $ map (,True) a4
         t6 = fromList $ map (,True) a6
@@ -122,27 +68,6 @@ shouldReload :: Source -> Bool
 shouldReload (FromFile _) = False
 shouldReload _ = True
 
-----------------------------------------------------------------
-
-updateZone :: Env -> IORef Zone -> IO ()
-updateZone env zoneref = do
-    Zone{..} <- readIORef zoneref
-    let serial = soa_serial $ dbRD_SOA zoneDB
-    mdb <- loadSource env zoneName serial zoneSource
-    case mdb of
-        Nothing -> return ()
-        Just db -> atomicModifyIORef' zoneref $ modify db
-  where
-    modify db zone = (zone', ())
-      where
-        zone' =
-            zone
-                { zoneReady = True
-                , zoneDB = db
-                }
-
-----------------------------------------------------------------
-
 initSync :: IO (WakeUp, Wait)
 initSync = do
     var <- newTVarIO False
@@ -160,3 +85,86 @@ initSync = do
         v <- readTVar var
         check v
         writeTVar var False
+
+----------------------------------------------------------------
+
+updateZone :: Env -> IORef Zone -> IO ()
+updateZone env zoneref = do
+    Zone{..} <- readIORef zoneref
+    let serial = soa_serial $ dbRD_SOA zoneDB
+    edb <- E.try $ loadSource env zoneName serial zoneSource
+    case edb of
+        Left (AuthException _) -> return ()
+        Right db -> atomicModifyIORef' zoneref $ modify db
+  where
+    modify db zone = (zone', ())
+      where
+        zone' =
+            zone
+                { zoneReady = True
+                , zoneDB = db
+                }
+
+----------------------------------------------------------------
+
+extractTTL :: [ResourceRecord] -> IO Seconds
+extractTTL [] = E.throwIO $ AuthException "No RRs"
+extractTTL (soarr : _rest) = case fromRData $ rdata soarr of
+    Nothing -> E.throwIO $ AuthException "SOA does not exist"
+    Just soa -> return $ soa_minimum soa
+
+-- | This function throws 'AuthException'.
+loadSource :: Env -> Domain -> Serial -> Source -> IO DB
+loadSource env zone serial source = case source of
+    FromUpstream4 ip4 ->
+        Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
+    FromUpstream6 ip6 ->
+        Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
+    FromFile fn -> do
+        -- head rrs is soa
+        rrs <- loadZoneFile zone fn
+        ttl <- extractTTL rrs
+        let info =
+                DNSSECinfo
+                    { dnssecInfoZone = zone
+                    , dnssecInfoPubAlg = ED25519
+                    , dnssecInfoDigestAlg = SHA256
+                    , dnssecInfoTTL = ttl
+                    , dnssecInfoDuration = 86400
+                    }
+        (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info
+        -- fixme:
+        print ds
+        makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
+
+----------------------------------------------------------------
+
+readIP :: [String] -> [IP]
+readIP ss = mapMaybe readMaybe ss
+
+readIPRange :: [String] -> ([AddrRange IPv4], [AddrRange IPv6])
+readIPRange ss0 = loop id id ss0
+  where
+    loop b4 b6 [] = (b4 [], b6 [])
+    loop b4 b6 (s : ss)
+        | Just a6 <- readMaybe s = loop b4 (b6 . (a6 :)) ss
+        | Just a4 <- readMaybe s = loop (b4 . (a4 :)) b6 ss
+        | otherwise = loop b4 b6 ss
+
+readSource :: String -> Source
+readSource s
+    | Just a6 <- readMaybe s = FromUpstream6 a6
+    | Just a4 <- readMaybe s = FromUpstream4 a4
+    | otherwise = FromFile s
+
+----------------------------------------------------------------
+
+findZoneAlist :: Domain -> ZoneAlist -> Maybe (Domain, IORef Zone)
+findZoneAlist dom alist = find (\(k, _) -> dom `isSubDomainOf` k) alist
+
+toZoneAlist :: [Zone] -> IO ZoneAlist
+toZoneAlist zones = do
+    refs <- mapM newIORef zones
+    return $ zip names refs
+  where
+    names = map zoneName zones

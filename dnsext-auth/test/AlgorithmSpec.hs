@@ -9,18 +9,15 @@ import DNS.Auth.DB
 import DNS.SEC
 import DNS.Types
 
-import Data.Maybe
-
 import Common
 
 spec :: Spec
 spec = describe "authoritative algorithm" $ do
     let zone = "example.jp."
     runIO $ runInitIO $ addResourceDataForDNSSEC
-    edb <- runIO $ loadDB zone "test/example.zone"
-    let db = fromJust edb
+    db <- runIO $ loadDB zone "test/example.zone"
     doit db
-    db2 <- fromJust <$> runIO (makeDBforSecondary zone $ dbAll db)
+    db2 <- runIO (makeDBforSecondary zone $ dbAll db)
     doit db2
 
 doit :: DB -> Spec

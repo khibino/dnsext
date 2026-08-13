@@ -1,6 +1,5 @@
 module Types where
 
-import Control.Exception
 import Data.ByteString (ByteString)
 import Data.IORef
 import Data.IP
@@ -67,9 +66,3 @@ data Proto = Proto
     , allowAXFR :: SockAddr -> Domain -> ZoneAlist -> IO (Maybe Zone)
     , protoName :: String
     }
-
-----------------------------------------------------------------
-
-newtype CloveException = CloveException String deriving (Eq, Show)
-
-instance Exception CloveException
