@@ -26,6 +26,7 @@ import DNS.SEC.Verify
 import DNS.Types
 
 import qualified Axfr
+import Config
 import Types
 
 ----------------------------------------------------------------

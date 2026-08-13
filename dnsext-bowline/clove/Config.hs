@@ -3,13 +3,14 @@
 module Config (
     Config (..),
     loadConfig,
+    ZoneConf (..),
 ) where
 
 import DNS.Config
 import Network.Socket (PortNumber)
 import System.IO.Error (ioeGetErrorString, ioeSetErrorString, tryIOError)
 
-import Types
+----------------------------------------------------------------
 
 {- FOURMOLU_DISABLE -}
 data Config = Config
@@ -34,6 +35,21 @@ defaultConfig =
         , cnf_log_level = "WARNING"
         }
 
+----------------------------------------------------------------
+
+data ZoneConf = ZoneConf
+    { cnf_zone :: String
+    , cnf_source :: String
+    , cnf_dnssec :: Bool
+    , cnf_notify :: Bool
+    , cnf_notify_addrs :: [String]
+    , cnf_allow_notify :: Bool
+    , cnf_allow_notify_addrs :: [String]
+    , cnf_allow_transfer :: Bool
+    , cnf_allow_transfer_addrs :: [String]
+    }
+    deriving (Show)
+
 defaultZoneConf :: ZoneConf
 defaultZoneConf =
     ZoneConf
@@ -47,6 +63,8 @@ defaultZoneConf =
         , cnf_allow_transfer       = False
         , cnf_allow_transfer_addrs = []
         }
+
+----------------------------------------------------------------
 
 makeConfig :: Config -> [Conf] -> IO (Config, [ZoneConf])
 makeConfig def conf0 = do
