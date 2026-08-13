@@ -9,7 +9,8 @@ where
 
 import Control.Concurrent.Async (Async, waitCatchSTM)
 import Control.Concurrent.STM
-import Control.Exception as E
+import Control.Exception (SomeException, throwIO)
+import qualified Control.Exception as E
 import Control.Monad (when)
 import DNS.Do53.Types
 import qualified DNS.Log as Log
