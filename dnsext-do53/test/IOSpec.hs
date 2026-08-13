@@ -3,7 +3,7 @@
 
 module IOSpec where
 
-import Control.Exception
+import Control.Exception (throwIO)
 import DNS.Do53.Internal
 import DNS.Types
 import Data.List.NonEmpty (NonEmpty (..))
