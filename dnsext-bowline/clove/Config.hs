@@ -38,14 +38,14 @@ defaultConfig =
 ----------------------------------------------------------------
 
 data ZoneConf = ZoneConf
-    { cnf_zone :: String
-    , cnf_source :: String
-    , cnf_dnssec :: Bool
-    , cnf_notify :: Bool
-    , cnf_notify_addrs :: [String]
-    , cnf_allow_notify :: Bool
-    , cnf_allow_notify_addrs :: [String]
-    , cnf_allow_transfer :: Bool
+    { cnf_zone                 :: String
+    , cnf_source               :: String
+    , cnf_dnssec               :: Bool
+    , cnf_notify               :: Bool
+    , cnf_notify_addrs         :: [String]
+    , cnf_allow_notify         :: Bool
+    , cnf_allow_notify_addrs   :: [String]
+    , cnf_allow_transfer       :: Bool
     , cnf_allow_transfer_addrs :: [String]
     }
     deriving (Show)
