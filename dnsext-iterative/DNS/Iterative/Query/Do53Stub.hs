@@ -4,7 +4,8 @@
 module DNS.Iterative.Query.Do53Stub where
 
 -- GHC packages
-import Control.Exception as E
+import Control.Exception (SomeException (..), bracket, fromException, throwIO, throw)
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
 import System.Timeout (timeout)
