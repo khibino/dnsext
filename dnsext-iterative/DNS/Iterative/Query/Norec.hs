@@ -42,12 +42,8 @@ norec cxt wstat dnssecOK aservers name typ =
     closeTasks  = clearTasks wstat
     actions = [apair (tag ++ ".q1"), apair (tag ++ ".q2")]
     tag = let (a:|as) = aservers in show (a:as)
-    apair tag_ = (tag_, getWithBStats >>= \asps -> blockingIO_ tag_ (action asps))
-    action asps@(x:|xs) =
-        openTasks >> norec_ 500_000 cxt dnssecOK asps name typ
-      where
-        openTasks  = addTasks wstat [bstat | (_, bstat) <- x:xs]
-    getWithBStats = mapM (\x -> (,) x <$> getBlockingStatOP) aservers
+    apair tag_ = (tag_, blockingIO_ tag_ action)
+    action = norec_ 500_000 cxt wstat dnssecOK aservers name typ
     blockingIO_ tag_ = blockingIO wstat $ show name ++ " " ++ show typ ++ ": " ++ tag_
 {- FOURMOLU_ENABLE -}
 
@@ -56,8 +52,12 @@ norec cxt wstat dnssecOK aservers name typ =
    Note about flags in request to an authoritative server.
   * RD (Recursion Desired) must be 0 for request to authoritative server
   * EDNS must be enable for DNSSEC OK request -}
-norec_ :: Int -> Env -> Bool -> NonEmpty (Address, BlockingStatOP) -> Domain -> TYPE -> IO (Either DNSError DNSMessage)
-norec_ utimeout cxt dnssecOK asps name typ = do
+norec_
+    :: Int -> Env -> WorkerStatOP -> Bool -> NonEmpty Address
+    -> Domain -> TYPE -> IO (Either DNSError DNSMessage)
+norec_ utimeout cxt wstat dnssecOK aservers name typ = do
+    asps@(x:|xs) <- sequence [ (,) x <$> getBlockingStatOP | x <- aservers ]
+    addTasks wstat [bstat | (_, bstat) <- x:xs]
     let riActions bstatOP =
             defaultResolveActions
                 { ractionGenId        = idGen_ cxt
