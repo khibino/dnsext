@@ -11,7 +11,7 @@ import GHC.Event (getSystemTimerManager, registerTimeout, unregisterTimeout)
 import Control.Applicative
 import Control.Concurrent hiding (forkIO)
 import Control.Concurrent.STM
-import Control.Exception (AsyncException, fromException, throwIO)
+import Control.Exception (SomeAsyncException, fromException, throwIO)
 import qualified Control.Exception as E
 import Control.Monad
 import Data.Functor
@@ -34,9 +34,9 @@ _tryDNS action = either left right =<< E.try action
     right x = pure (Right x)
     left ex
       -- -- | Just ae <- fromException ex :: Maybe AsyncCancelled  = throwIO ae
-      | Just ae <- fromException ex :: Maybe AsyncException  = throwIO ae
-      | Just de <- fromException ex :: Maybe DNSError        = pure (Left de)
-      | otherwise                                            = pure (Left $ NetworkFailure ex "")
+      | Just ae <- fromException ex :: Maybe SomeAsyncException  = throwIO ae
+      | Just de <- fromException ex :: Maybe DNSError            = pure (Left de)
+      | otherwise                                                = pure (Left $ NetworkFailure ex "")
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
