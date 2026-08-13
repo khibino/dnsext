@@ -15,9 +15,12 @@ import Control.Exception
 import Control.Monad
 import Data.Functor
 
--- dnsext-*
-import DNS.ThreadStats (forkIO)
+-- dnsext-types
 import DNS.Types (DNSError (NetworkFailure))
+
+-- dnsext-utils
+import DNS.ThreadStats (forkIO)
+import DNS.WorkerStats (WorkerStatOP)
 
 -- $setup
 -- >>> :seti -XNumericUnderscores
@@ -38,7 +41,8 @@ _tryDNS action = either left right =<< try action
 {- FOURMOLU_DISABLE -}
 -- |
 -- >>> import DNS.Types (DNSError (TimeoutExpired, RetryLimitExceeded, UnknownDNSError))
--- >>> steppedWait' uu actions = steppedWait TimeoutExpired RetryLimitExceeded uu (zip (cycle [""]) $ map _tryDNS actions)
+-- >>> import DNS.WorkerStats (noopWorkerStat)
+-- >>> steppedWait' uu actions = steppedWait noopWorkerStat TimeoutExpired RetryLimitExceeded uu (zip (cycle [""]) $ map _tryDNS actions)
 --
 -- --------------------------------------------------------------------------------
 -- run  runnings   timer     remain-actions
@@ -184,27 +188,29 @@ _tryDNS action = either left right =<< try action
 --
 steppedWait
   :: Show a
-  => e -> e -> Int
+  => WorkerStatOP
+  -> e -> e -> Int
   -> [(String, IO (Either e a))] -> IO (Either e a)
-steppedWait exTimeout exNoResult uusec actions = do
+steppedWait wstat exTimeout exNoResult uusec actions = do
   vrun <- newTVarIO 0
   vrem <- newTVarIO $ length actions
   qres <- newTQueueIO
   let noTimer = Timer{ timSTM_ = retry, timDel_ = pure ()}
-  steppedWaitLoop vrun vrem qres exTimeout uusec noTimer id exNoResult actions
+  steppedWaitLoop wstat vrun vrem qres exTimeout uusec noTimer id exNoResult actions
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
 steppedWaitLoop
   :: Show a
-  => TVar Running
+  => WorkerStatOP
+  -> TVar Running
   -> TVar Int -> TQueue (Either e a)
   -> e -> Int -> Timer
   -> ([ThreadId] -> [ThreadId]) -> e -> [(String, IO (Either e a))]
   -> IO (Either e a)
-steppedWaitLoop vrun vrem qres exTimeout uusec timer0 tids lastE0 xxs = eventLoop timer0 lastE0
+steppedWaitLoop wstat vrun vrem qres exTimeout uusec timer0 tids lastE0 xxs = eventLoop timer0 lastE0
   where
-    nexts lastE x xs timer = fork x >>= \tid -> steppedWaitLoop vrun vrem qres exTimeout uusec timer (tids . (tid:)) lastE xs
+    nexts lastE x xs timer = fork x >>= \tid -> steppedWaitLoop wstat vrun vrem qres exTimeout uusec timer (tids . (tid:)) lastE xs
 
     fork x = doFork vrun qres x
     waitEV timer = waitEvent vrem qres vrun timer
