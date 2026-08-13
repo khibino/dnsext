@@ -11,13 +11,12 @@ import Data.IORef
 import Data.List (sortBy)
 import Data.Ord (comparing)
 
--- dnsext-* packages
-
-import qualified DNS.ThreadStats as TStat
+-- dnsext-types
 import DNS.Types (Question (..))
 import DNS.Types.Time (EpochTimeUsec, diffUsec, getCurrentTimeUsec, runEpochTimeUsec)
 
 -- this package
+import qualified DNS.ThreadStats as TStat
 import DNS.Transport.Types (DoX (..))
 
 {- FOURMOLU_DISABLE -}
@@ -321,9 +320,16 @@ blockingIO :: OpBlockingStat op => op -> String -> IO a -> IO a
 blockingIO wstat note = bracketBlocking wstat (CauseIO note)
 
 blockingKillThread :: OpBlockingStat op => op -> String -> ThreadId -> IO ()
-blockingKillThread wstat note to = do
-    fr <- myThreadId
-    bracketBlocking wstat (CauseKill (note ++ ": " ++ show fr ++ " -> " ++ show to)) (killThread to)
+blockingKillThread wstat note toId = do
+    frId <- myThreadId
+    fr <- getThTag frId
+    to <- getThTag toId
+    bracketBlocking wstat (CauseKill (note ++ ": " ++ fr ++ " -> " ++ to)) (killThread toId)
+  where
+    getThTag tid = do
+        mlabel <- TStat.threadLabel tid
+        return $ show tid ++ maybe "" lbParen mlabel
+    lbParen s = " (" ++ s ++ ")"
 
 ------------------------------------------------------------
 
