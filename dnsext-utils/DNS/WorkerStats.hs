@@ -4,7 +4,9 @@
 module DNS.WorkerStats where
 
 -- GHC packages
+import Control.Concurrent (ThreadId, killThread, myThreadId)
 import Control.Exception (bracket_)
+import Data.Functor
 import Data.IORef
 import Data.List (sortBy)
 import Data.Ord (comparing)
@@ -77,6 +79,8 @@ data BlockingCause
     | CauseEnqueue  String
     | CauseLog      String
     | CauseIO       String
+    | CauseKill     String
+    | CauseThrowTo  String
     deriving Eq
 
 instance Show BlockingCause where
@@ -86,6 +90,8 @@ instance Show BlockingCause where
     show (CauseEnqueue  note)  = "enqueue: " ++ note
     show (CauseLog      note)  = "logging: " ++ note
     show (CauseIO       note)  = "I/O: " ++ note
+    show (CauseKill     note)  = "killThread: " ++ note
+    show (CauseThrowTo  note)  = "throwTo: " ++ note
 
 -- |
 --  BlockingContext transition in worker/cacher
@@ -188,6 +194,7 @@ data WorkerStatOP =
     , withContext  :: forall a . (BlockingContext -> IO a) -> IO a
     , blockingOP   :: BlockingStatOP
     , setTasks     :: [BlockingStatOP] -> IO ()
+    , addTasks     :: [BlockingStatOP] -> IO ()
     , getTasks     :: IO [BlockingStatOP]
     , clearTasks   :: IO ()
     }
@@ -230,6 +237,7 @@ noopWorkerStat =
     , withContext      = \k -> k ContextRequest
     , blockingOP       = noopBlockingStat
     , setTasks         = \_ -> return ()
+    , addTasks         = \_ -> return ()
     , getTasks         = return []
     , clearTasks       = return ()
     }
@@ -266,16 +274,18 @@ getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
     ctxRef  <- newIORef     ContextRequest
     blkOp   <- getBlockingStatOP
-    tskRef  <- newIORef     []
+    tskRef  <- newIORef     id
+    let modTasks f = atomicModifyIORef' tskRef (\xs -> (f xs, ()))
     return
         WorkerStatOP
         { setQuery         = \dox q -> writeIORef ctxRef $ ContextQuery dox q
         , setRequest       = writeIORef ctxRef ContextRequest
         , withContext      = \k -> readIORef ctxRef >>= k
         , blockingOP       = blkOp
-        , setTasks         = writeIORef tskRef
-        , getTasks         = readIORef tskRef
-        , clearTasks       = writeIORef tskRef []
+        , setTasks         = \as -> modTasks (\_s -> (as ++))
+        , addTasks         = \as -> modTasks (\xs -> xs . (as ++))
+        , getTasks         = readIORef tskRef <&> ($ [])
+        , clearTasks       =        modTasks (\_s -> id)
         }
 {- FOURMOLU_ENABLE -}
 
@@ -309,6 +319,11 @@ blockingLog wstat note = bracketBlocking wstat (CauseLog note)
 
 blockingIO :: OpBlockingStat op => op -> String -> IO a -> IO a
 blockingIO wstat note = bracketBlocking wstat (CauseIO note)
+
+blockingKillThread :: OpBlockingStat op => op -> String -> ThreadId -> IO ()
+blockingKillThread wstat note to = do
+    fr <- myThreadId
+    bracketBlocking wstat (CauseKill (note ++ ": " ++ show fr ++ " -> " ++ show to)) (killThread to)
 
 ------------------------------------------------------------
 
