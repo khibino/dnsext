@@ -11,7 +11,8 @@ import GHC.Event (getSystemTimerManager, registerTimeout, unregisterTimeout)
 import Control.Applicative
 import Control.Concurrent hiding (forkIO)
 import Control.Concurrent.STM
-import Control.Exception
+import Control.Exception (AsyncException, fromException, throwIO)
+import qualified Control.Exception as E
 import Control.Monad
 import Data.Functor
 
@@ -28,7 +29,7 @@ import DNS.WorkerStats (BlockingStatOP, WorkerStatOP, addTasks, blockingKillThre
 {- FOURMOLU_DISABLE -}
 -- try function for doctests
 _tryDNS :: IO a -> IO (Either DNSError a)
-_tryDNS action = either left right =<< try action
+_tryDNS action = either left right =<< E.try action
   where
     right x = pure (Right x)
     left ex
@@ -268,7 +269,7 @@ doFork
 doFork vrun qres (label, x) = do
     let bgn = atomically $ modifyTVar vrun (+ 1)
         end = atomically $ modifyTVar vrun (subtract 1)
-    bgn >> forkIO label (finally (x >>= \e -> atomically $ writeTQueue qres e) end)
+    bgn >> forkIO label (E.finally (x >>= \e -> atomically $ writeTQueue qres e) end)
 {- FOURMOLU_ENABLE -}
 
 --------------------------------------------------------------------------------
