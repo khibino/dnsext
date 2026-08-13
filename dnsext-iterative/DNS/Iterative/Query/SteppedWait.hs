@@ -20,7 +20,7 @@ import DNS.Types (DNSError (NetworkFailure))
 
 -- dnsext-utils
 import DNS.ThreadStats (forkIO)
-import DNS.WorkerStats (WorkerStatOP, addTasks, getBlockingStatOP)
+import DNS.WorkerStats (BlockingStatOP, WorkerStatOP, addTasks, blockingKillThread, getBlockingStatOP)
 
 -- $setup
 -- >>> :seti -XNumericUnderscores
@@ -199,6 +199,8 @@ steppedWait wstat exTimeout exNoResult uusec actions = do
   steppedWaitLoop wstat vrun vrem qres exTimeout uusec noTimer id exNoResult actions
 {- FOURMOLU_ENABLE -}
 
+type ThId = (BlockingStatOP, ThreadId)
+
 {- FOURMOLU_DISABLE -}
 steppedWaitLoop
   :: Show a
@@ -206,7 +208,7 @@ steppedWaitLoop
   -> TVar Running
   -> TVar Int -> TQueue (Either e a)
   -> e -> Int -> Timer
-  -> ([ThreadId] -> [ThreadId]) -> e -> [(String, IO (Either e a))]
+  -> ([ThId] -> [ThId]) -> e -> [(String, IO (Either e a))]
   -> IO (Either e a)
 steppedWaitLoop wstat vrun vrem qres exTimeout uusec timer0 tids lastE0 xxs = eventLoop timer0 lastE0
   where
@@ -215,7 +217,7 @@ steppedWaitLoop wstat vrun vrem qres exTimeout uusec timer0 tids lastE0 xxs = ev
     fork x = do
         bstatOP <- getBlockingStatOP
         addTasks wstat [bstatOP]
-        doFork vrun qres x
+        (,) bstatOP <$> doFork vrun qres x
     waitEV timer = waitEvent vrem qres vrun timer
 
     eventLoop timer lastE = waitEV timer >>= dispatchEV timer lastE
@@ -232,7 +234,8 @@ steppedWaitLoop wstat vrun vrem qres exTimeout uusec timer0 tids lastE0 xxs = ev
           EvResult r@Right{}   -> finalize   $>   r
       where
         renewTimer  = timDel_ timer >> newTimer uusec
-        finalize    = timDel_ timer >> mapM_ killThread (tids [])
+        finalize    = timDel_ timer >> mapM_ bsKillThread (tids [])
+        bsKillThread (bstatOP, tid) = blockingKillThread bstatOP "stepped-wait" tid
 {- FOURMOLU_ENABLE -}
 
 --------------------------------------------------------------------------------
