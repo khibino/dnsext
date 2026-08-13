@@ -15,7 +15,8 @@ module DNS.Do53.Do53 (
 where
 
 import Control.Concurrent.Async (AsyncCancelled)
-import Control.Exception as E
+import Control.Exception (AsyncException, SomeException (..), bracket, fromException, throwIO)
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
 import Network.Socket
