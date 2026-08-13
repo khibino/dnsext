@@ -10,7 +10,8 @@ import Control.Applicative ((<|>))
 import Control.Concurrent (forkFinally, getNumCapabilities, threadWaitRead)
 import Control.Concurrent.Async (waitSTM)
 import Control.Concurrent.STM (STM, atomically)
-import Control.Exception (SomeException, throwIO, try)
+import Control.Exception (SomeException, throwIO)
+import qualified Control.Exception as E
 import Control.Monad
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy.Char8 as BL
@@ -287,7 +288,7 @@ console conf env ctl@Control{..} GlobalCache{gcacheControl=CacheControl{..}} srv
 {- FOURMOLU_ENABLE -}
 
 loggingException :: (String -> IO a) -> IO b -> IO b
-loggingException logging action = try action >>= either left pure
+loggingException logging action = E.try action >>= either left pure
   where
     -- SomeException: asynchronous exceptions are re-thrown
     left :: SomeException -> IO b
