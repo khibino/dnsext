@@ -20,6 +20,7 @@ import Text.Read
 
 import DNS.Auth.Algorithm
 import DNS.Auth.DB
+import DNS.Log
 import DNS.SEC
 import DNS.SEC.Verify
 import DNS.Types
@@ -37,9 +38,11 @@ newZones env zcs = mapM (newZone env) zcs
 newZone :: Env -> ZoneConf -> IO Zone
 newZone env ZoneConf{..} = do
     edb <- E.try $ loadSource env zone (Serial 0) source
-    let (db, ready) = case edb of
-            Left (AuthException _) -> (emptyDB, False)
-            Right db' -> (db', True)
+    (db, ready) <- case edb of
+        Left (AuthException msg) -> do
+            envPutLines env WARNING Nothing [msg]
+            return (emptyDB, False)
+        Right db' -> return (db', True)
     let (a4, a6) = readIPRange cnf_allow_transfer_addrs
         t4 = fromList $ map (,True) a4
         t6 = fromList $ map (,True) a6
@@ -94,7 +97,7 @@ updateZone env zoneref = do
     let serial = soa_serial $ dbRD_SOA zoneDB
     edb <- E.try $ loadSource env zoneName serial zoneSource
     case edb of
-        Left (AuthException _) -> return ()
+        Left (AuthException msg) -> envPutLines env WARNING Nothing [msg]
         Right db -> atomicModifyIORef' zoneref $ modify db
   where
     modify db zone = (zone', ())
