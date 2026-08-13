@@ -172,7 +172,7 @@ makeDBforPrimary zone mn3p doSign (soarr : rrs)
                                 }
                     doSign True [n3prr]
             -- In-domain NS/DS should have NSEC.
-            let node = makeNode zone (ssSigned ++ n3pSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
+            node <- makeNode zone (ssSigned ++ n3pSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
             (nsecSigned, nsecdb, mconv) <- case mn3p of
                 Nothing -> do
                     xs <- makeNSECforPrimary ttl doSign node
@@ -216,7 +216,7 @@ makeDBforSecondary zone (soarr : rrs0)
                 ssSigned = groupAndSig sigDB [soarr]
                 isSigned = groupAndSig sigDB is
                 dsSigned = groupAndSig sigDB ds
-            let node = makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
+            node <- makeNode zone (ssSigned ++ isSigned ++ unsign ns ++ dsSigned ++ unsign gs)
             let nsecSigned = makeNSECforSecondary sigDB nsec
                 nsecdb
                     | null nsec3params = makeNSECDB nsecSigned
@@ -561,21 +561,41 @@ emptyNode dom =
         , nodeHasDS = False
         }
 
-makeNode :: Domain -> [RRSetSig] -> Node
-makeNode zone rrs0 = foldr (\((name, ls), ts) node -> insert ls name ts node) zoneRoot kvs
+makeNode :: Domain -> [RRSetSig] -> IO Node
+makeNode zone rrs0 = do
+    let kvs = makeRRSetSigGroup zone rrs0
+    mapM_ checkRRSetSigGroup kvs
+    return $ fromRRSetSigGroup zone kvs
+
+makeRRSetSigGroup :: Domain -> [RRSetSig] -> [((Domain, [Label]), [RRSetSig])]
+makeRRSetSigGroup zone rrs0 = map (\xs -> (getLabels xs, xs)) rrss
   where
     n = labelsCount zone
-    zoneRoot = emptyNode zone
     rrs :: [RRSetSig]
     rrs = nub $ sort rrs0
     rrss :: [[RRSetSig]]
     rrss = groupBy ((==) `on` rrsetsigName) rrs
-    kvs :: [((Domain, [Label]), [RRSetSig])]
-    kvs = map (\xs -> (getLabels xs, xs)) rrss
     getLabels xs = (name, ls)
       where
         name = rrsetsigName $ unsafeHead xs
         ls = drop n $ revLabels name
+
+fromRRSetSigGroup :: Domain -> [((Domain, [Label]), [RRSetSig])] -> Node
+fromRRSetSigGroup zone kvs =
+    foldr (\((name, ls), ts) node -> insert ls name ts node) zoneRoot kvs
+  where
+    zoneRoot = emptyNode zone
+
+checkRRSetSigGroup :: ((Domain, [Label]), [RRSetSig]) -> IO ()
+checkRRSetSigGroup (_, rrs)
+    | any (\x -> rrsetsigType x == CNAME) rrs = case rrs of
+        [c]
+            | length (rrsetsigRRs c) /= 1 ->
+                E.throwIO $ AuthException "Multiple CNAME"
+            | otherwise ->
+                return ()
+        _ -> E.throwIO $ AuthException "CNAME with other RRs"
+    | otherwise = return ()
 
 checkDelegated :: [RRSetSig] -> Bool
 checkDelegated rrs = any (\x -> rrsetsigType x == NS) rrs
