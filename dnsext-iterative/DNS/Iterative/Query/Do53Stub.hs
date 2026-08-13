@@ -4,7 +4,7 @@
 module DNS.Iterative.Query.Do53Stub where
 
 -- GHC packages
-import Control.Exception (SomeException (..), bracket, fromException, throwIO, throw)
+import Control.Exception (SomeException (..), bracket, fromException, throwIO)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
@@ -56,7 +56,7 @@ tryDNS ~tag action =
     left se
         | Just (e :: DNSError)  <- fromException se  = return $ Left   e
         | Just (e :: IOError)   <- fromException se  = return $ Left $ fromIOException tag e
-        | otherwise                                  = throw se
+        | otherwise                                  = throwIO se
 {- FOURMOLU_ENABLE -}
 
 timeoutDNS' :: String -> Int -> IO a -> IO a
