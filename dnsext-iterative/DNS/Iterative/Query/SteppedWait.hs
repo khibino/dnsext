@@ -21,7 +21,7 @@ import DNS.Types (DNSError (NetworkFailure))
 
 -- dnsext-utils
 import DNS.ThreadStats (forkIO)
-import DNS.WorkerStats (BlockingStatOP, WorkerStatOP, addTasks, blockingKillThread, getBlockingStatOP)
+import DNS.WorkerStats (BlockingStatOP, WorkerStatOP, addTasks, blockingIO, blockingKillThread, getBlockingStatOP)
 
 -- $setup
 -- >>> :seti -XNumericUnderscores
@@ -215,10 +215,10 @@ steppedWaitLoop wstat vrun vrem qres exTimeout uusec timer0 tids lastE0 xxs = ev
   where
     nexts lastE x xs timer = fork x >>= \tid -> steppedWaitLoop wstat vrun vrem qres exTimeout uusec timer (tids . (tid:)) lastE xs
 
-    fork x = do
+    fork (tag, ax) = do
         bstatOP <- getBlockingStatOP
         addTasks wstat [bstatOP]
-        (,) bstatOP <$> doFork vrun qres x
+        (,) bstatOP <$> doFork vrun qres (tag, blockingIO bstatOP tag ax)
     waitEV timer = waitEvent vrem qres vrun timer
 
     eventLoop timer lastE = waitEV timer >>= dispatchEV timer lastE
