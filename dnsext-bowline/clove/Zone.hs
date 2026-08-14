@@ -125,7 +125,8 @@ loadSource env zone serial source = case source of
         Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
     FromUpstream6 ip6 ->
         Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
-    FromFile fn info mn3p -> do
+    FromFile fn Nothing _ -> loadDB zone fn
+    FromFile fn (Just info) mn3p -> do
         -- head rrs is soa
         rrs <- loadZoneFile zone fn
         ttl <- extractTTL rrs
@@ -153,6 +154,7 @@ readSource :: Domain -> ZoneConf -> IO Source
 readSource zone ZoneConf{..}
     | Just a6 <- readMaybe cnf_source = return $ FromUpstream6 a6
     | Just a4 <- readMaybe cnf_source = return $ FromUpstream4 a4
+    | not cnf_dnssec = return $ FromFile cnf_source Nothing Nothing
     | otherwise = do
         let file = cnf_source
         pa <- case toPubAlgo cnf_pub_algo of
@@ -175,7 +177,7 @@ readSource zone ZoneConf{..}
         let mn3p
                 | cnf_nsec3 = Just $ defaultNSEC3PARAM{nsec3param_hashalg = h}
                 | otherwise = Nothing
-        return $ FromFile file info mn3p
+        return $ FromFile file (Just info) mn3p
 
 ----------------------------------------------------------------
 

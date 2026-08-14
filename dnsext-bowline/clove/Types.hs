@@ -15,7 +15,7 @@ import DNS.Types
 ----------------------------------------------------------------
 
 data Source
-    = FromFile FilePath DNSSECinfo (Maybe RD_NSEC3PARAM)
+    = FromFile FilePath (Maybe DNSSECinfo) (Maybe RD_NSEC3PARAM)
     | FromUpstream4 IPv4
     | FromUpstream6 IPv6
     deriving (Eq, Show)
