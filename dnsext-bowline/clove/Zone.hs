@@ -25,6 +25,7 @@ import DNS.SEC
 import DNS.SEC.Verify
 import DNS.Types
 
+import Algo
 import qualified Axfr
 import Config
 import Types
@@ -37,7 +38,8 @@ newZones env zcs = mapM (newZone env) zcs
 ----------------------------------------------------------------
 
 newZone :: Env -> ZoneConf -> IO Zone
-newZone env ZoneConf{..} = do
+newZone env zoneconf@ZoneConf{..} = do
+    source <- readSource zone zoneconf
     edb <- E.try $ loadSource env zone (Serial 0) source
     (db, ready) <- case edb of
         Left (AuthException msg) -> do
@@ -66,10 +68,9 @@ newZone env ZoneConf{..} = do
             }
   where
     zone = fromRepresentation cnf_zone
-    source = readSource cnf_source
 
 shouldReload :: Source -> Bool
-shouldReload (FromFile _) = False
+shouldReload (FromFile _ _ _) = False
 shouldReload _ = True
 
 initSync :: IO (WakeUp, Wait)
@@ -124,22 +125,15 @@ loadSource env zone serial source = case source of
         Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
     FromUpstream6 ip6 ->
         Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
-    FromFile fn -> do
+    FromFile fn info mn3p -> do
         -- head rrs is soa
         rrs <- loadZoneFile zone fn
         ttl <- extractTTL rrs
-        let info =
-                DNSSECinfo
-                    { dnssecInfoZone = zone
-                    , dnssecInfoPubAlg = ED25519
-                    , dnssecInfoDigestAlg = SHA256
-                    , dnssecInfoTTL = ttl
-                    , dnssecInfoDuration = 86400
-                    }
-        (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info
+        let info' = info{dnssecInfoTTL = ttl}
+        (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info'
         -- fixme:
         print ds
-        makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
+        makeDBforPrimary zone mn3p doSign (rrs ++ [dnskey])
 
 ----------------------------------------------------------------
 
@@ -155,11 +149,33 @@ readIPRange ss0 = loop id id ss0
         | Just a4 <- readMaybe s = loop (b4 . (a4 :)) b6 ss
         | otherwise = loop b4 b6 ss
 
-readSource :: String -> Source
-readSource s
-    | Just a6 <- readMaybe s = FromUpstream6 a6
-    | Just a4 <- readMaybe s = FromUpstream4 a4
-    | otherwise = FromFile s
+readSource :: Domain -> ZoneConf -> IO Source
+readSource zone ZoneConf{..}
+    | Just a6 <- readMaybe cnf_source = return $ FromUpstream6 a6
+    | Just a4 <- readMaybe cnf_source = return $ FromUpstream4 a4
+    | otherwise = do
+        let file = cnf_source
+        pa <- case toPubAlgo cnf_pub_algo of
+            Just pa0 -> return pa0
+            Nothing -> E.throwIO $ AuthException $ "Public Algo: " ++ cnf_pub_algo ++ " is unknown"
+        dd <- case toDsDigest cnf_ds_digest of
+            Just dd0 -> return dd0
+            Nothing -> E.throwIO $ AuthException $ "DS Digest: " ++ cnf_ds_digest ++ " is unknown"
+        let info =
+                DNSSECinfo
+                    { dnssecInfoZone = zone
+                    , dnssecInfoPubAlg = pa
+                    , dnssecInfoDigestAlg = dd
+                    , dnssecInfoTTL = 3600 -- overridden by SOA
+                    , dnssecInfoDuration = 86400 -- fixme
+                    }
+        h <- case toNsec3Hash cnf_nsec3_hash of
+            Just h0 -> return h0
+            Nothing -> E.throwIO $ AuthException $ "NSEC3 Hash: " ++ cnf_nsec3_hash ++ " is unknown"
+        let mn3p
+                | cnf_nsec3 = Just $ defaultNSEC3PARAM{nsec3param_hashalg = h}
+                | otherwise = Nothing
+        return $ FromFile file info mn3p
 
 ----------------------------------------------------------------
 

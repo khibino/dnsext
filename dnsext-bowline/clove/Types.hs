@@ -8,12 +8,14 @@ import Network.Socket
 
 import DNS.Auth.Algorithm
 import DNS.Log
+import DNS.SEC
+import DNS.SEC.Verify
 import DNS.Types
 
 ----------------------------------------------------------------
 
 data Source
-    = FromFile FilePath
+    = FromFile FilePath DNSSECinfo (Maybe RD_NSEC3PARAM)
     | FromUpstream4 IPv4
     | FromUpstream6 IPv6
     deriving (Eq, Show)
