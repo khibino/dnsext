@@ -39,11 +39,13 @@ norec :: MonadIO m => Env -> WorkerStatOP -> Bool -> NonEmpty Address -> Domain 
 norec cxt wstat dnssecOK aservers name typ =
     liftIO $ blockingIO wstat "norec" $ bracket_ (return ()) closeTasks body
   where
-    body = steppedWait wstat TimeoutExpired RetryLimitExceeded 250_000 axs
+    body = steppedWait wstat TimeoutExpired RetryLimitExceeded waitInterval axs
     axs = [(tag ++ ".q1", action), (tag ++ ".q2", action)]
     tag = let (a:|as) = aservers in show name ++ " " ++ show typ ++ ": " ++ show (a:as)
-    action = norec_ 500_000 cxt wstat dnssecOK aservers name typ
+    action = debugDelay >> norec_ 500_000 cxt wstat dnssecOK aservers name typ
     closeTasks  = clearTasks wstat
+    waitInterval = 250_000
+    debugDelay   = return ()
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
