@@ -37,18 +37,15 @@ import DNS.Iterative.Query.SteppedWait (steppedWait)
 {- FOURMOLU_DISABLE -}
 norec :: MonadIO m => Env -> WorkerStatOP -> Bool -> NonEmpty Address -> Domain -> TYPE -> m (Either DNSError DNSMessage)
 norec cxt wstat dnssecOK aservers name typ =
-    liftIO $ bracket_ (return ()) closeTasks (steppedWait wstat TimeoutExpired RetryLimitExceeded 250_000 actions)
+    liftIO $ blockingIO wstat "norec" $ bracket_ (return ()) closeTasks body
   where
+    body = steppedWait wstat TimeoutExpired RetryLimitExceeded waitInterval axs
+    axs = [(tag ++ ".q1", action), (tag ++ ".q2", action)]
+    tag = let (a:|as) = aservers in show name ++ " " ++ show typ ++ ": " ++ show (a:as)
+    action = debugDelay >> norec_ 500_000 cxt wstat dnssecOK aservers name typ
     closeTasks  = clearTasks wstat
-    actions = [apair (tag ++ ".q1"), apair (tag ++ ".q2")]
-    tag = let (a:|as) = aservers in show (a:as)
-    apair tag_ = (tag_, getWithBStats >>= \asps -> blockingIO_ tag_ (action asps))
-    action asps@(x:|xs) =
-        openTasks >> norec_ 500_000 cxt dnssecOK asps name typ
-      where
-        openTasks  = addTasks wstat [bstat | (_, bstat) <- x:xs]
-    getWithBStats = mapM (\x -> (,) x <$> getBlockingStatOP) aservers
-    blockingIO_ tag_ = blockingIO wstat $ show name ++ " " ++ show typ ++ ": " ++ tag_
+    waitInterval = 250_000
+    debugDelay   = return ()
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -56,8 +53,12 @@ norec cxt wstat dnssecOK aservers name typ =
    Note about flags in request to an authoritative server.
   * RD (Recursion Desired) must be 0 for request to authoritative server
   * EDNS must be enable for DNSSEC OK request -}
-norec_ :: Int -> Env -> Bool -> NonEmpty (Address, BlockingStatOP) -> Domain -> TYPE -> IO (Either DNSError DNSMessage)
-norec_ utimeout cxt dnssecOK asps name typ = do
+norec_
+    :: Int -> Env -> WorkerStatOP -> Bool -> NonEmpty Address
+    -> Domain -> TYPE -> IO (Either DNSError DNSMessage)
+norec_ utimeout cxt wstat dnssecOK aservers name typ = do
+    asps@(x:|xs) <- sequence [ (,) x <$> getBlockingStatOP | x <- aservers ]
+    addTasks wstat [bstat | (_, bstat) <- x:xs]
     let riActions bstatOP =
             defaultResolveActions
                 { ractionGenId        = idGen_ cxt

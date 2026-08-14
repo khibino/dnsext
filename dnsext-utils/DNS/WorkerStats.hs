@@ -35,7 +35,7 @@ pprWorkerStats _pn ops = do
         getDiffT (_n, (_bks, _ctx, _cause, diff), _ts) = diff
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) $ runnings ++ blockings
         pprEnq  p (wn, wbs@(ContextQuery dox _q, _, _, _), _ts)
-            | p dox  = ((show wn ++ ":" ++ pprBlkStat wbs) :)
+            | p dox  = ((showDec3 wn ++ ":" ++ pprBlkStat wbs) :)
         pprEnq _p  _  = id
         pprEnqs
             | null pp    = "no workers"
@@ -157,7 +157,7 @@ pprBlockingStat pwidth ctx bstate cause diff =
 {- FOURMOLU_ENABLE -}
 
 pprTaskBlockingStat :: BlockingStat -> BlockingCause -> DiffTime -> String
-pprTaskBlockingStat = pprBlockingStat 9 ""
+pprTaskBlockingStat = pprBlockingStat 14 ""
 
 pprCtxBlockingStat :: BlockingContext -> BlockingStat -> BlockingCause -> DiffTime -> String
 pprCtxBlockingStat context =
