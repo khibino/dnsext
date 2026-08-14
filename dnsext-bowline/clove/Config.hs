@@ -47,6 +47,7 @@ data ZoneConf = ZoneConf
     , cnf_allow_notify_addrs   :: [String]
     , cnf_allow_transfer       :: Bool
     , cnf_allow_transfer_addrs :: [String]
+    , cnf_key_dir              :: FilePath
     }
     deriving (Show)
 
@@ -62,6 +63,7 @@ defaultZoneConf =
         , cnf_allow_notify_addrs   = []
         , cnf_allow_transfer       = False
         , cnf_allow_transfer_addrs = []
+        , cnf_key_dir              = "/var/clove/keys/"
         }
 
 ----------------------------------------------------------------
@@ -97,6 +99,7 @@ makeZoneConf def conf = do
     cnf_allow_notify_addrs   <- get "allow-notify-addrs"   cnf_allow_notify_addrs
     cnf_allow_transfer       <- get "allow-transfer"       cnf_allow_transfer
     cnf_allow_transfer_addrs <- get "allow-transfer-addrs" cnf_allow_transfer_addrs
+    cnf_key_dir              <- get "key-dir"              cnf_key_dir
     pure ZoneConf{..}
   where
     get k func = do
