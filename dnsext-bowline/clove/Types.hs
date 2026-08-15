@@ -15,9 +15,12 @@ import DNS.Types
 ----------------------------------------------------------------
 
 data Source
-    = FromFile FilePath (Maybe DNSSECinfo) (Maybe RD_NSEC3PARAM)
+    = FromFile FilePath
     | FromUpstream4 IPv4
     | FromUpstream6 IPv6
+    deriving (Eq, Show)
+
+data Signing = Signing DNSSECinfo (Maybe RD_NSEC3PARAM) -- Nothing for NSEC
     deriving (Eq, Show)
 
 ----------------------------------------------------------------
@@ -28,6 +31,7 @@ type Wait = Int -> IO ()
 data Zone = Zone
     { zoneName :: Domain
     , zoneSource :: Source
+    , zoneSigning :: Maybe Signing
     , zoneDB :: DB
     , zoneReady :: Bool
     , zoneShouldRefresh :: Bool

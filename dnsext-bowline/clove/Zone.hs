@@ -39,8 +39,8 @@ newZones env zcs = mapM (newZone env) zcs
 
 newZone :: Env -> ZoneConf -> IO Zone
 newZone env zoneconf@ZoneConf{..} = do
-    source <- readSource zone zoneconf
-    edb <- E.try $ loadSource env zone (Serial 0) source
+    msigning <- readSigning zone zoneconf
+    edb <- E.try $ loadSourceWithSigning env zone (Serial 0) source msigning
     (db, ready) <- case edb of
         Left (AuthException msg) -> do
             envPutLines env WARNING Nothing [msg]
@@ -63,14 +63,16 @@ newZone env zoneconf@ZoneConf{..} = do
             , zoneAllowTransfer6 = t6
             , zoneName = zone
             , zoneSource = source
+            , zoneSigning = msigning
             , zoneWakeUp = wakeup
             , zoneWait = wait
             }
   where
     zone = fromRepresentation cnf_zone
+    source = readSource zoneconf
 
 shouldReload :: Source -> Bool
-shouldReload (FromFile _ _ _) = False
+shouldReload (FromFile _) = False
 shouldReload _ = True
 
 initSync :: IO (WakeUp, Wait)
@@ -97,7 +99,7 @@ updateZone :: Env -> IORef Zone -> IO ()
 updateZone env zoneref = do
     Zone{..} <- readIORef zoneref
     let serial = soa_serial $ dbRD_SOA zoneDB
-    edb <- E.try $ loadSource env zoneName serial zoneSource
+    edb <- E.try $ loadSourceWithSigning env zoneName serial zoneSource zoneSigning
     case edb of
         Left (AuthException msg) -> envPutLines env WARNING Nothing [msg]
         Right db -> atomicModifyIORef' zoneref $ modify db
@@ -119,22 +121,30 @@ extractTTL (soarr : _rest) = case fromRData $ rdata soarr of
     Just soa -> return $ soa_minimum soa
 
 -- | This function throws 'AuthException'.
-loadSource :: Env -> Domain -> Serial -> Source -> IO DB
+loadSourceWithSigning
+    :: Env
+    -> Domain
+    -> Serial
+    -> Source
+    -> Maybe Signing
+    -> IO DB
+loadSourceWithSigning env zone serial source Nothing =
+    loadSource env zone serial source >>= makeDBforSecondary zone
+loadSourceWithSigning env zone serial source (Just (Signing info mn3p)) = do
+    rrs <- loadSource env zone serial source
+    ttl <- extractTTL rrs
+    let info' = info{dnssecInfoTTL = ttl}
+    (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info'
+    -- fixme:
+    print ds
+    makeDBforPrimary zone mn3p doSign (rrs ++ [dnskey])
+
+-- | This function throws 'AuthException'.
+loadSource :: Env -> Domain -> Serial -> Source -> IO [ResourceRecord]
 loadSource env zone serial source = case source of
-    FromUpstream4 ip4 ->
-        Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
-    FromUpstream6 ip6 ->
-        Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
-    FromFile fn Nothing _ -> loadDB zone fn
-    FromFile fn (Just info) mn3p -> do
-        -- head rrs is soa
-        rrs <- loadZoneFile zone fn
-        ttl <- extractTTL rrs
-        let info' = info{dnssecInfoTTL = ttl}
-        (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info'
-        -- fixme:
-        print ds
-        makeDBforPrimary zone mn3p doSign (rrs ++ [dnskey])
+    FromUpstream4 ip4 -> Axfr.client env serial (IPv4 ip4) zone
+    FromUpstream6 ip6 -> Axfr.client env serial (IPv6 ip6) zone
+    FromFile fn -> loadZoneFile zone fn
 
 ----------------------------------------------------------------
 
@@ -150,13 +160,16 @@ readIPRange ss0 = loop id id ss0
         | Just a4 <- readMaybe s = loop (b4 . (a4 :)) b6 ss
         | otherwise = loop b4 b6 ss
 
-readSource :: Domain -> ZoneConf -> IO Source
-readSource zone ZoneConf{..}
-    | Just a6 <- readMaybe cnf_source = return $ FromUpstream6 a6
-    | Just a4 <- readMaybe cnf_source = return $ FromUpstream4 a4
-    | not cnf_dnssec = return $ FromFile cnf_source Nothing Nothing
+readSource :: ZoneConf -> Source
+readSource ZoneConf{..}
+    | Just a6 <- readMaybe cnf_source = FromUpstream6 a6
+    | Just a4 <- readMaybe cnf_source = FromUpstream4 a4
+    | otherwise = FromFile cnf_source
+
+readSigning :: Domain -> ZoneConf -> IO (Maybe Signing)
+readSigning dom ZoneConf{..}
+    | not cnf_signing = return Nothing
     | otherwise = do
-        let file = cnf_source
         pa <- case toPubAlgo cnf_pub_algo of
             Just pa0 -> return pa0
             Nothing -> E.throwIO $ AuthException $ "Public Algo: " ++ cnf_pub_algo ++ " is unknown"
@@ -165,7 +178,7 @@ readSource zone ZoneConf{..}
             Nothing -> E.throwIO $ AuthException $ "DS Digest: " ++ cnf_ds_digest ++ " is unknown"
         let info =
                 DNSSECinfo
-                    { dnssecInfoZone = zone
+                    { dnssecInfoZone = dom
                     , dnssecInfoPubAlg = pa
                     , dnssecInfoDigestAlg = dd
                     , dnssecInfoTTL = 3600 -- overridden by SOA
@@ -177,7 +190,7 @@ readSource zone ZoneConf{..}
         let mn3p
                 | cnf_nsec3 = Just $ defaultNSEC3PARAM{nsec3param_hashalg = h}
                 | otherwise = Nothing
-        return $ FromFile file (Just info) mn3p
+        return $ Just $ Signing info mn3p
 
 ----------------------------------------------------------------
 
