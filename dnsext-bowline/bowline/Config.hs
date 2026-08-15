@@ -84,6 +84,7 @@ data Config = Config
     , cnf_dnstap_reconnect_interval :: Int
     , cnf_webapi :: Bool
     , cnf_webapi_addr :: String
+    , cnf_webapi_addrs :: [String]
     , cnf_webapi_port :: PortNumber
     , cnf_cache_max_negative_ttl :: Int
     , cnf_cache_failure_rcode_ttl :: Int
@@ -159,6 +160,7 @@ defaultConfig =
         , cnf_dnstap_reconnect_interval = 10
         , cnf_webapi = True
         , cnf_webapi_addr = "127.0.0.1"
+        , cnf_webapi_addrs = []
         , cnf_webapi_port = 8080
         , cnf_cache_max_negative_ttl = 3600
         , cnf_cache_failure_rcode_ttl = 180
@@ -320,6 +322,7 @@ makeConfig def conf = do
     cnf_dnstap_reconnect_interval <- get "dnstap-reconnect-interval" cnf_dnstap_reconnect_interval
     cnf_webapi <- get "webapi" cnf_webapi
     cnf_webapi_addr <- get "webapi-addr" cnf_webapi_addr
+    cnf_webapi_addrs <- (cnf_webapi_addr :) <$> get "webapi-addrs" cnf_webapi_addrs
     cnf_webapi_port <- get "webapi-port" cnf_webapi_port
     cnf_cache_max_negative_ttl <- get "cache-max-negative-ttl" cnf_cache_max_negative_ttl
     cnf_cache_failure_rcode_ttl <- get "cache-failure-rcode-ttl" cnf_cache_failure_rcode_ttl
