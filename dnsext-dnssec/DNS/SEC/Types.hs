@@ -231,7 +231,7 @@ rd_nsec a b = toRData $ RD_NSEC a b
 
 ----------------------------------------------------------------
 
-newtype PubKey = PubKey {fromPubkey :: Opaque} deriving (Eq, Ord, Show)
+newtype PubKey = PubKey {fromPubKey :: Opaque} deriving (Eq, Ord, Show)
 
 toPubKey :: Opaque -> PubKey
 toPubKey = PubKey
@@ -256,7 +256,7 @@ data RD_DNSKEY = RD_DNSKEY
 instance ResourceData RD_DNSKEY where
     resourceDataType _ = DNSKEY
     resourceDataSize RD_DNSKEY{..} =
-        2 + 1 + 1 + Opaque.length (fromPubkey dnskey_public_key)
+        2 + 1 + 1 + Opaque.length (fromPubKey dnskey_public_key)
     putResourceData _ RD_DNSKEY{..} = \wbuf ref -> do
         putDNSKEYflags dnskey_flags wbuf ref
         put8 wbuf dnskey_protocol
@@ -441,7 +441,7 @@ data RD_CDNSKEY = RD_CDNSKEY
 instance ResourceData RD_CDNSKEY where
     resourceDataType _ = CDNSKEY
     resourceDataSize RD_CDNSKEY{..} =
-        2 + 1 + 1 + Opaque.length (fromPubkey cdnskey_public_key)
+        2 + 1 + 1 + Opaque.length (fromPubKey cdnskey_public_key)
     putResourceData _ RD_CDNSKEY{..} = \wbuf ref -> do
         putDNSKEYflags cdnskey_flags wbuf ref
         put8 wbuf cdnskey_protocol
