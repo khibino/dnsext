@@ -107,6 +107,7 @@ data DNSSECinfo = DNSSECinfo
     -- ^ Duration of RRSIG. This value is added to inception to
     -- calculate expiration.
     }
+    deriving (Eq, Show)
 
 data RRSetSig = RRSetSig
     { rrsetsigName :: Domain

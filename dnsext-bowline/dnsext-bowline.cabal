@@ -148,7 +148,8 @@ executable ddrd
 executable clove
     main-is:          clove.hs
     hs-source-dirs:   clove
-    other-modules:    Auth
+    other-modules:    Algo
+                      Auth
                       Axfr
                       Config
                       Net

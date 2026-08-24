@@ -3,13 +3,14 @@
 module Config (
     Config (..),
     loadConfig,
+    ZoneConf (..),
 ) where
 
 import DNS.Config
 import Network.Socket (PortNumber)
 import System.IO.Error (ioeGetErrorString, ioeSetErrorString, tryIOError)
 
-import Types
+----------------------------------------------------------------
 
 {- FOURMOLU_DISABLE -}
 data Config = Config
@@ -34,19 +35,46 @@ defaultConfig =
         , cnf_log_level = "WARNING"
         }
 
+----------------------------------------------------------------
+
+data ZoneConf = ZoneConf
+    { cnf_zone                 :: String
+    , cnf_notify               :: Bool
+    , cnf_notify_addrs         :: [String]
+    , cnf_allow_notify         :: Bool
+    , cnf_allow_notify_addrs   :: [String]
+    , cnf_allow_transfer       :: Bool
+    , cnf_allow_transfer_addrs :: [String]
+    , cnf_source               :: String
+    , cnf_signing              :: Bool
+    , cnf_nsec3                :: Bool
+    , cnf_key_dir              :: FilePath
+    , cnf_pub_algo             :: String
+    , cnf_ds_digest            :: String
+    , cnf_nsec3_hash           :: String
+    }
+    deriving (Show)
+
 defaultZoneConf :: ZoneConf
 defaultZoneConf =
     ZoneConf
         { cnf_zone                 = "example.org"
-        , cnf_source               = "example.zone"
-        , cnf_dnssec               = False
         , cnf_notify               = False
         , cnf_notify_addrs         = []
         , cnf_allow_notify         = False
         , cnf_allow_notify_addrs   = []
         , cnf_allow_transfer       = False
         , cnf_allow_transfer_addrs = []
+        , cnf_signing              = True
+        , cnf_source               = "example.zone"
+        , cnf_nsec3                = True
+        , cnf_key_dir              = "/var/clove/keys/"
+        , cnf_pub_algo             = "ED25519"
+        , cnf_ds_digest            = "SHA-256"
+        , cnf_nsec3_hash           = "SHA-1"
         }
+
+----------------------------------------------------------------
 
 makeConfig :: Config -> [Conf] -> IO (Config, [ZoneConf])
 makeConfig def conf0 = do
@@ -71,14 +99,19 @@ makeConfig def conf0 = do
 makeZoneConf :: ZoneConf -> [Conf] -> IO ZoneConf
 makeZoneConf def conf = do
     cnf_zone                 <- get "zone"                 cnf_zone
-    cnf_source               <- get "source"               cnf_source
-    cnf_dnssec               <- get "dnssec"               cnf_dnssec
     cnf_notify               <- get "notify"               cnf_notify
     cnf_notify_addrs         <- get "notify-addrs"         cnf_notify_addrs
     cnf_allow_notify         <- get "allow-notify"         cnf_allow_notify
     cnf_allow_notify_addrs   <- get "allow-notify-addrs"   cnf_allow_notify_addrs
     cnf_allow_transfer       <- get "allow-transfer"       cnf_allow_transfer
     cnf_allow_transfer_addrs <- get "allow-transfer-addrs" cnf_allow_transfer_addrs
+    cnf_source               <- get "source"               cnf_source
+    cnf_signing              <- get "signing"              cnf_signing
+    cnf_nsec3                <- get "nsec3"                cnf_nsec3
+    cnf_key_dir              <- get "key-dir"              cnf_key_dir
+    cnf_pub_algo             <- get "pub-algo"             cnf_pub_algo
+    cnf_ds_digest            <- get "ds-digest"            cnf_ds_digest
+    cnf_nsec3_hash           <- get "nsec3-hash"           cnf_nsec3_hash
     pure ZoneConf{..}
   where
     get k func = do

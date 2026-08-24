@@ -20,11 +20,14 @@ import Text.Read
 
 import DNS.Auth.Algorithm
 import DNS.Auth.DB
+import DNS.Log
 import DNS.SEC
 import DNS.SEC.Verify
 import DNS.Types
 
+import Algo
 import qualified Axfr
+import Config
 import Types
 
 ----------------------------------------------------------------
@@ -35,11 +38,14 @@ newZones env zcs = mapM (newZone env) zcs
 ----------------------------------------------------------------
 
 newZone :: Env -> ZoneConf -> IO Zone
-newZone env ZoneConf{..} = do
-    edb <- E.try $ loadSource env zone (Serial 0) source
-    let (db, ready) = case edb of
-            Left (AuthException _) -> (emptyDB, False)
-            Right db' -> (db', True)
+newZone env zoneconf@ZoneConf{..} = do
+    msigning <- readSigning zone zoneconf
+    edb <- E.try $ loadSourceWithSigning env zone (Serial 0) source msigning
+    (db, ready) <- case edb of
+        Left (AuthException msg) -> do
+            envPutLines env WARNING Nothing [msg]
+            return (emptyDB, False)
+        Right db' -> return (db', True)
     let (a4, a6) = readIPRange cnf_allow_transfer_addrs
         t4 = fromList $ map (,True) a4
         t6 = fromList $ map (,True) a6
@@ -57,12 +63,13 @@ newZone env ZoneConf{..} = do
             , zoneAllowTransfer6 = t6
             , zoneName = zone
             , zoneSource = source
+            , zoneSigning = msigning
             , zoneWakeUp = wakeup
             , zoneWait = wait
             }
   where
     zone = fromRepresentation cnf_zone
-    source = readSource cnf_source
+    source = readSource zoneconf
 
 shouldReload :: Source -> Bool
 shouldReload (FromFile _) = False
@@ -92,9 +99,9 @@ updateZone :: Env -> IORef Zone -> IO ()
 updateZone env zoneref = do
     Zone{..} <- readIORef zoneref
     let serial = soa_serial $ dbRD_SOA zoneDB
-    edb <- E.try $ loadSource env zoneName serial zoneSource
+    edb <- E.try $ loadSourceWithSigning env zoneName serial zoneSource zoneSigning
     case edb of
-        Left (AuthException _) -> return ()
+        Left (AuthException msg) -> envPutLines env WARNING Nothing [msg]
         Right db -> atomicModifyIORef' zoneref $ modify db
   where
     modify db zone = (zone', ())
@@ -114,28 +121,30 @@ extractTTL (soarr : _rest) = case fromRData $ rdata soarr of
     Just soa -> return $ soa_minimum soa
 
 -- | This function throws 'AuthException'.
-loadSource :: Env -> Domain -> Serial -> Source -> IO DB
+loadSourceWithSigning
+    :: Env
+    -> Domain
+    -> Serial
+    -> Source
+    -> Maybe Signing
+    -> IO DB
+loadSourceWithSigning env zone serial source Nothing =
+    loadSource env zone serial source >>= makeDBforSecondary zone
+loadSourceWithSigning env zone serial source (Just (Signing info mn3p)) = do
+    rrs <- loadSource env zone serial source
+    ttl <- extractTTL rrs
+    let info' = info{dnssecInfoTTL = ttl}
+    (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info'
+    -- fixme:
+    print ds
+    makeDBforPrimary zone mn3p doSign (rrs ++ [dnskey])
+
+-- | This function throws 'AuthException'.
+loadSource :: Env -> Domain -> Serial -> Source -> IO [ResourceRecord]
 loadSource env zone serial source = case source of
-    FromUpstream4 ip4 ->
-        Axfr.client env serial (IPv4 ip4) zone >>= makeDBforSecondary zone
-    FromUpstream6 ip6 ->
-        Axfr.client env serial (IPv6 ip6) zone >>= makeDBforSecondary zone
-    FromFile fn -> do
-        -- head rrs is soa
-        rrs <- loadZoneFile zone fn
-        ttl <- extractTTL rrs
-        let info =
-                DNSSECinfo
-                    { dnssecInfoZone = zone
-                    , dnssecInfoPubAlg = ED25519
-                    , dnssecInfoDigestAlg = SHA256
-                    , dnssecInfoTTL = ttl
-                    , dnssecInfoDuration = 86400
-                    }
-        (_pub, _pri, dnskey, ds, doSign) <- prepareDNSSEC info
-        -- fixme:
-        print ds
-        makeDBforPrimary zone (Just defaultNSEC3PARAM) doSign (rrs ++ [dnskey])
+    FromUpstream4 ip4 -> Axfr.client env serial (IPv4 ip4) zone
+    FromUpstream6 ip6 -> Axfr.client env serial (IPv6 ip6) zone
+    FromFile fn -> loadZoneFile zone fn
 
 ----------------------------------------------------------------
 
@@ -151,11 +160,37 @@ readIPRange ss0 = loop id id ss0
         | Just a4 <- readMaybe s = loop (b4 . (a4 :)) b6 ss
         | otherwise = loop b4 b6 ss
 
-readSource :: String -> Source
-readSource s
-    | Just a6 <- readMaybe s = FromUpstream6 a6
-    | Just a4 <- readMaybe s = FromUpstream4 a4
-    | otherwise = FromFile s
+readSource :: ZoneConf -> Source
+readSource ZoneConf{..}
+    | Just a6 <- readMaybe cnf_source = FromUpstream6 a6
+    | Just a4 <- readMaybe cnf_source = FromUpstream4 a4
+    | otherwise = FromFile cnf_source
+
+readSigning :: Domain -> ZoneConf -> IO (Maybe Signing)
+readSigning dom ZoneConf{..}
+    | not cnf_signing = return Nothing
+    | otherwise = do
+        pa <- case toPubAlgo cnf_pub_algo of
+            Just pa0 -> return pa0
+            Nothing -> E.throwIO $ AuthException $ "Public Algo: " ++ cnf_pub_algo ++ " is unknown"
+        dd <- case toDsDigest cnf_ds_digest of
+            Just dd0 -> return dd0
+            Nothing -> E.throwIO $ AuthException $ "DS Digest: " ++ cnf_ds_digest ++ " is unknown"
+        let info =
+                DNSSECinfo
+                    { dnssecInfoZone = dom
+                    , dnssecInfoPubAlg = pa
+                    , dnssecInfoDigestAlg = dd
+                    , dnssecInfoTTL = 3600 -- overridden by SOA
+                    , dnssecInfoDuration = 86400 -- fixme
+                    }
+        h <- case toNsec3Hash cnf_nsec3_hash of
+            Just h0 -> return h0
+            Nothing -> E.throwIO $ AuthException $ "NSEC3 Hash: " ++ cnf_nsec3_hash ++ " is unknown"
+        let mn3p
+                | cnf_nsec3 = Just $ defaultNSEC3PARAM{nsec3param_hashalg = h}
+                | otherwise = Nothing
+        return $ Just $ Signing info mn3p
 
 ----------------------------------------------------------------
 
