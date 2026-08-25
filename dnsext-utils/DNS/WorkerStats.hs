@@ -52,7 +52,7 @@ pprWorkerStats _pn ops = do
   where
     pprBlkStat (context, bstate, cause, diff) = pprCtxBlockingStat context bstate cause diff
     pprTasks op = getTasks op >>= mapM pprTask
-    pprTask bs = withBlockingStat bs $ \bstat cause dtime -> return (pprTaskBlockingStat bstat cause dtime)
+    pprTask bs = withBlockingStat bs $ \_tid bstat cause dtime -> return (pprTaskBlockingStat bstat cause dtime)
     showDec3 n
         | 100 <= n   = show n
         | 10  <= n   = ' ' : show n
@@ -169,7 +169,7 @@ pprCtxBlockingStat context =
 class OpBlockingStat op where
     setBlocking       :: op -> BlockingCause -> IO ()
     setUnblocked      :: op -> IO ()
-    withBlockingStat  :: op -> (BlockingStat -> BlockingCause -> DiffTime -> IO a) -> IO a
+    withBlockingStat  :: op -> (Maybe ThreadId -> BlockingStat -> BlockingCause -> DiffTime -> IO a) -> IO a
 
 ------------------------------------------------------------
 
@@ -184,7 +184,7 @@ data BlockingStatOP =
 instance OpBlockingStat BlockingStatOP where
     setBlocking       = setBlocking_
     setUnblocked      = setUnblocked_
-    withBlockingStat  = \op k -> withBlockingStat_ op (\_tid bs bc dt -> k bs bc dt)
+    withBlockingStat  = withBlockingStat_
 
 {- FOURMOLU_DISABLE -}
 data WorkerStatOP =
@@ -206,7 +206,7 @@ instance OpBlockingStat WorkerStatOP where
 {- FOURMOLU_ENABLE -}
 
 getBlockingStat  :: WorkerStatOP -> IO (BlockingContext, BlockingStat, BlockingCause, DiffTime)
-getBlockingStat op = withContext op $ \cx -> withBlockingStat op $ \bs bc dt -> return (cx, bs, bc, dt)
+getBlockingStat op = withContext op $ \cx -> withBlockingStat op $ \_tid bs bc dt -> return (cx, bs, bc, dt)
 
 data WBStatStore = WBStatStore BlockingStat TimeStamp
 
@@ -301,7 +301,7 @@ contextClear = setRequest
 
 {- FOURMOLU_DISABLE -}
 eventLogWS :: WorkerStatOP -> IO ()
-eventLogWS wstat = withContext wstat $ \context -> withBlockingStat wstat $ \bstate cause diff -> do
+eventLogWS wstat = withContext wstat $ \context -> withBlockingStat wstat $ \_tid bstate cause diff -> do
     let wspp = pprCtxBlockingStat context bstate cause diff
     TStat.eventLog $ "iter.st " ++ wspp
 {- FOURMOLU_ENABLE -}
