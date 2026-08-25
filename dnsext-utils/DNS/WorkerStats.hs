@@ -178,13 +178,13 @@ data BlockingStatOP =
     { setBlocking_       :: BlockingCause -> IO ()
     , setUnblocked_      :: IO ()
     , setThreadId_       :: ThreadId -> IO ()
-    , withBlockingStat_  :: forall a . (BlockingStat -> BlockingCause  -> DiffTime -> IO a) -> IO a
+    , withBlockingStat_  :: forall a . (Maybe ThreadId -> BlockingStat -> BlockingCause  -> DiffTime -> IO a) -> IO a
     }
 
 instance OpBlockingStat BlockingStatOP where
     setBlocking       = setBlocking_
     setUnblocked      = setUnblocked_
-    withBlockingStat  = withBlockingStat_
+    withBlockingStat  = \op k -> withBlockingStat_ op (\_tid bs bc dt -> k bs bc dt)
 
 {- FOURMOLU_DISABLE -}
 data WorkerStatOP =
@@ -202,11 +202,11 @@ data WorkerStatOP =
 instance OpBlockingStat WorkerStatOP where
     setBlocking       = setBlocking_ . blockingOP
     setUnblocked      = setUnblocked_ . blockingOP
-    withBlockingStat  = withBlockingStat_ . blockingOP
+    withBlockingStat  = withBlockingStat . blockingOP
 {- FOURMOLU_ENABLE -}
 
 getBlockingStat  :: WorkerStatOP -> IO (BlockingContext, BlockingStat, BlockingCause, DiffTime)
-getBlockingStat op = withContext op $ \cx -> withBlockingStat_ (blockingOP op) $ \bs bc dt -> return (cx, bs, bc, dt)
+getBlockingStat op = withContext op $ \cx -> withBlockingStat op $ \bs bc dt -> return (cx, bs, bc, dt)
 
 data WBStatStore = WBStatStore BlockingStat TimeStamp
 
@@ -225,7 +225,7 @@ noopBlockingStat =
     { setBlocking_       = \_ -> return ()
     , setUnblocked_      = return ()
     , setThreadId_       = \_ -> return ()
-    , withBlockingStat_  = \k -> k StatBlocking CauseUndef (DiffT (-1))
+    , withBlockingStat_  = \k -> k Nothing StatBlocking CauseUndef (DiffT (-1))
     }
 {- FOURMOLU_ENABLE -}
 
@@ -254,7 +254,7 @@ getBlockingStatOP = do
         { setBlocking_       = blocking  blkRef
         , setUnblocked_      = unblocked blkRef
         , setThreadId_       = writeIORef tidRef . Just
-        , withBlockingStat_  = withBlkStat blkRef
+        , withBlockingStat_  = withBlkStat tidRef blkRef
         }
   where
     mkBsStore bstat = WBStatStore bstat <$> getTimeStamp
@@ -267,11 +267,12 @@ getBlockingStatOP = do
     unblocked bkRef = do
         WBStore{wbkStatRef = ref} <- readIORef bkRef
         writeIORef ref =<< mkBsStore StatUnblocked
-    withBlkStat blkRef = \k -> do
+    withBlkStat tidRef blkRef = \k -> do
+        mayTid <- readIORef tidRef
         WBStore{wbkStatRef = ref, wbkCause = cause} <- readIORef blkRef
         WBStatStore bstat ts0 <- readIORef ref
         now <- getTimeStamp
-        k bstat cause (now `diffTimeStamp` ts0)
+        k mayTid bstat cause (now `diffTimeStamp` ts0)
 
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
