@@ -23,17 +23,17 @@ import DNS.Transport.Types (DoX (..))
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
     stats <- zip3 [1 :: Int ..] <$> mapM getBlockingStat ops <*> mapM pprTasks ops
-    let isBkStat p (_n, (_ctx, bks, _cause, _diff), _ts) = p bks
+    let isBkStat p (_n, (_ctx, _tid, bks, _cause, _diff), _ts) = p bks
         ablockings  = filter (isBkStat (== StatBlocking))  stats
         runnings    = filter (isBkStat (== StatUnblocked)) stats
-        isBkCause p (_n, (_ctx, _bks, cause, _diff), _ts) = p cause
+        isBkCause p (_n, (_ctx, _tid, _bks, cause, _diff), _ts) = p cause
         requests    = filter (isBkCause (== CauseRequest))  ablockings
         responses   = filter (isBkCause (== CauseResponse)) ablockings
         blockings   = filter (isBkCause (`notElem` [CauseRequest, CauseResponse])) ablockings
         {- sorted by query span -}
-        getDiffT (_n, (_bks, _ctx, _cause, diff), _ts) = diff
+        getDiffT (_n, (_ctx, _bks, _tid, _cause, diff), _ts) = diff
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) $ runnings ++ blockings
-        pprEnq  p (wn, wbs@(ContextQuery dox _q, _, _, _), _ts)
+        pprEnq  p (wn, wbs@(ContextQuery dox _q, _tid, _, _, _), _ts)
             | p dox  = ((showDec3 wn ++ ":" ++ pprBlkStat wbs) :)
         pprEnq _p  _  = id
         pprEnqs
@@ -50,7 +50,7 @@ pprWorkerStats _pn ops = do
 
     return $ concatMap pprq sorted ++ [pprdeq, pprenq]
   where
-    pprBlkStat (context, bstate, cause, diff) = pprCtxBlockingStat context bstate cause diff
+    pprBlkStat (context, _tid, bstate, cause, diff) = pprCtxBlockingStat context bstate cause diff
     pprTasks op = getTasks op >>= mapM pprTask
     pprTask bs = withBlockingStat bs $ \_tid bstat cause dtime -> return (pprTaskBlockingStat bstat cause dtime)
     showDec3 n
@@ -205,8 +205,8 @@ instance OpBlockingStat WorkerStatOP where
     withBlockingStat  = withBlockingStat . blockingOP
 {- FOURMOLU_ENABLE -}
 
-getBlockingStat  :: WorkerStatOP -> IO (BlockingContext, BlockingStat, BlockingCause, DiffTime)
-getBlockingStat op = withContext op $ \cx -> withBlockingStat op $ \_tid bs bc dt -> return (cx, bs, bc, dt)
+getBlockingStat  :: WorkerStatOP -> IO (BlockingContext, Maybe ThreadId, BlockingStat, BlockingCause, DiffTime)
+getBlockingStat op = withContext op $ \cx -> withBlockingStat op $ \tid bs bc dt -> return (cx, tid, bs, bc, dt)
 
 data WBStatStore = WBStatStore BlockingStat TimeStamp
 
