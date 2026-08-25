@@ -177,6 +177,7 @@ data BlockingStatOP =
     BlockingStatOP
     { setBlocking_       :: BlockingCause -> IO ()
     , setUnblocked_      :: IO ()
+    , setThreadId_       :: ThreadId -> IO ()
     , withBlockingStat_  :: forall a . (BlockingStat -> BlockingCause  -> DiffTime -> IO a) -> IO a
     }
 
@@ -223,6 +224,7 @@ noopBlockingStat =
     BlockingStatOP
     { setBlocking_       = \_ -> return ()
     , setUnblocked_      = return ()
+    , setThreadId_       = \_ -> return ()
     , withBlockingStat_  = \k -> k StatBlocking CauseUndef (DiffT (-1))
     }
 {- FOURMOLU_ENABLE -}
@@ -245,11 +247,13 @@ noopWorkerStat =
 {- FOURMOLU_DISABLE -}
 getBlockingStatOP :: IO BlockingStatOP
 getBlockingStatOP = do
+    tidRef  <- newIORef Nothing
     blkRef  <- newIORef =<< newBlkStore CauseUndef
     return
         BlockingStatOP
         { setBlocking_       = blocking  blkRef
         , setUnblocked_      = unblocked blkRef
+        , setThreadId_       = writeIORef tidRef . Just
         , withBlockingStat_  = withBlkStat blkRef
         }
   where
