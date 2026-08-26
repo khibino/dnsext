@@ -59,6 +59,34 @@ pprWorkerStats _pn ops = do
         | otherwise  = "  " ++ show n
 {- FOURMOLU_ENABLE -}
 
+-- |
+-- >>> import Control.Concurrent
+-- >>> import Data.Functor
+-- >>> import Data.String
+-- >>> import DNS.Types
+-- >>> (start   , waitStart) <- newEmptyMVar <&> \v -> (putMVar v () , takeMVar v  )
+-- >>> (waiting , trigger  ) <- newEmptyMVar <&> \v -> (takeMVar v   , putMVar v ())
+-- >>> (done    , waitDone ) <- newEmptyMVar <&> \v -> (putMVar v () , takeMVar v  )
+-- >>> (op, action) <- _pprChecker start waiting done (Question (fromString "example.com.") A IN)
+-- >>> _ <- forkIO (action op)
+-- >>> waitStart
+-- >>> withContext op $ \cx -> withBlockingStat op $ \tid bs bc dt -> putStrLn $ pprCtxBlockingStat cx tid bs bc dt
+-- ... blocking: tid ... DoT:...
+-- >>> trigger
+-- >>> waitDone
+_pprChecker :: IO () -> IO () -> IO () -> Question -> IO (WorkerStatOP, WorkerStatOP -> IO ())
+_pprChecker start waiting done q = do
+    op <- getWorkerStatOP
+    return (op, action)
+  where
+    action op = do
+        contextSetQuery op DoT q
+        blockingIO op "check-ppr" $ do
+           setThreadId op =<< myThreadId
+           start
+           waiting
+           done
+
 ------------------------------------------------------------
 
 {- FOURMOLU_DISABLE -}
