@@ -195,6 +195,7 @@ pprCtxBlockingStat context =
 class OpBlockingStat op where
     setBlocking       :: op -> BlockingCause -> IO ()
     setUnblocked      :: op -> IO ()
+    setThreadId       :: op -> ThreadId -> IO ()
     withBlockingStat  :: op -> (Maybe ThreadId -> BlockingStat -> BlockingCause -> DiffTime -> IO a) -> IO a
 
 ------------------------------------------------------------
@@ -210,6 +211,7 @@ data BlockingStatOP =
 instance OpBlockingStat BlockingStatOP where
     setBlocking       = setBlocking_
     setUnblocked      = setUnblocked_
+    setThreadId       = setThreadId_
     withBlockingStat  = withBlockingStat_
 
 {- FOURMOLU_DISABLE -}
@@ -228,6 +230,7 @@ data WorkerStatOP =
 instance OpBlockingStat WorkerStatOP where
     setBlocking       = setBlocking_ . blockingOP
     setUnblocked      = setUnblocked_ . blockingOP
+    setThreadId       = setThreadId_ . blockingOP
     withBlockingStat  = withBlockingStat . blockingOP
 {- FOURMOLU_ENABLE -}
 
