@@ -8,7 +8,7 @@ import Control.Concurrent (ThreadId, killThread, myThreadId)
 import Control.Exception (bracket_)
 import Data.Functor
 import Data.IORef
-import Data.List (sortBy)
+import Data.List (sortBy, stripPrefix)
 import Data.Ord (comparing)
 
 -- dnsext-types
@@ -145,15 +145,41 @@ instance Show BlockingContext where
 
 {- FOURMOLU_DISABLE -}
 pprBlockingStat :: Int -> String -> Maybe ThreadId -> BlockingStat -> BlockingCause -> DiffTime -> String
-pprBlockingStat pwidth ctx _tid bstate cause diff =
-    pad ++ diffStr ++ ": " ++ show bstate ++ ": " ++ npp ctx ++ ": " ++ show cause
+pprBlockingStat pwidth ctx mayTid bstate cause diff =
+    pad ++ diffStr ++ ": " ++ show bstate ++ ": " ++ tidpp ++ npp ctx ++ ": " ++ show cause
   where
     diffStr = showDiffSec1 diff
     pad = replicate (pwidth - length diffStr) ' '
+    --
+    tidpp = pprThreadId mayTid
+    --
     npp s
         | null s     = ""
         | otherwise  = ": " ++ s
 {- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+pprThreadId :: Maybe ThreadId -> String
+pprThreadId = maybe pprN pprT
+  where
+    width = 12
+    --
+    tagN = "no-tid"
+    padN = replicate (width - length tagN) ' '
+    pprN = tagN ++ padN
+    --
+    tagT = "tid"
+    pprT tid = tagT ++ padT ++ stid
+      where
+        padT = replicate (width - length tagT - length stid) ' '
+        stid = showTidNumber tid
+{- FOURMOLU_ENABLE -}
+
+showTidNumber :: ThreadId -> String
+showTidNumber tid =
+    maybe tidShow id $ stripPrefix "ThreadId " tidShow
+  where
+    tidShow = show tid
 
 pprTaskBlockingStat :: Maybe ThreadId -> BlockingStat -> BlockingCause -> DiffTime -> String
 pprTaskBlockingStat = pprBlockingStat 14 ""
