@@ -8,7 +8,7 @@ import Control.Concurrent (ThreadId, killThread, myThreadId)
 import Control.Exception (bracket_)
 import Data.Functor
 import Data.IORef
-import Data.List (sortBy)
+import Data.List (sortBy, stripPrefix)
 import Data.Ord (comparing)
 
 -- dnsext-types
@@ -23,17 +23,17 @@ import DNS.Transport.Types (DoX (..))
 pprWorkerStats :: Int -> [WorkerStatOP] -> IO [String]
 pprWorkerStats _pn ops = do
     stats <- zip3 [1 :: Int ..] <$> mapM getBlockingStat ops <*> mapM pprTasks ops
-    let isBkStat p (_n, (_ctx, bks, _cause, _diff), _ts) = p bks
+    let isBkStat p (_n, (_ctx, _tid, bks, _cause, _diff), _ts) = p bks
         ablockings  = filter (isBkStat (== StatBlocking))  stats
         runnings    = filter (isBkStat (== StatUnblocked)) stats
-        isBkCause p (_n, (_ctx, _bks, cause, _diff), _ts) = p cause
+        isBkCause p (_n, (_ctx, _tid, _bks, cause, _diff), _ts) = p cause
         requests    = filter (isBkCause (== CauseRequest))  ablockings
         responses   = filter (isBkCause (== CauseResponse)) ablockings
         blockings   = filter (isBkCause (`notElem` [CauseRequest, CauseResponse])) ablockings
         {- sorted by query span -}
-        getDiffT (_n, (_bks, _ctx, _cause, diff), _ts) = diff
+        getDiffT (_n, (_ctx, _bks, _tid, _cause, diff), _ts) = diff
         sorted = sortBy (comparing $ (\(DiffT int) -> int) . getDiffT) $ runnings ++ blockings
-        pprEnq  p (wn, wbs@(ContextQuery dox _q, _, _, _), _ts)
+        pprEnq  p (wn, wbs@(ContextQuery dox _q, _tid, _, _, _), _ts)
             | p dox  = ((showDec3 wn ++ ":" ++ pprBlkStat wbs) :)
         pprEnq _p  _  = id
         pprEnqs
@@ -50,14 +50,42 @@ pprWorkerStats _pn ops = do
 
     return $ concatMap pprq sorted ++ [pprdeq, pprenq]
   where
-    pprBlkStat (context, bstate, cause, diff) = pprCtxBlockingStat context bstate cause diff
+    pprBlkStat (context, tid, bstate, cause, diff) = pprCtxBlockingStat context tid bstate cause diff
     pprTasks op = getTasks op >>= mapM pprTask
-    pprTask bs = withBlockingStat bs $ \bstat cause dtime -> return (pprTaskBlockingStat bstat cause dtime)
+    pprTask bs = withBlockingStat bs $ \tid bstat cause dtime -> return (pprTaskBlockingStat tid bstat cause dtime)
     showDec3 n
         | 100 <= n   = show n
         | 10  <= n   = ' ' : show n
         | otherwise  = "  " ++ show n
 {- FOURMOLU_ENABLE -}
+
+-- |
+-- >>> import Control.Concurrent
+-- >>> import Data.Functor
+-- >>> import Data.String
+-- >>> import DNS.Types
+-- >>> (start   , waitStart) <- newEmptyMVar <&> \v -> (putMVar v () , takeMVar v  )
+-- >>> (waiting , trigger  ) <- newEmptyMVar <&> \v -> (takeMVar v   , putMVar v ())
+-- >>> (done    , waitDone ) <- newEmptyMVar <&> \v -> (putMVar v () , takeMVar v  )
+-- >>> (op, action) <- _pprChecker start waiting done (Question (fromString "example.com.") A IN)
+-- >>> _ <- forkIO (action op)
+-- >>> waitStart
+-- >>> withContext op $ \cx -> withBlockingStat op $ \tid bs bc dt -> putStrLn $ pprCtxBlockingStat cx tid bs bc dt
+-- ... blocking: tid ... DoT:...
+-- >>> trigger
+-- >>> waitDone
+_pprChecker :: IO () -> IO () -> IO () -> Question -> IO (WorkerStatOP, WorkerStatOP -> IO ())
+_pprChecker start waiting done q = do
+    op <- getWorkerStatOP
+    return (op, action)
+  where
+    action op = do
+        contextSetQuery op DoT q
+        blockingIO op "check-ppr" $ do
+           setThreadId op =<< myThreadId
+           start
+           waiting
+           done
 
 ------------------------------------------------------------
 
@@ -144,21 +172,47 @@ instance Show BlockingContext where
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
-pprBlockingStat :: Int -> String -> BlockingStat -> BlockingCause -> DiffTime -> String
-pprBlockingStat pwidth ctx bstate cause diff =
-    pad ++ diffStr ++ ": " ++ show bstate ++ npp ctx ++ ": " ++ show cause
+pprBlockingStat :: Int -> String -> Maybe ThreadId -> BlockingStat -> BlockingCause -> DiffTime -> String
+pprBlockingStat pwidth ctx mayTid bstate cause diff =
+    pad ++ diffStr ++ ": " ++ show bstate ++ ": " ++ tidpp ++ npp ctx ++ ": " ++ show cause
   where
     diffStr = showDiffSec1 diff
     pad = replicate (pwidth - length diffStr) ' '
+    --
+    tidpp = pprThreadId mayTid
+    --
     npp s
         | null s     = ""
         | otherwise  = ": " ++ s
 {- FOURMOLU_ENABLE -}
 
-pprTaskBlockingStat :: BlockingStat -> BlockingCause -> DiffTime -> String
+{- FOURMOLU_DISABLE -}
+pprThreadId :: Maybe ThreadId -> String
+pprThreadId = maybe pprN pprT
+  where
+    width = 12
+    --
+    tagN = "no-tid"
+    padN = replicate (width - length tagN) ' '
+    pprN = tagN ++ padN
+    --
+    tagT = "tid"
+    pprT tid = tagT ++ padT ++ stid
+      where
+        padT = replicate (width - length tagT - length stid) ' '
+        stid = showTidNumber tid
+{- FOURMOLU_ENABLE -}
+
+showTidNumber :: ThreadId -> String
+showTidNumber tid =
+    maybe tidShow id $ stripPrefix "ThreadId " tidShow
+  where
+    tidShow = show tid
+
+pprTaskBlockingStat :: Maybe ThreadId -> BlockingStat -> BlockingCause -> DiffTime -> String
 pprTaskBlockingStat = pprBlockingStat 14 ""
 
-pprCtxBlockingStat :: BlockingContext -> BlockingStat -> BlockingCause -> DiffTime -> String
+pprCtxBlockingStat :: BlockingContext -> Maybe ThreadId -> BlockingStat -> BlockingCause -> DiffTime -> String
 pprCtxBlockingStat context =
     pprBlockingStat pwidth (show context)
   where
@@ -169,7 +223,8 @@ pprCtxBlockingStat context =
 class OpBlockingStat op where
     setBlocking       :: op -> BlockingCause -> IO ()
     setUnblocked      :: op -> IO ()
-    withBlockingStat  :: op -> (BlockingStat -> BlockingCause -> DiffTime -> IO a) -> IO a
+    setThreadId       :: op -> ThreadId -> IO ()
+    withBlockingStat  :: op -> (Maybe ThreadId -> BlockingStat -> BlockingCause -> DiffTime -> IO a) -> IO a
 
 ------------------------------------------------------------
 
@@ -177,12 +232,14 @@ data BlockingStatOP =
     BlockingStatOP
     { setBlocking_       :: BlockingCause -> IO ()
     , setUnblocked_      :: IO ()
-    , withBlockingStat_  :: forall a . (BlockingStat -> BlockingCause  -> DiffTime -> IO a) -> IO a
+    , setThreadId_       :: ThreadId -> IO ()
+    , withBlockingStat_  :: forall a . (Maybe ThreadId -> BlockingStat -> BlockingCause  -> DiffTime -> IO a) -> IO a
     }
 
 instance OpBlockingStat BlockingStatOP where
     setBlocking       = setBlocking_
     setUnblocked      = setUnblocked_
+    setThreadId       = setThreadId_
     withBlockingStat  = withBlockingStat_
 
 {- FOURMOLU_DISABLE -}
@@ -201,11 +258,12 @@ data WorkerStatOP =
 instance OpBlockingStat WorkerStatOP where
     setBlocking       = setBlocking_ . blockingOP
     setUnblocked      = setUnblocked_ . blockingOP
-    withBlockingStat  = withBlockingStat_ . blockingOP
+    setThreadId       = setThreadId_ . blockingOP
+    withBlockingStat  = withBlockingStat . blockingOP
 {- FOURMOLU_ENABLE -}
 
-getBlockingStat  :: WorkerStatOP -> IO (BlockingContext, BlockingStat, BlockingCause, DiffTime)
-getBlockingStat op = withContext op $ \cx -> withBlockingStat_ (blockingOP op) $ \bs bc dt -> return (cx, bs, bc, dt)
+getBlockingStat  :: WorkerStatOP -> IO (BlockingContext, Maybe ThreadId, BlockingStat, BlockingCause, DiffTime)
+getBlockingStat op = withContext op $ \cx -> withBlockingStat op $ \tid bs bc dt -> return (cx, tid, bs, bc, dt)
 
 data WBStatStore = WBStatStore BlockingStat TimeStamp
 
@@ -223,7 +281,8 @@ noopBlockingStat =
     BlockingStatOP
     { setBlocking_       = \_ -> return ()
     , setUnblocked_      = return ()
-    , withBlockingStat_  = \k -> k StatBlocking CauseUndef (DiffT (-1))
+    , setThreadId_       = \_ -> return ()
+    , withBlockingStat_  = \k -> k Nothing StatBlocking CauseUndef (DiffT (-1))
     }
 {- FOURMOLU_ENABLE -}
 
@@ -245,12 +304,14 @@ noopWorkerStat =
 {- FOURMOLU_DISABLE -}
 getBlockingStatOP :: IO BlockingStatOP
 getBlockingStatOP = do
+    tidRef  <- newIORef Nothing
     blkRef  <- newIORef =<< newBlkStore CauseUndef
     return
         BlockingStatOP
         { setBlocking_       = blocking  blkRef
         , setUnblocked_      = unblocked blkRef
-        , withBlockingStat_  = withBlkStat blkRef
+        , setThreadId_       = writeIORef tidRef . Just
+        , withBlockingStat_  = withBlkStat tidRef blkRef
         }
   where
     mkBsStore bstat = WBStatStore bstat <$> getTimeStamp
@@ -263,11 +324,12 @@ getBlockingStatOP = do
     unblocked bkRef = do
         WBStore{wbkStatRef = ref} <- readIORef bkRef
         writeIORef ref =<< mkBsStore StatUnblocked
-    withBlkStat blkRef = \k -> do
+    withBlkStat tidRef blkRef = \k -> do
+        mayTid <- readIORef tidRef
         WBStore{wbkStatRef = ref, wbkCause = cause} <- readIORef blkRef
         WBStatStore bstat ts0 <- readIORef ref
         now <- getTimeStamp
-        k bstat cause (now `diffTimeStamp` ts0)
+        k mayTid bstat cause (now `diffTimeStamp` ts0)
 
 getWorkerStatOP :: IO WorkerStatOP
 getWorkerStatOP = do
@@ -296,8 +358,8 @@ contextClear = setRequest
 
 {- FOURMOLU_DISABLE -}
 eventLogWS :: WorkerStatOP -> IO ()
-eventLogWS wstat = withContext wstat $ \context -> withBlockingStat wstat $ \bstate cause diff -> do
-    let wspp = pprCtxBlockingStat context bstate cause diff
+eventLogWS wstat = withContext wstat $ \context -> withBlockingStat wstat $ \tid bstate cause diff -> do
+    let wspp = pprCtxBlockingStat context tid bstate cause diff
     TStat.eventLog $ "iter.st " ++ wspp
 {- FOURMOLU_ENABLE -}
 
