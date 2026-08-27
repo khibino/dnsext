@@ -141,7 +141,7 @@ case "$BOWLINE_BUILD_METHOD" in
         ghc_version="$GHC_VERSION"
         case "$ghc_version" in
             9.6.*)
-                CABAL_VERSION=3.10.1.0
+                CABAL_VERSION=3.10.3.0  ## cabal-3.10.1.0 has Security Advisory HSEC-2023-0015
                 ;;
             9.4.*)
                 CABAL_VERSION=3.8.1.0
