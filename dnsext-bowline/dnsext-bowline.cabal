@@ -146,9 +146,11 @@ executable ddrd
         default-extensions: Strict StrictData
 
 executable clove
+    buildable:        False
     main-is:          clove.hs
     hs-source-dirs:   clove
-    other-modules:    Algo
+    other-modules:
+                      -- Algo
                       Auth
                       Axfr
                       Config
