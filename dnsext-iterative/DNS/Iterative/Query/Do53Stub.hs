@@ -102,12 +102,13 @@ udpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl0 = 
     tag = nameTag ri "UDP"
     ~qtag = queryTag q tag qctl0
     blockingIO n = raBlockingIO ra ("udp-rslv." ++ n ++ ": " ++ qtag)
+    sblockingIO sock n = blockingIO (n ++ "." ++ show sock)
 
     -- Using only one socket and the same identifier.
     go qctl = bracket open close_ $ \sock -> do
         ractionSetSockOpt sock
-        let send bs = blockingIO "send" (NSB.send sock bs)
-            recv = blockingIO "recv" (NSB.recv sock 2048)
+        let send bs = sblockingIO sock "send" (NSB.send sock bs)
+            recv = sblockingIO sock "recv" (NSB.recv sock 2048)
         ident <- ractionGenId
         sendQueryRecvAnswer ident qctl send recv
 
@@ -154,10 +155,10 @@ udpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl0 = 
         addr <- NE.head <$> getAddrInfo (Just hints) (Just host) (Just port)
         E.bracketOnError (openSocket addr) close_ $ \s -> do
             let sa = addrAddress addr
-            blockingIO "connect" (connect s sa)
+            sblockingIO s "connect" (connect s sa)
             return s
 
-    close_ s = blockingIO "close" (close s)
+    close_ s = sblockingIO s "close" (close s)
 
 -- | A resolver using TCP.
 tcpResolver1 :: OneshotResolver
@@ -165,14 +166,15 @@ tcpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl =
     -- Using a fresh connection
     bracket open close_ $ \sock -> do
         ractionSetSockOpt sock
-        let send bs = sendVC (\xs -> blockingIO "sendTCP" $ sendTCP sock xs) bs
-            recv = recvVC rinfoVCLimit $ blockingIO "recvTCP" $ recvTCP sock
+        let send bs = sendVC (\xs -> sblockingIO sock "sendTCP" $ sendTCP sock xs) bs
+            recv = recvVC rinfoVCLimit $ sblockingIO sock "recvTCP" $ recvTCP sock
         vcResolver1 tag send recv ri q qctl
   where
     tag = nameTag ri "TCP"
     blockingIO n = raBlockingIO ra ("tcp-rslv." ++ n ++ ": " ++ fromNameTag tag)
+    sblockingIO sock n = blockingIO (n ++ "." ++ show sock)
     open = blockingIO "openTCP" (openTCP rinfoIP rinfoPort)
-    close_ s = blockingIO "close" (close s)
+    close_ s = sblockingIO s "close" (close s)
 
 -- | Generic resolver for virtual circuit.
 vcResolver1 :: NameTag -> (BS -> IO ()) -> IO BS -> OneshotResolver
