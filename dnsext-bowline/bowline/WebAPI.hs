@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module WebAPI (
+    bindAPIs,
     bindAPI,
     run,
 ) where
@@ -73,6 +74,28 @@ failed = responseLBS HTTP.ok200 [] "FAILED\n"
 
 ng :: HTTP.Status -> Response
 ng st = responseLBS st [] "NG\n"
+
+{- FOURMOLU_DISABLE -}
+bindAPIs :: Config -> IO [Socket]
+bindAPIs Config{..}
+    | cnf_webapi  = mapM (\a -> resolve a >>= open) cnf_webapi_addrs
+    | otherwise   = return []
+  where
+    resolve addr = do
+        let hints =
+                defaultHints
+                    { addrFlags = [AI_PASSIVE, AI_NUMERICHOST, AI_NUMERICSERV]
+                    , addrSocketType = Stream
+                    }
+        NE.head <$> getAddrInfo (Just hints) (Just addr) (Just $ show cnf_webapi_port)
+    open ai@AddrInfo{addrAddress = a} = E.bracketOnError (openSocket ai) close $ \sock -> do
+        withLocationIOE (show a ++ "/webapi") $ do
+            setSocketOption sock ReuseAddr 1
+            withFdSocket sock setCloseOnExecIfNeeded
+            bind sock a
+            listen sock 32
+        return sock
+{- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
 bindAPI :: Config -> IO (Maybe Socket)
