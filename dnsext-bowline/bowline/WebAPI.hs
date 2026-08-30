@@ -3,7 +3,6 @@
 
 module WebAPI (
     bindAPIs,
-    bindAPI,
     run,
 ) where
 
@@ -88,28 +87,6 @@ bindAPIs Config{..}
                     , addrSocketType = Stream
                     }
         NE.head <$> getAddrInfo (Just hints) (Just addr) (Just $ show cnf_webapi_port)
-    open ai@AddrInfo{addrAddress = a} = E.bracketOnError (openSocket ai) close $ \sock -> do
-        withLocationIOE (show a ++ "/webapi") $ do
-            setSocketOption sock ReuseAddr 1
-            withFdSocket sock setCloseOnExecIfNeeded
-            bind sock a
-            listen sock 32
-        return sock
-{- FOURMOLU_ENABLE -}
-
-{- FOURMOLU_DISABLE -}
-bindAPI :: Config -> IO (Maybe Socket)
-bindAPI Config{..}
-    | cnf_webapi  = resolve >>= open <&> Just
-    | otherwise   = return Nothing
-  where
-    resolve = do
-        let hints =
-                defaultHints
-                    { addrFlags = [AI_PASSIVE, AI_NUMERICHOST, AI_NUMERICSERV]
-                    , addrSocketType = Stream
-                    }
-        NE.head <$> getAddrInfo (Just hints) (Just cnf_webapi_addr) (Just $ show cnf_webapi_port)
     open ai@AddrInfo{addrAddress = a} = E.bracketOnError (openSocket ai) close $ \sock -> do
         withLocationIOE (show a ++ "/webapi") $ do
             setSocketOption sock ReuseAddr 1
