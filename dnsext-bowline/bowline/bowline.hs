@@ -134,10 +134,10 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
             (sm, killSM) <- ST.newSessionTicketManager' ST.defaultConfig{ST.ticketLifetime = cnf_tls_session_ticket_lifetime}
             addrs <- mapM (bindServers cnf_dns_addrs) $ trans cnf_credentials sm
             (mas, monInfo) <- Mon.bindMonitor conf env
-            masock <- API.bindAPI conf
-            return (runWriter, env, addrs, mas, monInfo, masock, killSM)
+            asocks <- API.bindAPIs conf
+            return (runWriter, env, addrs, mas, monInfo, asocks, killSM)
     -- recover root-privilege to bind network-port and to access private-key on reloading
-    (runWriter, env, addrs, mas, monInfo, masock, killSM) <- withRoot ruid conf rootpriv
+    (runWriter, env, addrs, mas, monInfo, asocks, killSM) <- withRoot ruid conf rootpriv
     -- actions list for threads
     cacherStats <- Server.getWorkerStats cnf_cachers
     workerStats <- Server.getWorkerStats cnf_workers
@@ -149,10 +149,10 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     monitor <- monitors <$> mapM (\(n, _mk, sks) -> srvInfo1 n <$> mapM getSocketName sks) addrs
     -- Run
     gcacheSetLogLn putLines
-    tidW <- runWriter
+    tidW <- maybe [] (:[]) <$> runWriter
     runLogger
     runSSLKeyLogger
-    tidA <- mapM (TStat.forkIO "bw.webapi-srv" . API.run mng) masock
+    tidA <- zipWithM (\i s -> TStat.forkIO ("bw.webapi-srv." ++ show i) $ API.run mng s) [1 :: Int ..] asocks
     let withNum name xs = zipWith (\i x -> (name ++ printf "%4d" i, x)) [1 :: Int ..] xs
     let concServer =
             conc
@@ -169,13 +169,12 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     race_ concServer (conc monitor)
         -- Teardown
         `finally` do
-            mapM_ maybeKill [tidA, tidW]
+            mapM_ killThread $ tidA ++ tidW
             killSSLKeyLogger
             stopLogger
             killSM
     threadDelay 500000 -- avoiding address already in use
   where
-    maybeKill = maybe (return ()) killThread
     trans creds sm =
         [ (cnf_udp, "bw.udp-srv", udpServers udpconf, Datagram, cnf_udp_port)
         , (cnf_tcp, "bw.tcp-srv", tcpServers vcconf, Stream, cnf_tcp_port)

@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module WebAPI (
-    bindAPI,
+    bindAPIs,
     run,
 ) where
 
@@ -75,18 +75,18 @@ ng :: HTTP.Status -> Response
 ng st = responseLBS st [] "NG\n"
 
 {- FOURMOLU_DISABLE -}
-bindAPI :: Config -> IO (Maybe Socket)
-bindAPI Config{..}
-    | cnf_webapi  = resolve >>= open <&> Just
-    | otherwise   = return Nothing
+bindAPIs :: Config -> IO [Socket]
+bindAPIs Config{..}
+    | cnf_webapi  = mapM (\a -> resolve a >>= open) cnf_webapi_addrs
+    | otherwise   = return []
   where
-    resolve = do
+    resolve addr = do
         let hints =
                 defaultHints
                     { addrFlags = [AI_PASSIVE, AI_NUMERICHOST, AI_NUMERICSERV]
                     , addrSocketType = Stream
                     }
-        NE.head <$> getAddrInfo (Just hints) (Just cnf_webapi_addr) (Just $ show cnf_webapi_port)
+        NE.head <$> getAddrInfo (Just hints) (Just addr) (Just $ show cnf_webapi_port)
     open ai@AddrInfo{addrAddress = a} = E.bracketOnError (openSocket ai) close $ \sock -> do
         withLocationIOE (show a ++ "/webapi") $ do
             setSocketOption sock ReuseAddr 1
