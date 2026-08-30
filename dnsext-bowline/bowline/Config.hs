@@ -83,7 +83,6 @@ data Config = Config
     , cnf_dnstap_socket_path :: FilePath
     , cnf_dnstap_reconnect_interval :: Int
     , cnf_webapi :: Bool
-    , cnf_webapi_addr :: String
     , cnf_webapi_addrs :: [String]
     , cnf_webapi_port :: PortNumber
     , cnf_cache_max_negative_ttl :: Int
@@ -159,8 +158,7 @@ defaultConfig =
         , cnf_dnstap_socket_path = "/tmp/bowline.sock"
         , cnf_dnstap_reconnect_interval = 10
         , cnf_webapi = True
-        , cnf_webapi_addr = "127.0.0.1"
-        , cnf_webapi_addrs = []
+        , cnf_webapi_addrs = ["127.0.0.1"]
         , cnf_webapi_port = 8080
         , cnf_cache_max_negative_ttl = 3600
         , cnf_cache_failure_rcode_ttl = 180
@@ -176,7 +174,7 @@ showConfig conf = showConfig1 conf ++ showConfig2 conf
 showConfig1 :: Config -> [String]
 showConfig1 Config{..} =
     [ showAddrPort "Mointor" True        cnf_monitor_addrs  cnf_monitor_port
-    , showAddrPort "WebAPI"  cnf_webapi  [cnf_webapi_addr]  cnf_webapi_port
+    , showAddrPort "WebAPI"  cnf_webapi  cnf_webapi_addrs   cnf_webapi_port
     , showAddrPort "UDP"     cnf_udp     cnf_dns_addrs      cnf_udp_port
     , showAddrPort "TCP"     cnf_tcp     cnf_dns_addrs      cnf_tcp_port
     , showAddrPort "TLS"     cnf_tls     cnf_dns_addrs      cnf_tls_port
@@ -240,7 +238,7 @@ showConfig2 conf =
     , field'_ "dnstap socket path" cnf_dnstap_socket_path
     , field' "dnstap reconnect interval" cnf_dnstap_reconnect_interval
     , field' "webapi" cnf_webapi
-    , field'_ "webapi addr" cnf_webapi_addr
+    , field'_ "webapi addrs" (unwords . cnf_webapi_addrs)
     , field' "webapi port" cnf_webapi_port
     , field' "cache max negative ttl" cnf_cache_max_negative_ttl
     , field' "cache failure rcode ttl" cnf_cache_failure_rcode_ttl
@@ -321,8 +319,8 @@ makeConfig def conf = do
     cnf_dnstap_socket_path <- get "dnstap-socket-path" cnf_dnstap_socket_path
     cnf_dnstap_reconnect_interval <- get "dnstap-reconnect-interval" cnf_dnstap_reconnect_interval
     cnf_webapi <- get "webapi" cnf_webapi
-    cnf_webapi_addr <- get "webapi-addr" cnf_webapi_addr
-    cnf_webapi_addrs <- (cnf_webapi_addr :) <$> get "webapi-addrs" cnf_webapi_addrs
+    compat_webapi_addr <- get "webapi-addr" (pure Nothing)
+    cnf_webapi_addrs <- maybe id (:) compat_webapi_addr <$> get "webapi-addrs" cnf_webapi_addrs
     cnf_webapi_port <- get "webapi-port" cnf_webapi_port
     cnf_cache_max_negative_ttl <- get "cache-max-negative-ttl" cnf_cache_max_negative_ttl
     cnf_cache_failure_rcode_ttl <- get "cache-failure-rcode-ttl" cnf_cache_failure_rcode_ttl
