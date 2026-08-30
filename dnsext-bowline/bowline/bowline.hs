@@ -134,10 +134,10 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
             (sm, killSM) <- ST.newSessionTicketManager' ST.defaultConfig{ST.ticketLifetime = cnf_tls_session_ticket_lifetime}
             addrs <- mapM (bindServers cnf_dns_addrs) $ trans cnf_credentials sm
             (mas, monInfo) <- Mon.bindMonitor conf env
-            masock <- API.bindAPI conf
-            return (runWriter, env, addrs, mas, monInfo, masock, killSM)
+            asocks <- API.bindAPIs conf
+            return (runWriter, env, addrs, mas, monInfo, asocks, killSM)
     -- recover root-privilege to bind network-port and to access private-key on reloading
-    (runWriter, env, addrs, mas, monInfo, masock, killSM) <- withRoot ruid conf rootpriv
+    (runWriter, env, addrs, mas, monInfo, asocks, killSM) <- withRoot ruid conf rootpriv
     -- actions list for threads
     cacherStats <- Server.getWorkerStats cnf_cachers
     workerStats <- Server.getWorkerStats cnf_workers
@@ -152,7 +152,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     tidW <- maybe [] (:[]) <$> runWriter
     runLogger
     runSSLKeyLogger
-    tidA <- mapM (TStat.forkIO "bw.webapi-srv" . API.run mng) $ maybe [] (:[]) masock
+    tidA <- zipWithM (\i s -> TStat.forkIO ("bw.webapi-srv." ++ show i) $ API.run mng s) [1 :: Int ..] asocks
     let withNum name xs = zipWith (\i x -> (name ++ printf "%4d" i, x)) [1 :: Int ..] xs
     let concServer =
             conc
