@@ -2,8 +2,11 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Query.API (
+    foldResponseIterative64',
+    foldResponseIterative64,
     foldResponseIterative,
     foldResponseIterative',
+    foldResponseCached64,
     foldResponseCached,
     replyMessage,
 ) where
@@ -37,28 +40,53 @@ import DNS.Iterative.Query.Utils (clogLinesIO, logLn, pprMessage)
 
 -----
 
+-- | Folding a response corresponding to a DNS64 query. The cache is maybe updated.
+foldResponseIterative64 :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
+foldResponseIterative64 deny reply env@Env{..} wstat reqM@DNSMessage{..} =
+    foldResponse "resp-queried" deny reply env wstat reqM (resolveStub resolve64 reply nsid_ identifier question ednsHeader)
+
 -- | Folding a response corresponding to a query. The cache is maybe updated.
 foldResponseIterative :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
 foldResponseIterative deny reply env@Env{..} wstat reqM@DNSMessage{..} =
-    foldResponse "resp-queried" deny reply env wstat reqM (resolveStub reply nsid_ identifier question ednsHeader)
+    foldResponse "resp-queried" deny reply env wstat reqM (resolveStub resolve reply nsid_ identifier question ednsHeader)
+
+-- | Folding a response corresponding to a DNS64 query, from questions and control flags. The cache is maybe updated.
+foldResponseIterative64'
+    :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> Identifier -> Question -> QueryControls -> IO a
+foldResponseIterative64' deny reply env@Env{..} wstat ident q =
+    queryControls' $ \fl eh -> foldResponse' "resp-queried'" deny reply env wstat ident q fl eh (resolveStub resolve64 reply nsid_ ident q eh)
 
 -- | Folding a response corresponding to a query, from questions and control flags. The cache is maybe updated.
 foldResponseIterative'
     :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> Identifier -> Question -> QueryControls -> IO a
 foldResponseIterative' deny reply env@Env{..} wstat ident q =
-    queryControls' $ \fl eh -> foldResponse' "resp-queried'" deny reply env wstat ident q fl eh (resolveStub reply nsid_ ident q eh)
+    queryControls' $ \fl eh -> foldResponse' "resp-queried'" deny reply env wstat ident q fl eh (resolveStub resolve reply nsid_ ident q eh)
 
-resolveStub :: MonadQuery m => (VResult -> DNSMessage -> a) -> Maybe OD_NSID -> Identifier -> Question -> EDNSheader -> m a
-resolveStub reply nsid ident q eh = do
-    ((cnrrs, _rn), etm) <- resolve =<< asksQP origQuestion_
+type ResolveH m = Question -> m (([RRset], Domain), Either ResultRRS (ResultRRS' DNSMessage))
+
+resolveStub
+    :: MonadQuery m
+    => ResolveH m -> (VResult -> DNSMessage -> a) -> Maybe OD_NSID -> Identifier -> Question -> EDNSheader -> m a
+resolveStub resolve_ reply nsid ident q eh = do
+    ((cnrrs, _rn), etm) <- resolve_ =<< asksQP origQuestion_
     reqDO <- asksQP requestDO_
     let result rc vans vauth = replyMessage reqDO cnrrs rc vans vauth ident q eh nsid reply
     pure $ either (\(rc, vans, vauth) -> result rc vans vauth) (\(msg, vans, vauth) -> result (rcode msg) vans vauth) etm
 
--- | Folding a response corresponding to a query from the cache.
+foldResponseCached64 :: DNSQuery a -> (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
+foldResponseCached64 = foldResponseCached' resolveByCache64
+
 foldResponseCached :: DNSQuery a -> (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
-foldResponseCached misshit deny reply env@Env{..} wstat reqM@DNSMessage{..} = foldResponse "resp-cached" deny reply env wstat reqM $ do
-    ((cnrrs, _rn), m) <- resolveByCache =<< asksQP origQuestion_
+foldResponseCached = foldResponseCached' resolveByCache
+
+type ResolveByCacheH m = Question -> m (([RRset], Domain), Maybe ResultRRS)
+
+-- | Folding a response corresponding to a query from the cache.
+foldResponseCached'
+    :: ResolveByCacheH DNSQuery -> DNSQuery a -> (String -> a) -> (VResult -> DNSMessage -> a)
+    -> Env -> WorkerStatOP -> DNSMessage -> IO a
+foldResponseCached' resolveByCache_ misshit deny reply env@Env{..} wstat reqM@DNSMessage{..} = foldResponse "resp-cached" deny reply env wstat reqM $ do
+    ((cnrrs, _rn), m) <- resolveByCache_ =<< asksQP origQuestion_
     reqDO <- asksQP requestDO_
     let hit (rc, vans, vauth) = replyMessage reqDO cnrrs rc vans vauth identifier question ednsHeader nsid_ reply
     maybe misshit (pure . hit) m
