@@ -149,10 +149,10 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     monitor <- monitors <$> mapM (\(n, _mk, sks) -> srvInfo1 n <$> mapM getSocketName sks) addrs
     -- Run
     gcacheSetLogLn putLines
-    tidW <- runWriter
+    tidW <- maybe [] (:[]) <$> runWriter
     runLogger
     runSSLKeyLogger
-    tidA <- mapM (TStat.forkIO "bw.webapi-srv" . API.run mng) masock
+    tidA <- mapM (TStat.forkIO "bw.webapi-srv" . API.run mng) $ maybe [] (:[]) masock
     let withNum name xs = zipWith (\i x -> (name ++ printf "%4d" i, x)) [1 :: Int ..] xs
     let concServer =
             conc
@@ -169,13 +169,12 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
     race_ concServer (conc monitor)
         -- Teardown
         `finally` do
-            mapM_ maybeKill [tidA, tidW]
+            mapM_ killThread $ tidA ++ tidW
             killSSLKeyLogger
             stopLogger
             killSM
     threadDelay 500000 -- avoiding address already in use
   where
-    maybeKill = maybe (return ()) killThread
     trans creds sm =
         [ (cnf_udp, "bw.udp-srv", udpServers udpconf, Datagram, cnf_udp_port)
         , (cnf_tcp, "bw.tcp-srv", tcpServers vcconf, Stream, cnf_tcp_port)
