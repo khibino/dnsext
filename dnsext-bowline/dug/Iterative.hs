@@ -64,4 +64,4 @@ setup putLines opt@Options{..} = do
             }
 
 resolve :: Env -> Synthesis -> (Question, QueryControls) -> IO (Either String DNSMessage)
-resolve env _synth (q, ctl) = resolveResponseIterative env q ctl
+resolve env synth (q, ctl) = resolveResponseIterative env synth q ctl
