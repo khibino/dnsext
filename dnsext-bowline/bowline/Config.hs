@@ -50,6 +50,7 @@ data Config = Config
     , cnf_domain_insecures :: [Domain]
     , cnf_nsid :: Maybe OD_NSID
     , cnf_dns_addrs :: [String]
+    , cnf_dns64_addrs :: [String]
     , cnf_resolve_timeout :: Int
     , cnf_cachers :: Int
     , cnf_workers :: Int
@@ -120,6 +121,7 @@ defaultConfig =
         , cnf_domain_insecures = []
         , cnf_nsid = Nothing
         , cnf_dns_addrs = ["127.0.0.1", "::1"]
+        , cnf_dns64_addrs = []
         , cnf_resolve_timeout = 10000000
         , cnf_cachers = 4
         , cnf_workers = 128
@@ -284,6 +286,7 @@ makeConfig def conf = do
     cnf_stub_zones <- stubZones
     cnf_domain_insecures <- domainInsecures
     cnf_dns_addrs <- get "dns-addrs" cnf_dns_addrs
+    cnf_dns64_addrs <- get "dns64-addrs" cnf_dns64_addrs
     cnf_nsid <- get "nsid" cnf_nsid
     cnf_resolve_timeout <- get "resolve-timeout" cnf_resolve_timeout
     cnf_cachers <- get "cachers" cnf_cachers
