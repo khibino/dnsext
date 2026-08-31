@@ -27,7 +27,7 @@ import DNS.Iterative.Stats (incStatsDoH3, sessionStatsDoH3)
 
 ----------------------------------------------------------------
 http3Servers :: VcServerConfig -> ServerActions
-http3Servers VcServerConfig{..} env toCacher ss = do
+http3Servers VcServerConfig{..} _synth env toCacher ss = do
     -- fixme: withLocationIOE naming
     when vc_interface_automatic $ mapM_ setPktInfo ss
     name <- mapM socketName ss <&> \xs -> show xs ++ "/h3"

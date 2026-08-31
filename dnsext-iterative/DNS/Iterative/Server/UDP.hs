@@ -38,8 +38,8 @@ newtype UdpServerConfig = UdpServerConfig
 ----------------------------------------------------------------
 
 udpServers :: UdpServerConfig -> ServerActions
-udpServers _conf env toCacher ss =
-    concat <$> mapM (udpServer _conf env toCacher) ss
+udpServers conf _synth env toCacher ss =
+    concat <$> mapM (udpServer conf env toCacher) ss
 
 udpServer :: UdpServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
 udpServer UdpServerConfig{..} env toCacher s = do

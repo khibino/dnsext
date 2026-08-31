@@ -36,7 +36,7 @@ import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsDoT, sessionStatsDoT)
 
 tlsServers :: VcServerConfig -> ServerActions
-tlsServers conf env toCacher ss =
+tlsServers conf _synth env toCacher ss =
     concat <$> mapM (tlsServer conf env toCacher) ss
 
 tlsServer :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]

@@ -98,7 +98,7 @@ type FromCacher = Input DNSMessage
 type ToSender = Output
 type FromX = Output
 
-type ServerActions = Env -> (ToCacher -> IO ()) -> [Socket] -> IO [IO ()]
+type ServerActions = Synthesis -> Env -> (ToCacher -> IO ()) -> [Socket] -> IO [IO ()]
 
 data VcServerConfig = VcServerConfig
     { vc_query_max_size :: Int

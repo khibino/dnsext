@@ -32,7 +32,7 @@ import DNS.Iterative.Stats (incStatsDoQ, sessionStatsDoQ)
 ----------------------------------------------------------------
 
 quicServers :: VcServerConfig -> ServerActions
-quicServers VcServerConfig{..} env toCacher ss = do
+quicServers VcServerConfig{..} _synth env toCacher ss = do
     -- fixme: withLocationIOE naming
     when vc_interface_automatic $ mapM_ setPktInfo ss
     let quicserver = withLocationIOE "QUIC" $ QUIC.runWithSockets ss sconf go

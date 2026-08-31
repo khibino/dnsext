@@ -35,7 +35,7 @@ import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsDoH2, incStatsDoH2C, sessionStatsDoH2, sessionStatsDoH2C)
 
 http2Servers :: VcServerConfig -> ServerActions
-http2Servers conf env toCacher ss =
+http2Servers conf _synth env toCacher ss =
     concat <$> mapM (http2Server conf env toCacher) ss
 
 http2Server :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
@@ -56,7 +56,7 @@ http2Server VcServerConfig{..} env toCacher s = do
             }
 
 http2cServers :: VcServerConfig -> ServerActions
-http2cServers conf env toCacher ss =
+http2cServers conf _synth env toCacher ss =
     concat <$> mapM (http2cServer conf env toCacher) ss
 
 http2cServer :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]

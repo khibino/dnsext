@@ -132,7 +132,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
                         }
             --  filled env available
             (sm, killSM) <- ST.newSessionTicketManager' ST.defaultConfig{ST.ticketLifetime = cnf_tls_session_ticket_lifetime}
-            addrs <- mapM (bindServers cnf_dns_addrs) $ trans cnf_credentials sm
+            addrs <- mapM (bindServers cnf_dns_addrs) $ trans SynthNone cnf_credentials sm
             (mas, monInfo) <- Mon.bindMonitor conf env
             asocks <- API.bindAPIs conf
             return (runWriter, env, addrs, mas, monInfo, asocks, killSM)
@@ -175,16 +175,19 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
             killSM
     threadDelay 500000 -- avoiding address already in use
   where
-    trans creds sm =
-        [ (cnf_udp, "bw.udp-srv", udpServers udpconf, Datagram, cnf_udp_port)
-        , (cnf_tcp, "bw.tcp-srv", tcpServers vcconf, Stream, cnf_tcp_port)
-        , (cnf_h2c, "bw.h2c-srv", http2cServers vcconf, Stream, cnf_h2c_port)
-        , (cnf_h2, "bw.h2-srv", http2Servers vcconf, Stream, cnf_h2_port)
-        , (cnf_h3, "bw.h3-srv", http3Servers vcconf, Datagram, cnf_h3_port)
-        , (cnf_tls, "bw.tls-srv", tlsServers vcconf, Stream, cnf_tls_port)
-        , (cnf_quic, "bw.quic-srv", quicServers vcconf, Datagram, cnf_quic_port)
+    trans synth creds sm =
+        [ (cnf_udp, "bw.udp-srv." ++ st, udpServers udpconf synth, Datagram, cnf_udp_port)
+        , (cnf_tcp, "bw.tcp-srv." ++ st, tcpServers vcconf synth, Stream, cnf_tcp_port)
+        , (cnf_h2c, "bw.h2c-srv." ++ st, http2cServers vcconf synth, Stream, cnf_h2c_port)
+        , (cnf_h2, "bw.h2-srv." ++ st, http2Servers vcconf synth, Stream, cnf_h2_port)
+        , (cnf_h3, "bw.h3-srv." ++ st, http3Servers vcconf synth, Datagram, cnf_h3_port)
+        , (cnf_tls, "bw.tls-srv." ++ st, tlsServers vcconf synth, Stream, cnf_tls_port)
+        , (cnf_quic, "bw.quic-srv." ++ st, quicServers vcconf synth, Datagram, cnf_quic_port)
         ]
       where
+        st = case synth of
+                 SynthNone -> "nn"
+                 SynthDNS64 -> "64"
         vcconf =
             VcServerConfig
                 { vc_query_max_size = cnf_vc_query_max_size
