@@ -145,7 +145,7 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
                 blockingEnqueue_ tag = blockingEnqueue wstat $ "cacher: " ++ tag
             contextSetQuery wstat inputDoX qs
             let inp = inpBS{inputQuery = queryMsg}
-            cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env wstat queryMsg
+            cres <- inputFoldCached (pure CResultMissHit) CResultDenied CResultHit env wstat queryMsg
             case cres of
                 CResultMissHit ->
                     blockingEnqueue_ "to-worker - miss-hit" $ toWorker inp
@@ -171,7 +171,7 @@ workerLogic env wstat fromCacher = handledLoop env "worker" $ do
     let qs = question inputQuery
         blockingEnqueue_ tag = blockingEnqueue wstat $ "worker: " ++ tag
     contextSetQuery wstat inputDoX qs
-    ex <- foldResponseIterative Left (curry Right) env wstat inputQuery
+    ex <- inputFoldIterative Left (curry Right) env wstat inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
     case ex of
