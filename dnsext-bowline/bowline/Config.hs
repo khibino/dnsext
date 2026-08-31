@@ -34,7 +34,10 @@ data Config = Config
     , cnf_short_log :: Bool
     , cnf_cert_file :: FilePath
     , cnf_key_file :: FilePath
+    , cnf_dns64_cert_file :: FilePath
+    , cnf_dns64_key_file :: FilePath
     , cnf_credentials :: Credentials
+    , cnf_dns64_credentials :: Credentials
     , cnf_trust_anchor_file :: [FilePath]
     , cnf_root_hints :: Maybe FilePath
     , cnf_cache_size :: Int
@@ -50,6 +53,7 @@ data Config = Config
     , cnf_domain_insecures :: [Domain]
     , cnf_nsid :: Maybe OD_NSID
     , cnf_dns_addrs :: [String]
+    , cnf_dns64_addrs :: [String]
     , cnf_resolve_timeout :: Int
     , cnf_cachers :: Int
     , cnf_workers :: Int
@@ -104,7 +108,10 @@ defaultConfig =
         , cnf_short_log = False
         , cnf_cert_file = "fullchain.pem"
         , cnf_key_file = "privkey.pem"
+        , cnf_dns64_cert_file = "fullchain64.pem"
+        , cnf_dns64_key_file = "privkey64.pem"
         , cnf_credentials = Credentials []
+        , cnf_dns64_credentials = Credentials []
         , cnf_trust_anchor_file = []
         , cnf_root_hints = Nothing
         , cnf_cache_size = 2 * 1024
@@ -120,6 +127,7 @@ defaultConfig =
         , cnf_domain_insecures = []
         , cnf_nsid = Nothing
         , cnf_dns_addrs = ["127.0.0.1", "::1"]
+        , cnf_dns64_addrs = []
         , cnf_resolve_timeout = 10000000
         , cnf_cachers = 4
         , cnf_workers = 128
@@ -175,13 +183,18 @@ showConfig1 :: Config -> [String]
 showConfig1 Config{..} =
     [ showAddrPort "Mointor" True        cnf_monitor_addrs  cnf_monitor_port
     , showAddrPort "WebAPI"  cnf_webapi  cnf_webapi_addrs   cnf_webapi_port
-    , showAddrPort "UDP"     cnf_udp     cnf_dns_addrs      cnf_udp_port
-    , showAddrPort "TCP"     cnf_tcp     cnf_dns_addrs      cnf_tcp_port
-    , showAddrPort "TLS"     cnf_tls     cnf_dns_addrs      cnf_tls_port
-    , showAddrPort "QUIC"    cnf_quic    cnf_dns_addrs      cnf_quic_port
-    , showAddrPort "H2C"     cnf_h2c     cnf_dns_addrs      cnf_h2c_port
-    , showAddrPort "H2"      cnf_h2      cnf_dns_addrs      cnf_h2_port
-    , showAddrPort "H3"      cnf_h3      cnf_dns_addrs      cnf_h3_port
+    ] ++
+    [ showAddrPort (name ++ syn) penable addrs port
+    | (syn, addrs) <- [ ("", cnf_dns_addrs),  ("-64", cnf_dns64_addrs) ]
+    , (name, penable, port) <-
+            [ ("UDP"   , cnf_udp     , cnf_udp_port )
+            , ("TCP"   , cnf_tcp     , cnf_tcp_port )
+            , ("TLS"   , cnf_tls     , cnf_tls_port )
+            , ("QUIC"  , cnf_quic    , cnf_quic_port )
+            , ("H2C"   , cnf_h2c     , cnf_h2c_port )
+            , ("H2"    , cnf_h2      , cnf_h2_port )
+            , ("H3"    , cnf_h3      , cnf_h3_port )
+            ]
     ]
   where
     showAddrPort tag enable addrs port
@@ -204,12 +217,15 @@ showConfig2 conf =
     , field' "short log" cnf_short_log
     , field'_ "cert file" cnf_cert_file
     , field'_ "key file" cnf_key_file
+    , field'_ "dns64 cert file" cnf_dns64_cert_file
+    , field'_ "dns64 key file" cnf_dns64_key_file
     , field'_ "trust anchor file" (unwords . cnf_trust_anchor_file)
     , field'_ "root hints" (maybe "<default>" id . cnf_root_hints)
     , field' "max cache size" cnf_cache_size
     , field' "disable queries to IPv6 NS" cnf_disable_v6_ns
     , field'_ "domain insecures" (unwords . map show . cnf_domain_insecures)
     , field'_ "dns addrs" (unwords . cnf_dns_addrs)
+    , field'_ "dns64 addrs" (unwords . cnf_dns64_addrs)
     , field' "resolve timeout" cnf_resolve_timeout
     , field' "cachers" cnf_cachers
     , field' "workers" cnf_workers
@@ -270,6 +286,8 @@ makeConfig def conf = do
     cnf_short_log <- get "short-log" cnf_short_log
     cnf_cert_file <- get "cert-file" cnf_cert_file
     cnf_key_file <- get "key-file" cnf_key_file
+    cnf_dns64_cert_file <- get "dns64-cert-file" cnf_dns64_cert_file
+    cnf_dns64_key_file <- get "dns64-key-file" cnf_dns64_key_file
     cnf_trust_anchor_file <- getTrustAnchorFile conf
     cnf_root_hints <- get "root-hints" cnf_root_hints
     cnf_cache_size <- get "cache-size" cnf_cache_size
@@ -284,6 +302,7 @@ makeConfig def conf = do
     cnf_stub_zones <- stubZones
     cnf_domain_insecures <- domainInsecures
     cnf_dns_addrs <- get "dns-addrs" cnf_dns_addrs
+    cnf_dns64_addrs <- get "dns64-addrs" cnf_dns64_addrs
     cnf_nsid <- get "nsid" cnf_nsid
     cnf_resolve_timeout <- get "resolve-timeout" cnf_resolve_timeout
     cnf_cachers <- get "cachers" cnf_cachers
@@ -325,10 +344,11 @@ makeConfig def conf = do
     cnf_cache_max_negative_ttl <- get "cache-max-negative-ttl" cnf_cache_max_negative_ttl
     cnf_cache_failure_rcode_ttl <- get "cache-failure-rcode-ttl" cnf_cache_failure_rcode_ttl
     cnf_interface_automatic <- get "interface-automatic" cnf_interface_automatic
-    let getCreds
-            | cnf_tls || cnf_quic || cnf_h2 || cnf_h3 = loadCredentials cnf_cert_file cnf_key_file
+    let getCreds addrs certFile keyFile
+            | not (null addrs) && (cnf_tls || cnf_quic || cnf_h2 || cnf_h3) = loadCredentials certFile keyFile
             | otherwise = pure $ Credentials []
-    cnf_credentials <- getCreds
+    cnf_credentials <- getCreds cnf_dns_addrs cnf_cert_file cnf_key_file
+    cnf_dns64_credentials <- getCreds cnf_dns64_addrs cnf_dns64_cert_file cnf_dns64_key_file
     pure Config{..}
   where
     get k func = do

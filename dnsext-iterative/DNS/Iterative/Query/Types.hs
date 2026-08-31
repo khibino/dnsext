@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module DNS.Iterative.Query.Types (
+    FoldResponse,
     VResult (..),
     queryParam,
     queryParamIN,
@@ -31,6 +32,10 @@ import DNS.WorkerStats (WorkerStatOP)
 import DNS.Iterative.Imports
 import DNS.Iterative.Query.Class
 import DNS.Iterative.Query.Norec (norec)
+
+----------
+
+type FoldResponse m a = (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> m a
 
 ----------
 

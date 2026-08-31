@@ -141,7 +141,8 @@ runWithEvent = do
         let enableTimeout = atomically (enableVcTimeout vcTimeout_ {- enable timeout with pushed events -})
         (loop, pushEvent, waitRecv, recv) <- eventsRunner show kickSender enableTimeout
         writeIORef refWait waitRecv {- fill action to ref, to avoid mutual reference of withVcSession and eventsRunner -}
-        let receiver = receiverVC "test-recv" env vcSess recv toCacher (mkInput myaddr toSender UDP)
+        let (_synth, foldCached, foldIterative) = extendSynthesis SynthNone
+            receiver = receiverVC "test-recv" env vcSess recv toCacher (mkInput myaddr toSender UDP SynthNone foldCached foldIterative)
             sender = senderVC "test-send" env vcSess send fromX
             run = TAsync.concurrently "test-send" sender "test-recv" receiver
             getResult = sort <$> getResult0

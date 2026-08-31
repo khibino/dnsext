@@ -45,10 +45,18 @@ foldResponseIterative64 :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env 
 foldResponseIterative64 deny reply env@Env{..} wstat reqM@DNSMessage{..} =
     foldResponse "resp-queried" deny reply env wstat reqM (resolveStub resolve64 reply nsid_ identifier question ednsHeader)
 
+-- entry to verify that the 'FoldResponse' type synonym matches interface 'foldResponseIterative64'
+__check_synonym_foldResponseIterative64 :: FoldResponse IO a
+__check_synonym_foldResponseIterative64 = foldResponseIterative64
+
 -- | Folding a response corresponding to a query. The cache is maybe updated.
 foldResponseIterative :: (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
 foldResponseIterative deny reply env@Env{..} wstat reqM@DNSMessage{..} =
     foldResponse "resp-queried" deny reply env wstat reqM (resolveStub resolve reply nsid_ identifier question ednsHeader)
+
+-- entry to verify that the 'FoldResponse' type synonym matches interface 'foldResponseIterative'
+__check_synonym_foldResponseIterative :: FoldResponse IO a
+__check_synonym_foldResponseIterative = foldResponseIterative
 
 -- | Folding a response corresponding to a DNS64 query, from questions and control flags. The cache is maybe updated.
 foldResponseIterative64'
@@ -76,8 +84,16 @@ resolveStub resolve_ reply nsid ident q eh = do
 foldResponseCached64 :: DNSQuery a -> (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
 foldResponseCached64 = foldResponseCached' resolveByCache64
 
+-- entry to verify that the 'FoldResponse' type synonym matches interface 'foldResponseCached64'
+__check_synonym_foldResponseCached64 :: DNSQuery a -> FoldResponse IO a
+__check_synonym_foldResponseCached64 = foldResponseCached64
+
 foldResponseCached :: DNSQuery a -> (String -> a) -> (VResult -> DNSMessage -> a) -> Env -> WorkerStatOP -> DNSMessage -> IO a
 foldResponseCached = foldResponseCached' resolveByCache
+
+-- entry to verify that the 'FoldResponse' type synonym matches interface 'foldResponseCached'
+__check_synonym_foldResponseCached :: DNSQuery a -> FoldResponse IO a
+__check_synonym_foldResponseCached = foldResponseCached
 
 type ResolveByCacheH m = Question -> m (([RRset], Domain), Maybe ResultRRS)
 

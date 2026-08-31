@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module DNS.Iterative.Server.Types (
     ServerActions,
     Env,
@@ -10,6 +12,7 @@ module DNS.Iterative.Server.Types (
     FromX,
     ReqNum,
     VcPendingOp (..),
+    ExSynthesis,
     Input (..),
     Output (..),
     Peer (..),
@@ -33,7 +36,7 @@ import DNS.Types.Time (EpochTimeUsec)
 import Data.IP (fromSockAddr)
 
 -- dnsext-utils
-import DNS.Transport.Types (DoX (..))
+import DNS.Transport.Types (DoX (..), Synthesis (..))
 
 -- other packages
 import qualified Network.HTTP2.Server.Internal as H2I
@@ -42,7 +45,7 @@ import Network.Socket
 import Network.TLS (Credentials (..), SessionManager)
 
 -- this package
-import DNS.Iterative.Query (Env)
+import DNS.Iterative.Query (DNSQuery, Env, FoldResponse)
 
 data SuperStream = StreamH2 H2I.Stream | StreamQUIC QUIC.Stream deriving (Show)
 
@@ -66,12 +69,17 @@ data VcPendingOp
     , vpDelete :: IO ()
     }
 
+type ExSynthesis p q = (Synthesis, DNSQuery p -> FoldResponse IO p, FoldResponse IO q)
+
 data Input a = Input
     { inputQuery :: a
     , inputPendingOp :: VcPendingOp
     , inputMysa :: SockAddr
     , inputPeerInfo :: Peer
     , inputDoX :: DoX
+    , inputSynthesis :: Synthesis
+    , inputFoldCached :: forall b . DNSQuery b -> FoldResponse IO b
+    , inputFoldIterative :: forall b . FoldResponse IO b
     , inputToSender :: ToSender -> IO ()
     , inputRecvTime :: EpochTimeUsec
     }
@@ -93,7 +101,7 @@ type FromCacher = Input DNSMessage
 type ToSender = Output
 type FromX = Output
 
-type ServerActions = Env -> (ToCacher -> IO ()) -> [Socket] -> IO [IO ()]
+type ServerActions = Synthesis -> Env -> (ToCacher -> IO ()) -> [Socket] -> IO [IO ()]
 
 data VcServerConfig = VcServerConfig
     { vc_query_max_size :: Int

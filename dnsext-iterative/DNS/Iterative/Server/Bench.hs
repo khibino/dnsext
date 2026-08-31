@@ -54,8 +54,9 @@ benchServer bench_pipelines env _ = do
     resQ <- newChan
 
     let toSender = writeChan resQ
-
-        enqueueReq (bs, ()) = toCacher (mkInput myDummy toSender UDP bs (PeerInfoUDP clntDummy []) noPendingOp usecDummy)
+        (_synth, foldCached, foldIterative) = extendSynthesis SynthNone
+        inp bs = mkInput myDummy toSender UDP SynthNone foldCached foldIterative bs (PeerInfoUDP clntDummy []) noPendingOp usecDummy
+        enqueueReq (bs, ()) = toCacher (inp bs)
         dequeueRes = (\(Output bs _ _) -> (bs, ())) <$> readChan resQ
     return (cachers ++ workers, enqueueReq, dequeueRes)
   where

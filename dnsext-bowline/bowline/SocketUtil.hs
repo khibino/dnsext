@@ -25,13 +25,13 @@ import qualified Network.Socket as S
 {- FOURMOLU_DISABLE -}
 -- expected behavior examples in a typical environments
 --
---   53 []                      -->  0.0.0.0:53, [::]:53
+--   53 []                      -->  <empty list, not bind>
 --   53 ["0.0.0.0", "::"]       -->  0.0.0.0:53, [::]:53
 --   53 ["localhost"]           -->  127.0.0.1:53, [::1]:53
 --   53 ["127.0.0.1", "::1"]    -->  127.0.0.1:53, [::1]:53
 ainfosSkipError :: (String -> IO ()) -> SocketType -> PortNumber -> [HostName] -> IO [AddrInfo]
 ainfosSkipError logLn sty p hs = case hs of
-    []   -> foldAddrInfo' sty Nothing p
+    []   -> pure []
     _:_  -> concat <$> sequence [ainfoSkip h p | h <- hs]
   where
     ainfoSkip host port = case (readMaybe host :: Maybe IP) of

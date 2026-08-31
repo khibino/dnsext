@@ -32,12 +32,13 @@ import DNS.Iterative.Stats (incStatsDoQ, sessionStatsDoQ)
 ----------------------------------------------------------------
 
 quicServers :: VcServerConfig -> ServerActions
-quicServers VcServerConfig{..} env toCacher ss = do
+quicServers VcServerConfig{..} synth env toCacher ss = do
     -- fixme: withLocationIOE naming
     when vc_interface_automatic $ mapM_ setPktInfo ss
     let quicserver = withLocationIOE "QUIC" $ QUIC.runWithSockets ss sconf go
     return [quicserver]
   where
+    (_synth, foldCached, foldIterative) = extendSynthesis synth
     tmicro = vc_idle_timeout * 1_000_000
     sconf = getServerConfig vc_credentials vc_session_manager "doq" (vc_idle_timeout * 1_000 + quicDeferMills) env
     quicDeferMills = 20 {- deferral until an exception is raised from quic library -}
@@ -64,7 +65,8 @@ quicServers VcServerConfig{..} env toCacher ss = do
                         PeerInfoStream _ (StreamQUIC strm) -> DNS.sendVC (QUIC.sendStreamMany strm) bs >> QUIC.closeStream strm
                         _ -> return ()
                 -- FIXME
-                receiver = receiverVC "quic-recv" env vcSess recv toCacher $ mkInput mysa toSender DoQ
+                receiver = receiverVC "quic-recv" env vcSess recv toCacher
+                           $ mkInput mysa toSender DoQ synth foldCached foldIterative
                 sender = senderVC "quic-send" env vcSess send fromX
             TAsync.concurrently_ "bw.quic-send" sender "bw.quic-recv" receiver
 

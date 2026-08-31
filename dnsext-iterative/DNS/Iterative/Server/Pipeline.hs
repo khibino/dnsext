@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Server.Pipeline (
+    extendSynthesis,
     mkPipeline,
     mkConnector,
     mkConnector',
@@ -65,7 +67,9 @@ import DNS.WorkerStats
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Internal (Env (..))
-import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseIterative)
+import DNS.Iterative.Query
+    (DNSQuery, FoldResponse, VResult (..),
+     foldResponseCached, foldResponseCached64, foldResponseIterative, foldResponseIterative64)
 import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats
@@ -114,6 +118,14 @@ mkPipeline env cacherStats workerStats = do
 
 ----------------------------------------------------------------
 
+{- FORMOLU_DISABLE -}
+extendSynthesis :: Synthesis -> ExSynthesis p q
+extendSynthesis SynthNone   = (SynthNone,   foldResponseCached,   foldResponseIterative)
+extendSynthesis SynthDNS64  = (SynthDNS64,  foldResponseCached64, foldResponseIterative64)
+{- FORMOLU_ENABLE -}
+
+----------------------------------------------------------------
+
 data CacheResult
     = CResultMissHit
     | CResultHit VResult DNSMessage
@@ -133,7 +145,7 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
                 blockingEnqueue_ tag = blockingEnqueue wstat $ "cacher: " ++ tag
             contextSetQuery wstat inputDoX qs
             let inp = inpBS{inputQuery = queryMsg}
-            cres <- foldResponseCached (pure CResultMissHit) CResultDenied CResultHit env wstat queryMsg
+            cres <- inputFoldCached (pure CResultMissHit) CResultDenied CResultHit env wstat queryMsg
             case cres of
                 CResultMissHit ->
                     blockingEnqueue_ "to-worker - miss-hit" $ toWorker inp
@@ -159,7 +171,7 @@ workerLogic env wstat fromCacher = handledLoop env "worker" $ do
     let qs = question inputQuery
         blockingEnqueue_ tag = blockingEnqueue wstat $ "worker: " ++ tag
     contextSetQuery wstat inputDoX qs
-    ex <- foldResponseIterative Left (curry Right) env wstat inputQuery
+    ex <- inputFoldIterative Left (curry Right) env wstat inputQuery
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
     case ex of
@@ -288,19 +300,29 @@ record env Input{..} reply rspWire = do
 
 type BS = ByteString
 
+-- partially fill the Input record type and pass it to the receiver.
 type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteString
 
 {- FOURMOLU_DISABLE -}
-mkInput :: SockAddr -> (ToSender -> IO ()) -> DoX -> MkInput
-mkInput mysa toSender dox bs peerInfo pendingOp' ts =
+mkInput
+    ::  SockAddr -> (ToSender -> IO ()) -> DoX -> Synthesis
+    -> (forall p . DNSQuery p -> FoldResponse IO p)
+    -> (forall q . FoldResponse IO q)
+    -> MkInput
+mkInput
+    mysa toSender dox syn foldCached foldIterative
+    bs peerInfo pendingOp' ts =
     Input
-    { inputQuery      = bs
-    , inputPendingOp  = pendingOp'
-    , inputMysa       = mysa
-    , inputPeerInfo   = peerInfo
-    , inputDoX        = dox
-    , inputToSender   = toSender
-    , inputRecvTime   = ts
+    { inputQuery          = bs
+    , inputPendingOp      = pendingOp'
+    , inputMysa           = mysa
+    , inputPeerInfo       = peerInfo
+    , inputDoX            = dox
+    , inputSynthesis      = syn
+    , inputFoldCached     = foldCached
+    , inputFoldIterative  = foldIterative
+    , inputToSender       = toSender
+    , inputRecvTime       = ts
     }
 {- FOURMOLU_ENABLE -}
 
@@ -400,19 +422,35 @@ receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCac
             toCacher $ mkInput_ bs peerInfo pop ts
 
 receiverLogic
-    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO ()
-receiverLogic env mysa recv toCacher toSender dox =
-    handledLoop env "receiverUDP" $ void $ receiverLogic' env mysa recv toCacher toSender dox
+    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> Synthesis
+    -> (forall b . DNSQuery b -> FoldResponse IO b)
+    -> (forall b . FoldResponse IO b)
+    -> IO ()
+receiverLogic
+    env
+    mysa recv toCacher toSender dox synth
+    foldCached foldIterative
+    =
+    handledLoop env "receiverUDP" $ void $
+    receiverLogic' env mysa recv toCacher toSender dox synth foldCached foldIterative
 
 receiverLogic'
-    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO Bool
-receiverLogic' env mysa recv toCacher toSender dox = do
+    :: Env
+    -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> Synthesis
+    -> (forall b . DNSQuery b -> FoldResponse IO b)
+    -> (forall b . FoldResponse IO b)
+    -> IO Bool
+receiverLogic'
+    env
+    mysa recv toCacher toSender dox synth
+    foldCached foldIterative
+    = do
     (bs, peerInfo) <- recv
     ts <- currentTimeUsec_ env
     if bs == ""
         then return False
         else do
-            toCacher $ mkInput mysa toSender dox bs peerInfo noPendingOp ts
+            toCacher $ mkInput mysa toSender dox synth foldCached foldIterative bs peerInfo noPendingOp ts
             return True
 
 noPendingOp :: VcPendingOp

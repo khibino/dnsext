@@ -1,5 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Server.TCP (
@@ -25,7 +26,7 @@ import Network.Socket (getPeerName, getSocketName, waitReadSocketSTM)
 import qualified Network.Socket.ByteString as Network
 
 -- this package
-import DNS.Iterative.Internal (Env (..))
+import DNS.Iterative.Internal (DNSQuery, FoldResponse, Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsTCP53, sessionStatsTCP53)
@@ -33,11 +34,17 @@ import DNS.Iterative.Stats (incStatsTCP53, sessionStatsTCP53)
 ----------------------------------------------------------------
 
 tcpServers :: VcServerConfig -> ServerActions
-tcpServers conf env toCacher ss =
-    concat <$> mapM (tcpServer conf env toCacher) ss
+tcpServers conf synth env toCacher ss =
+    concat <$> mapM (tcpServer conf env synth foldCached foldIterative toCacher) ss
+  where
+    (_synth, foldCached, foldIterative) = extendSynthesis synth
 
-tcpServer :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
-tcpServer VcServerConfig{..} env toCacher s = do
+tcpServer
+    :: VcServerConfig -> Env -> Synthesis
+    -> (forall p . DNSQuery p -> FoldResponse IO p)
+    -> (forall q . FoldResponse IO q)
+    -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
+tcpServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
     name <- socketName s <&> (++ "/tcp")
     let tcpserver =
             withLocationIOE name $
@@ -62,7 +69,8 @@ tcpServer VcServerConfig{..} env toCacher s = do
                     checkReceived vc_slowloris_size vcTimer bs
                     incStatsTCP53 peersa (stats_ env)
             let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC (DNS.sendTCP sock) bs
-                receiver = receiverVCnonBlocking "tcp-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender TCP
+                receiver = receiverVCnonBlocking "tcp-recv" env maxSize vcSess peerInfo recv onRecv toCacher
+                           $ mkInput mysa toSender TCP synth foldCached foldIterative
                 sender = senderVC "tcp-send" env vcSess send fromX
             TAsync.concurrently_ "bw.tcp-send" sender "bw.tcp-recv" receiver
         logLn env Log.DEBUG $ "tcp-srv: close: " ++ show peersa

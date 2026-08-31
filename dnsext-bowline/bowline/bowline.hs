@@ -132,21 +132,22 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
                         }
             --  filled env available
             (sm, killSM) <- ST.newSessionTicketManager' ST.defaultConfig{ST.ticketLifetime = cnf_tls_session_ticket_lifetime}
-            addrs <- mapM (bindServers cnf_dns_addrs) $ trans cnf_credentials sm
+            addrs <- mapM (bindServers cnf_dns_addrs) $ trans SynthNone cnf_credentials sm
+            dns64addrs <- mapM (bindServers cnf_dns64_addrs) $ trans SynthDNS64 cnf_dns64_credentials sm
             (mas, monInfo) <- Mon.bindMonitor conf env
             asocks <- API.bindAPIs conf
-            return (runWriter, env, addrs, mas, monInfo, asocks, killSM)
+            return (runWriter, env, addrs ++ dns64addrs, mas, monInfo, asocks, killSM)
     -- recover root-privilege to bind network-port and to access private-key on reloading
-    (runWriter, env, addrs, mas, monInfo, asocks, killSM) <- withRoot ruid conf rootpriv
+    (runWriter, env, all_addrs, mas, monInfo, asocks, killSM) <- withRoot ruid conf rootpriv
     -- actions list for threads
     cacherStats <- Server.getWorkerStats cnf_cachers
     workerStats <- Server.getWorkerStats cnf_workers
     (cachers, workers, toCacher) <- Server.mkPipeline env cacherStats workerStats
-    servers <- sequence [(n,sks,) <$> mkserv env toCacher sks | (n, mkserv, sks) <- addrs, not (null sks)]
+    servers <- sequence [(n,sks,) <$> mkserv env toCacher sks | (n, mkserv, sks) <- all_addrs, not (null sks)]
     mng <- getControl env cacherStats workerStats mng0{reopenLog = reopenLog0}
     let srvInfo1 name sas = unwords $ (name ++ ":") : map show sas
         monitors srvInfo = Mon.monitors conf env mng gcache srvInfo mas monInfo
-    monitor <- monitors <$> mapM (\(n, _mk, sks) -> srvInfo1 n <$> mapM getSocketName sks) addrs
+    monitor <- monitors <$> mapM (\(n, _mk, sks) -> srvInfo1 n <$> mapM getSocketName sks) all_addrs
     -- Run
     gcacheSetLogLn putLines
     tidW <- maybe [] (:[]) <$> runWriter
@@ -175,16 +176,19 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
             killSM
     threadDelay 500000 -- avoiding address already in use
   where
-    trans creds sm =
-        [ (cnf_udp, "bw.udp-srv", udpServers udpconf, Datagram, cnf_udp_port)
-        , (cnf_tcp, "bw.tcp-srv", tcpServers vcconf, Stream, cnf_tcp_port)
-        , (cnf_h2c, "bw.h2c-srv", http2cServers vcconf, Stream, cnf_h2c_port)
-        , (cnf_h2, "bw.h2-srv", http2Servers vcconf, Stream, cnf_h2_port)
-        , (cnf_h3, "bw.h3-srv", http3Servers vcconf, Datagram, cnf_h3_port)
-        , (cnf_tls, "bw.tls-srv", tlsServers vcconf, Stream, cnf_tls_port)
-        , (cnf_quic, "bw.quic-srv", quicServers vcconf, Datagram, cnf_quic_port)
+    trans synth creds sm =
+        [ (cnf_udp, "bw.udp-srv." ++ st, udpServers udpconf synth, Datagram, cnf_udp_port)
+        , (cnf_tcp, "bw.tcp-srv." ++ st, tcpServers vcconf synth, Stream, cnf_tcp_port)
+        , (cnf_h2c, "bw.h2c-srv." ++ st, http2cServers vcconf synth, Stream, cnf_h2c_port)
+        , (cnf_h2, "bw.h2-srv." ++ st, http2Servers vcconf synth, Stream, cnf_h2_port)
+        , (cnf_h3, "bw.h3-srv." ++ st, http3Servers vcconf synth, Datagram, cnf_h3_port)
+        , (cnf_tls, "bw.tls-srv." ++ st, tlsServers vcconf synth, Stream, cnf_tls_port)
+        , (cnf_quic, "bw.quic-srv." ++ st, quicServers vcconf synth, Datagram, cnf_quic_port)
         ]
       where
+        st = case synth of
+                 SynthNone -> "nn"
+                 SynthDNS64 -> "64"
         vcconf =
             VcServerConfig
                 { vc_query_max_size = cnf_vc_query_max_size
