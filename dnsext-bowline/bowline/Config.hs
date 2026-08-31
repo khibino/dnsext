@@ -34,7 +34,10 @@ data Config = Config
     , cnf_short_log :: Bool
     , cnf_cert_file :: FilePath
     , cnf_key_file :: FilePath
+    , cnf_dns64_cert_file :: FilePath
+    , cnf_dns64_key_file :: FilePath
     , cnf_credentials :: Credentials
+    , cnf_dns64_credentials :: Credentials
     , cnf_trust_anchor_file :: [FilePath]
     , cnf_root_hints :: Maybe FilePath
     , cnf_cache_size :: Int
@@ -105,7 +108,10 @@ defaultConfig =
         , cnf_short_log = False
         , cnf_cert_file = "fullchain.pem"
         , cnf_key_file = "privkey.pem"
+        , cnf_dns64_cert_file = "fullchain64.pem"
+        , cnf_dns64_key_file = "privkey64.pem"
         , cnf_credentials = Credentials []
+        , cnf_dns64_credentials = Credentials []
         , cnf_trust_anchor_file = []
         , cnf_root_hints = Nothing
         , cnf_cache_size = 2 * 1024
@@ -272,6 +278,8 @@ makeConfig def conf = do
     cnf_short_log <- get "short-log" cnf_short_log
     cnf_cert_file <- get "cert-file" cnf_cert_file
     cnf_key_file <- get "key-file" cnf_key_file
+    cnf_dns64_cert_file <- get "dns64-cert-file" cnf_dns64_cert_file
+    cnf_dns64_key_file <- get "dns64-key-file" cnf_dns64_key_file
     cnf_trust_anchor_file <- getTrustAnchorFile conf
     cnf_root_hints <- get "root-hints" cnf_root_hints
     cnf_cache_size <- get "cache-size" cnf_cache_size
@@ -328,10 +336,11 @@ makeConfig def conf = do
     cnf_cache_max_negative_ttl <- get "cache-max-negative-ttl" cnf_cache_max_negative_ttl
     cnf_cache_failure_rcode_ttl <- get "cache-failure-rcode-ttl" cnf_cache_failure_rcode_ttl
     cnf_interface_automatic <- get "interface-automatic" cnf_interface_automatic
-    let getCreds
-            | cnf_tls || cnf_quic || cnf_h2 || cnf_h3 = loadCredentials cnf_cert_file cnf_key_file
+    let getCreds addrs certFile keyFile
+            | not (null addrs) && (cnf_tls || cnf_quic || cnf_h2 || cnf_h3) = loadCredentials certFile keyFile
             | otherwise = pure $ Credentials []
-    cnf_credentials <- getCreds
+    cnf_credentials <- getCreds cnf_dns_addrs cnf_cert_file cnf_key_file
+    cnf_dns64_credentials <- getCreds cnf_dns64_addrs cnf_dns64_cert_file cnf_dns64_key_file
     pure Config{..}
   where
     get k func = do
