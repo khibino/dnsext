@@ -20,6 +20,7 @@ import DNS.Do53.Internal (fromNameTag)
 import DNS.DoX.Client
 import DNS.SEC (addResourceDataForDNSSEC)
 import DNS.SVCB (ALPN, addResourceDataForSVCB)
+import DNS.Transport.Types (Synthesis (SynthDNS64))
 import DNS.Types (
     CLASS (..),
     DNSMessage,
@@ -95,6 +96,11 @@ options =
             "<proto>"
         )
         "enable DoX"
+    , Option
+        []
+        ["dns64"]
+        (NoArg (\opts -> opts{optSynthesis = SynthDNS64}))
+        "special purpose, to observe DNS64 query result"
     , Option
         ['f']
         ["format"]

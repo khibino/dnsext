@@ -15,6 +15,7 @@ import DNS.Iterative.Query (Env (..), newEmptyEnv, resolveResponseIterative, set
 import qualified DNS.Log as Log
 import qualified DNS.RRCache as Cache
 import DNS.TimeCache (getTime, newTimeCache)
+import DNS.Transport.Types (Synthesis)
 import Data.IP (IP (IPv6))
 import Network.Socket (PortNumber)
 
@@ -42,7 +43,7 @@ iterativeQuery
     -> IO ()
 iterativeQuery putLn putLines qq opts = do
     env <- setup putLines opts
-    er <- resolve env qq
+    er <- resolve env (optSynthesis opts) qq
     case er of
         Left e -> print e
         Right msg -> putLn msg
@@ -62,6 +63,5 @@ setup putLines opt@Options{..} = do
             , timeout_ = tmout
             }
 
-resolve
-    :: Env -> (Question, QueryControls) -> IO (Either String DNSMessage)
-resolve env (q, ctl) = resolveResponseIterative env q ctl
+resolve :: Env -> Synthesis -> (Question, QueryControls) -> IO (Either String DNSMessage)
+resolve env synth (q, ctl) = resolveResponseIterative env synth q ctl

@@ -17,6 +17,7 @@ import DNS.Types
 
 -- dnsext-utils
 import DNS.WorkerStats (noopWorkerStat)
+import DNS.Transport.Types (Synthesis (..))
 
 -- dnsext-do53
 import DNS.Do53.Client
@@ -24,7 +25,11 @@ import DNS.Do53.Client
 -- this package
 import DNS.Iterative.Query.API
 import DNS.Iterative.Query.Env
-import DNS.Iterative.Query.Types (VResult (..))
+import DNS.Iterative.Query.Types (DNSQuery, VResult (..))
 
-resolveResponseIterative :: Env -> Question -> QueryControls -> IO (Either String DNSMessage)
-resolveResponseIterative env q ictl = foldResponseIterative' Left (\_ -> Right) env noopWorkerStat 0 {- dummy id -} q ictl
+
+resolveResponseIterative :: Env -> Synthesis -> Question -> QueryControls -> IO (Either String DNSMessage)
+resolveResponseIterative env syn q ictl = foldIterative syn Left (\_ -> Right) env noopWorkerStat 0 {- dummy id -} q ictl
+  where
+    foldIterative SynthDNS64  = foldResponseIterative64'
+    foldIterative SynthNone   = foldResponseIterative'

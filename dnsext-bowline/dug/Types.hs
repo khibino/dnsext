@@ -3,6 +3,7 @@
 module Types where
 
 import qualified DNS.Log as Log
+import DNS.Transport.Types (Synthesis (..))
 import Data.ByteString.Short (ShortByteString)
 
 import Output (OutputFlag (..))
@@ -13,6 +14,7 @@ data Options = Options
     , optDisableV6NS :: Bool
     , optPort :: Maybe String
     , optDoX :: ShortByteString
+    , optSynthesis :: Synthesis
     , optFormat :: OutputFlag
     , optVerboseLevel :: Int
     , optKeyLogFile :: Maybe FilePath
@@ -30,6 +32,7 @@ defaultOptions =
         , optDisableV6NS = False
         , optPort = Nothing
         , optDoX = "do53"
+        , optSynthesis = SynthNone
         , optFormat = Singleline
         , optVerboseLevel = 0
         , optKeyLogFile = Nothing

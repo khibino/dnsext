@@ -9,3 +9,8 @@ data DoX
     | H3
     | DoQ
     deriving (Eq, Show)
+
+data Synthesis
+    = SynthNone
+    | SynthDNS64
+    deriving (Eq, Show)

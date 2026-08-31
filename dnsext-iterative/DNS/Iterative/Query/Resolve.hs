@@ -1,7 +1,10 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module DNS.Iterative.Query.Resolve (
+    resolveByCache64,
+    resolve64,
     runResolve,
     resolveByCache,
     resolve,
@@ -13,6 +16,7 @@ import Control.Monad.Trans.Maybe hiding (liftCallCC, liftCatch, liftListen, lift
 -- dnsext-types
 import DNS.Types
 import qualified DNS.Types as DNS
+import Data.IP (IPv4, IPv6, fromIPv4, toIPv6b)
 
 -- dnsext-utils
 import qualified DNS.Log as Log
@@ -31,6 +35,82 @@ import DNS.Iterative.Query.Helpers
 import DNS.Iterative.Query.ResolveJust
 import DNS.Iterative.Query.Types
 import DNS.Iterative.Query.Utils
+
+
+{- FOURMOLU_DISABLE -}
+resolveByCache64 :: MonadContext m => Question -> m (([RRset], Domain), Maybe ResultRRS)
+resolveByCache64 = withDNS64aaaa resolveByCache h
+  where
+    h action x1 = case x1 of
+        (_,  Nothing)   ->  result64  {- case, AAAA mis-hit -}
+        (_, Just res) ->  aaaaNoData id res
+                            not64     {- case, AAAA exist cached -}
+                            result64  {- case, AAAA NoData cached -}
+      where
+        not64 = return x1
+        result64 = action <&> \x2 -> fmap dns64Result <$> x2
+
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+resolve64 :: MonadQuery m => Question -> m (([RRset], Domain), Either ResultRRS (ResultRRS' DNSMessage))
+resolve64 = withDNS64aaaa resolve h
+  where
+    h action x1 = case x1 of
+        (_, Left res)  -> aaaaNoData id res
+                            not64     {- case, AAAA exist cached -}
+                            result64  {- case, AAAA NoData cached -}
+
+        (_, Right res) -> aaaaNoData rcode res
+                            not64     {- case, AAAA exist -}
+                            result64  {- case, AAAA NoData  -}
+      where
+        not64 = return x1
+        result64 = action <&> h2
+    h2 (cn, Left  rs)  = (cn, Left (dns64Result rs))
+    h2 (cn, Right rs)  = (cn, Right (dns64Result rs))
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+withDNS64aaaa
+    :: Monad m
+    => (Question -> m a)
+    -> (m a -> a -> m a) -> Question -> m a
+withDNS64aaaa action k q@Question{ qtype = AAAA }  = action q >>= k (action q{ qtype = A })
+withDNS64aaaa action _ q@Question{}                = action q
+{- FOURMOLU_ENABLE -}
+
+{- FOURMOLU_DISABLE -}
+aaaaNoData :: (a -> RCODE) -> ResultRRS' a -> b -> b -> b
+aaaaNoData rc (x, arrs, _orrs) other nodata
+    | rc x == NoErr && null rrsV6  = nodata
+    | otherwise                    = other
+  where
+    rrsV6 =
+        [ ipv6
+        | RRset{ rrsType = AAAA,  rrsRDatas = rds } <- arrs
+        , rd <- rds
+        , Just ipv6 <- [rdataField rd aaaa_ipv6]
+        ]
+{- FOURMOLU_ENABLE -}
+
+dns64Result :: ResultRRS' a -> ResultRRS' a
+dns64Result (r, arrs, orrs) = (r, map dns64RRset arrs, orrs)
+
+{- FOURMOLU_DISABLE -}
+dns64RRset :: RRset -> RRset
+dns64RRset rs@RRset{ rrsType = A }  =
+    rs{rrsType = AAAA, rrsRDatas = rds' }
+  where
+    rds' = [ rd_aaaa (dns64IPv6 ipv4)
+           | rd <- rrsRDatas rs, Just ipv4 <- [rdataField rd a_ipv4] ]
+dns64RRset rs@RRset{ }              = rs
+{- FOURMOLU_ENABLE -}
+
+dns64IPv6 :: IPv4 -> IPv6
+dns64IPv6 ipv4 = toIPv6b [0, 0x64, 0xff, 0x9b, 0, 0, 0, 0, 0, 0, 0, 0, i1, i2, i3, i4]
+  where
+    [i1, i2, i3, i4] = fromIPv4 ipv4
 
 -- | Getting the final result.
 runResolve
