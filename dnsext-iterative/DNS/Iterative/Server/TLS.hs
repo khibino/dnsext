@@ -1,5 +1,6 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Server.TLS (
@@ -30,17 +31,22 @@ import qualified DNS.Do53.Internal as DNS
 import qualified Network.HTTP2.TLS.Server as H2
 
 -- this package
-import DNS.Iterative.Internal (Env (..))
+import DNS.Iterative.Internal (DNSQuery, FoldResponse, Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsDoT, sessionStatsDoT)
 
 tlsServers :: VcServerConfig -> ServerActions
-tlsServers conf _synth env toCacher ss =
-    concat <$> mapM (tlsServer conf env toCacher) ss
+tlsServers conf synth env toCacher ss =
+    concat <$> mapM (tlsServer conf env synth foldCached foldIterative toCacher) ss
+  where
+    (_synth, foldCached, foldIterative) = extendSynthesis synth
 
-tlsServer :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
-tlsServer VcServerConfig{..} env toCacher s = do
+tlsServer :: VcServerConfig -> Env -> Synthesis
+    -> (forall p . DNSQuery p -> FoldResponse IO p)
+    -> (forall q . FoldResponse IO q)
+    -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
+tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
     name <- socketName s <&> (++ "/tls")
     let tlsserver = withLocationIOE name $ H2.runTLSWithSocket settings vc_credentials s "dot" go
     return [tlsserver]
@@ -70,7 +76,8 @@ tlsServer VcServerConfig{..} env toCacher s = do
                         incStatsDoT peersa (stats_ env)
                 let send = getSendVC vcTimer $ \bs _ -> DNS.sendVC (H2.sendMany backend) bs
                     hrecv = exceptionCase $ \es -> logLn env Log.DEMO ("tls-recv: " ++ es)
-                    receiver = hrecv $ receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher $ mkInput mysa toSender DoT
+                    receiver = hrecv $ receiverVCnonBlocking "tls-recv" env maxSize vcSess peerInfo recv onRecv toCacher
+                               $ mkInput mysa toSender DoT synth foldCached foldIterative
                     hsend = exceptionCase $ \es -> do
                         let pendings = vcPendings_ vcSess
                         p <- showVcPendings pendings

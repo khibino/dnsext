@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Server.HTTP2 (
@@ -29,19 +30,25 @@ import qualified Network.HTTP2.TLS.Server as H2TLS
 import qualified Network.QUIC as QUIC
 
 -- this package
-import DNS.Iterative.Internal (Env (..))
+import DNS.Iterative.Internal (DNSQuery, FoldResponse, Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsDoH2, incStatsDoH2C, sessionStatsDoH2, sessionStatsDoH2C)
 
 http2Servers :: VcServerConfig -> ServerActions
-http2Servers conf _synth env toCacher ss =
-    concat <$> mapM (http2Server conf env toCacher) ss
+http2Servers conf synth env toCacher ss =
+    concat <$> mapM (http2Server conf env synth foldCached foldIterative toCacher) ss
+  where
+    (_synth, foldCached, foldIterative) = extendSynthesis synth
 
-http2Server :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
-http2Server VcServerConfig{..} env toCacher s = do
+http2Server :: VcServerConfig -> Env -> Synthesis
+    -> (forall p . DNSQuery p -> FoldResponse IO p)
+    -> (forall q . FoldResponse IO q)
+    -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
+http2Server VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
     name <- socketName s <&> (++ "/h2")
-    let http2server = withLocationIOE name $ H2TLS.runIO settings vc_credentials s $ doHTTP "h2" sbracket incQuery env toCacher H2
+    let http2server = withLocationIOE name $ H2TLS.runIO settings vc_credentials s
+                      $ doHTTP "h2" sbracket incQuery env toCacher H2 synth foldCached foldIterative
     return [http2server]
   where
     sbracket = sessionStatsDoH2 (stats_ env)
@@ -56,13 +63,19 @@ http2Server VcServerConfig{..} env toCacher s = do
             }
 
 http2cServers :: VcServerConfig -> ServerActions
-http2cServers conf _synth env toCacher ss =
-    concat <$> mapM (http2cServer conf env toCacher) ss
+http2cServers conf synth env toCacher ss =
+    concat <$> mapM (http2cServer conf env synth foldCached foldIterative toCacher) ss
+  where
+    (_synth, foldCached, foldIterative) = extendSynthesis synth
 
-http2cServer :: VcServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
-http2cServer VcServerConfig{..} env toCacher s = do
+http2cServer :: VcServerConfig -> Env -> Synthesis
+    -> (forall p . DNSQuery p -> FoldResponse IO p)
+    -> (forall q . FoldResponse IO q)
+    -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
+http2cServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
     name <- socketName s <&> (++ "/h2c")
-    let http2server = withLocationIOE name $ H2TLS.runIOH2C settings s $ doHTTP "h2c" sbracket incQuery env toCacher H2C
+    let http2server = withLocationIOE name $ H2TLS.runIOH2C settings s
+                      $ doHTTP "h2c" sbracket incQuery env toCacher H2C synth foldCached foldIterative
     return [http2server]
   where
     sbracket = sessionStatsDoH2C (stats_ env)
@@ -96,9 +109,12 @@ doHTTP
     -> Env
     -> (ToCacher -> IO ())
     -> DoX
+    -> Synthesis
+    -> (forall p . DNSQuery p -> FoldResponse IO p)
+    -> (forall q . FoldResponse IO q)
     -> ServerIO a
     -> IO (IO ())
-doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
+doHTTP name sbracket incQuery env toCacher dox synth foldCached foldIterative ServerIO{..} = do
     (toSender, fromX, _, _, senderQ, pendings) <- mkConnector'
     let hrecv = exceptionCase $ \es -> logLn env Log.DEMO (name ++ "-recv: " ++ es)
         rloop i = do
@@ -109,7 +125,7 @@ doHTTP name sbracket incQuery env toCacher dox ServerIO{..} = do
             case einp of
                 Left emsg -> logLn env Log.WARN $ "http.decode-error: " ++ name ++ ": " ++ emsg
                 Right bs -> pendingOp pendings i $ \add pop -> do
-                    let inp = mkInput sioMySockAddr toSender dox bs peerInfo pop ts
+                    let inp = mkInput sioMySockAddr toSender dox synth foldCached foldIterative bs peerInfo pop ts
                     add
                     incQuery sioPeerSockAddr
                     toCacher inp

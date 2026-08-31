@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Server.Pipeline (
@@ -66,7 +67,9 @@ import DNS.WorkerStats
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Internal (Env (..))
-import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseCached64, foldResponseIterative, foldResponseIterative64)
+import DNS.Iterative.Query
+    (DNSQuery, FoldResponse, VResult (..),
+     foldResponseCached, foldResponseCached64, foldResponseIterative, foldResponseIterative64)
 import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats
@@ -301,17 +304,23 @@ type BS = ByteString
 type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteString
 
 {- FOURMOLU_DISABLE -}
-mkInput :: SockAddr -> (ToSender -> IO ()) -> DoX -> MkInput
-mkInput mysa toSender dox bs peerInfo pendingOp' ts =
+mkInput
+    ::  SockAddr -> (ToSender -> IO ()) -> DoX -> Synthesis
+    -> (forall p . DNSQuery p -> FoldResponse IO p)
+    -> (forall q . FoldResponse IO q)
+    -> MkInput
+mkInput
+    mysa toSender dox syn foldCached foldIterative
+    bs peerInfo pendingOp' ts =
     Input
     { inputQuery          = bs
     , inputPendingOp      = pendingOp'
     , inputMysa           = mysa
     , inputPeerInfo       = peerInfo
     , inputDoX            = dox
-    , inputSynthesis      = SynthNone
-    , inputFoldCached     = foldResponseCached
-    , inputFoldIterative  = foldResponseIterative
+    , inputSynthesis      = syn
+    , inputFoldCached     = foldCached
+    , inputFoldIterative  = foldIterative
     , inputToSender       = toSender
     , inputRecvTime       = ts
     }
@@ -413,19 +422,35 @@ receiverVCnonBlocking name env lim vcs@VcSession{..} peerInfo recvN onRecv toCac
             toCacher $ mkInput_ bs peerInfo pop ts
 
 receiverLogic
-    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO ()
-receiverLogic env mysa recv toCacher toSender dox =
-    handledLoop env "receiverUDP" $ void $ receiverLogic' env mysa recv toCacher toSender dox
+    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> Synthesis
+    -> (forall b . DNSQuery b -> FoldResponse IO b)
+    -> (forall b . FoldResponse IO b)
+    -> IO ()
+receiverLogic
+    env
+    mysa recv toCacher toSender dox synth
+    foldCached foldIterative
+    =
+    handledLoop env "receiverUDP" $ void $
+    receiverLogic' env mysa recv toCacher toSender dox synth foldCached foldIterative
 
 receiverLogic'
-    :: Env -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> IO Bool
-receiverLogic' env mysa recv toCacher toSender dox = do
+    :: Env
+    -> SockAddr -> IO (BS, Peer) -> (ToCacher -> IO ()) -> (ToSender -> IO ()) -> DoX -> Synthesis
+    -> (forall b . DNSQuery b -> FoldResponse IO b)
+    -> (forall b . FoldResponse IO b)
+    -> IO Bool
+receiverLogic'
+    env
+    mysa recv toCacher toSender dox synth
+    foldCached foldIterative
+    = do
     (bs, peerInfo) <- recv
     ts <- currentTimeUsec_ env
     if bs == ""
         then return False
         else do
-            toCacher $ mkInput mysa toSender dox bs peerInfo noPendingOp ts
+            toCacher $ mkInput mysa toSender dox synth foldCached foldIterative bs peerInfo noPendingOp ts
             return True
 
 noPendingOp :: VcPendingOp

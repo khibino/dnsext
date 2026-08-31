@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Server.UDP (
@@ -24,7 +25,7 @@ import Network.Socket (
 import qualified Network.Socket.ByteString as NSB
 
 -- this package
-import DNS.Iterative.Internal (Env (..))
+import DNS.Iterative.Internal (DNSQuery, FoldResponse, Env (..))
 import DNS.Iterative.Server.Pipeline
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats (incStatsUDP53)
@@ -38,11 +39,17 @@ newtype UdpServerConfig = UdpServerConfig
 ----------------------------------------------------------------
 
 udpServers :: UdpServerConfig -> ServerActions
-udpServers conf _synth env toCacher ss =
-    concat <$> mapM (udpServer conf env toCacher) ss
+udpServers conf synth env toCacher ss = do
+    concat <$> mapM (udpServer conf env synth foldCached foldIterative toCacher) ss
+  where
+    (_synth, foldCached, foldIterative) = extendSynthesis synth
 
-udpServer :: UdpServerConfig -> Env -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
-udpServer UdpServerConfig{..} env toCacher s = do
+udpServer
+    :: UdpServerConfig -> Env -> Synthesis
+    -> (forall p . DNSQuery p -> FoldResponse IO p)
+    -> (forall q . FoldResponse IO q)
+    -> (ToCacher -> IO ()) -> Socket -> IO [IO ()]
+udpServer UdpServerConfig{..} env synth foldCached foldIterative toCacher s = do
     mysa <- getSocketName s
     when udp_interface_automatic $ setPktInfo s
     {- limit waiting area on server to constant size -}
@@ -57,7 +64,7 @@ udpServer UdpServerConfig{..} env toCacher s = do
         send bs (PeerInfoUDP peersa cmsgs) =
             void $ NSB.sendMsg s peersa [bs] cmsgs 0
         send _ _ = return ()
-        receiver = receiverLogic env mysa recv toCacher toSender UDP
+        receiver = receiverLogic env mysa recv toCacher toSender UDP synth foldCached foldIterative
         sender = senderLogic env send fromX
     return [TAsync.concurrently_ "bw.udp-send" sender "bw.udp-recv" receiver]
 
