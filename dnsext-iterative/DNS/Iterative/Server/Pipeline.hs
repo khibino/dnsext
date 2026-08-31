@@ -288,6 +288,7 @@ record env Input{..} reply rspWire = do
 
 type BS = ByteString
 
+-- partially fill the Input record type and pass it to the receiver.
 type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteString
 
 {- FOURMOLU_DISABLE -}
