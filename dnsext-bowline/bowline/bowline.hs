@@ -133,20 +133,21 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
             --  filled env available
             (sm, killSM) <- ST.newSessionTicketManager' ST.defaultConfig{ST.ticketLifetime = cnf_tls_session_ticket_lifetime}
             addrs <- mapM (bindServers cnf_dns_addrs) $ trans SynthNone cnf_credentials sm
+            dns64addrs <- mapM (bindServers cnf_dns64_addrs) $ trans SynthDNS64 cnf_dns64_credentials sm
             (mas, monInfo) <- Mon.bindMonitor conf env
             asocks <- API.bindAPIs conf
-            return (runWriter, env, addrs, mas, monInfo, asocks, killSM)
+            return (runWriter, env, addrs ++ dns64addrs, mas, monInfo, asocks, killSM)
     -- recover root-privilege to bind network-port and to access private-key on reloading
-    (runWriter, env, addrs, mas, monInfo, asocks, killSM) <- withRoot ruid conf rootpriv
+    (runWriter, env, all_addrs, mas, monInfo, asocks, killSM) <- withRoot ruid conf rootpriv
     -- actions list for threads
     cacherStats <- Server.getWorkerStats cnf_cachers
     workerStats <- Server.getWorkerStats cnf_workers
     (cachers, workers, toCacher) <- Server.mkPipeline env cacherStats workerStats
-    servers <- sequence [(n,sks,) <$> mkserv env toCacher sks | (n, mkserv, sks) <- addrs, not (null sks)]
+    servers <- sequence [(n,sks,) <$> mkserv env toCacher sks | (n, mkserv, sks) <- all_addrs, not (null sks)]
     mng <- getControl env cacherStats workerStats mng0{reopenLog = reopenLog0}
     let srvInfo1 name sas = unwords $ (name ++ ":") : map show sas
         monitors srvInfo = Mon.monitors conf env mng gcache srvInfo mas monInfo
-    monitor <- monitors <$> mapM (\(n, _mk, sks) -> srvInfo1 n <$> mapM getSocketName sks) addrs
+    monitor <- monitors <$> mapM (\(n, _mk, sks) -> srvInfo1 n <$> mapM getSocketName sks) all_addrs
     -- Run
     gcacheSetLogLn putLines
     tidW <- maybe [] (:[]) <$> runWriter
