@@ -12,6 +12,7 @@ module DNS.Iterative.Server.Types (
     FromX,
     ReqNum,
     VcPendingOp (..),
+    ExSynthesis,
     Input (..),
     Output (..),
     Peer (..),
@@ -67,6 +68,8 @@ data VcPendingOp
     { vpReqNum :: ReqNum
     , vpDelete :: IO ()
     }
+
+type ExSynthesis p q = (Synthesis, DNSQuery p -> FoldResponse IO p, FoldResponse IO q)
 
 data Input a = Input
     { inputQuery :: a

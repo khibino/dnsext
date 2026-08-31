@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module DNS.Iterative.Server.Pipeline (
+    extendSynthesis,
     mkPipeline,
     mkConnector,
     mkConnector',
@@ -65,7 +66,7 @@ import DNS.WorkerStats
 -- this package
 import DNS.Iterative.Imports
 import DNS.Iterative.Internal (Env (..))
-import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseIterative)
+import DNS.Iterative.Query (VResult (..), foldResponseCached, foldResponseCached64, foldResponseIterative, foldResponseIterative64)
 import DNS.Iterative.Server.CtlRecv
 import DNS.Iterative.Server.Types
 import DNS.Iterative.Stats
@@ -111,6 +112,14 @@ mkPipeline env cacherStats workerStats = do
     let cachers = [cacherLogic env cstat fromReceiver toWorker | cstat <- cacherStats]
     let workers = [workerLogic env wstat fromCacher | wstat <- workerStats]
     return (cachers, workers, toCacher)
+
+----------------------------------------------------------------
+
+{- FORMOLU_DISABLE -}
+extendSynthesis :: Synthesis -> ExSynthesis p q
+extendSynthesis SynthNone   = (SynthNone,   foldResponseCached,   foldResponseIterative)
+extendSynthesis SynthDNS64  = (SynthDNS64,  foldResponseCached64, foldResponseIterative64)
+{- FORMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
