@@ -295,13 +295,16 @@ type MkInput = ByteString -> Peer -> VcPendingOp -> EpochTimeUsec -> Input ByteS
 mkInput :: SockAddr -> (ToSender -> IO ()) -> DoX -> MkInput
 mkInput mysa toSender dox bs peerInfo pendingOp' ts =
     Input
-    { inputQuery      = bs
-    , inputPendingOp  = pendingOp'
-    , inputMysa       = mysa
-    , inputPeerInfo   = peerInfo
-    , inputDoX        = dox
-    , inputToSender   = toSender
-    , inputRecvTime   = ts
+    { inputQuery          = bs
+    , inputPendingOp      = pendingOp'
+    , inputMysa           = mysa
+    , inputPeerInfo       = peerInfo
+    , inputDoX            = dox
+    , inputSynthesis      = SynthNone
+    , inputFoldCached     = foldResponseCached
+    , inputFoldIterative  = foldResponseIterative
+    , inputToSender       = toSender
+    , inputRecvTime       = ts
     }
 {- FOURMOLU_ENABLE -}
 
