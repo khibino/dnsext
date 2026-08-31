@@ -183,13 +183,18 @@ showConfig1 :: Config -> [String]
 showConfig1 Config{..} =
     [ showAddrPort "Mointor" True        cnf_monitor_addrs  cnf_monitor_port
     , showAddrPort "WebAPI"  cnf_webapi  cnf_webapi_addrs   cnf_webapi_port
-    , showAddrPort "UDP"     cnf_udp     cnf_dns_addrs      cnf_udp_port
-    , showAddrPort "TCP"     cnf_tcp     cnf_dns_addrs      cnf_tcp_port
-    , showAddrPort "TLS"     cnf_tls     cnf_dns_addrs      cnf_tls_port
-    , showAddrPort "QUIC"    cnf_quic    cnf_dns_addrs      cnf_quic_port
-    , showAddrPort "H2C"     cnf_h2c     cnf_dns_addrs      cnf_h2c_port
-    , showAddrPort "H2"      cnf_h2      cnf_dns_addrs      cnf_h2_port
-    , showAddrPort "H3"      cnf_h3      cnf_dns_addrs      cnf_h3_port
+    ] ++
+    [ showAddrPort (name ++ syn) penable addrs port
+    | (syn, addrs) <- [ ("", cnf_dns_addrs),  ("-64", cnf_dns64_addrs) ]
+    , (name, penable, port) <-
+            [ ("UDP"   , cnf_udp     , cnf_udp_port )
+            , ("TCP"   , cnf_tcp     , cnf_tcp_port )
+            , ("TLS"   , cnf_tls     , cnf_tls_port )
+            , ("QUIC"  , cnf_quic    , cnf_quic_port )
+            , ("H2C"   , cnf_h2c     , cnf_h2c_port )
+            , ("H2"    , cnf_h2      , cnf_h2_port )
+            , ("H3"    , cnf_h3      , cnf_h3_port )
+            ]
     ]
   where
     showAddrPort tag enable addrs port
