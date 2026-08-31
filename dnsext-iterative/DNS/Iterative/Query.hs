@@ -5,10 +5,12 @@ module DNS.Iterative.Query (
 
     -- * Iterative query
     resolveResponseIterative,
+    foldResponseIterative64,
     foldResponseIterative,
     foldResponseIterative',
 
     -- * Cache
+    foldResponseCached64,
     foldResponseCached,
 ) where
 
@@ -25,7 +27,7 @@ import DNS.Do53.Client
 -- this package
 import DNS.Iterative.Query.API
 import DNS.Iterative.Query.Env
-import DNS.Iterative.Query.Types (DNSQuery, VResult (..))
+import DNS.Iterative.Query.Types (DNSQuery, FoldResponse, VResult (..))
 
 
 resolveResponseIterative :: Env -> Synthesis -> Question -> QueryControls -> IO (Either String DNSMessage)
