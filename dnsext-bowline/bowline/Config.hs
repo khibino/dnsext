@@ -217,12 +217,15 @@ showConfig2 conf =
     , field' "short log" cnf_short_log
     , field'_ "cert file" cnf_cert_file
     , field'_ "key file" cnf_key_file
+    , field'_ "dns64 cert file" cnf_dns64_cert_file
+    , field'_ "dns64 key file" cnf_dns64_key_file
     , field'_ "trust anchor file" (unwords . cnf_trust_anchor_file)
     , field'_ "root hints" (maybe "<default>" id . cnf_root_hints)
     , field' "max cache size" cnf_cache_size
     , field' "disable queries to IPv6 NS" cnf_disable_v6_ns
     , field'_ "domain insecures" (unwords . map show . cnf_domain_insecures)
     , field'_ "dns addrs" (unwords . cnf_dns_addrs)
+    , field'_ "dns64 addrs" (unwords . cnf_dns64_addrs)
     , field' "resolve timeout" cnf_resolve_timeout
     , field' "cachers" cnf_cachers
     , field' "workers" cnf_workers
