@@ -134,16 +134,35 @@ data CacheResult
 inputAddr :: Input a -> String
 inputAddr Input{..} = show inputPeerInfo ++ " -> " ++ show inputMysa
 
+indent :: String
+indent = replicate 4 ' '
+
+{- FORMOLU_DISABLE -}
+logQuery :: Env -> String -> Question -> DNSFlags -> EDNSheader -> IO ()
+logQuery env name (Question qn typ cls) flags eh = do
+    logLines env Log.DEMO [unwords [name ++ ":", show qn, show typ, show cls], indent ++ intercalate ", " [do_, cd_, ad_]]
+  where
+    qbitstr tag v = tag ++ ":" ++ v
+    dnssecOk = ednsHeaderCases (bool "0" "1" . ednsDnssecOk) "0" "0" eh
+    checkDisabled = bool "0" "1" (chkDisable flags)
+    authenticatedData = bool "0" "1" (authenData flags)
+    do_ = qbitstr "DnssecOK"          dnssecOk
+    cd_ = qbitstr "CheckDisabled"     checkDisabled
+    ad_ = qbitstr "AuthenticatedData" authenticatedData
+{- FORMOLU_ENABLE -}
+
+----------------------------------------------------------------
+
 cacherLogic :: Env -> WorkerStatOP -> IO FromReceiver -> (ToWorker -> IO ()) -> IO ()
 cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
     inpBS@Input{..} <- blockingRequest wstat fromReceiver
     case DNS.decode inputQuery of
         Left e -> logLn env Log.WARN $ "cacher.decode-error: " ++ inputAddr inpBS ++ " : " ++ show e
-        Right queryMsg -> do
+        Right queryMsg@DNSMessage{question = qq, flags = qflags, ednsHeader = qeh} -> do
             -- Input ByteString -> Input DNSMessage
-            let qs = question queryMsg
-                blockingEnqueue_ tag = blockingEnqueue wstat $ "cacher: " ++ tag
-            contextSetQuery wstat inputDoX qs
+            let blockingEnqueue_ tag = blockingEnqueue wstat $ "cacher: " ++ tag
+            logQuery env "cacher" qq qflags qeh
+            contextSetQuery wstat inputDoX qq
             let inp = inpBS{inputQuery = queryMsg}
             cres <- inputFoldCached (pure CResultMissHit) CResultDenied CResultHit env wstat queryMsg
             case cres of
@@ -153,7 +172,7 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
                     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
                     updateHistogram_ env duration (stats_ env)
                     mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheHit, QueriesAll]
-                    let bs = encodeWithTC env inputPeerInfo (ednsHeader queryMsg) replyMsg
+                    let bs = encodeWithTC env inputPeerInfo qeh replyMsg
                     blockingEnqueue_ "dnstap - hit" $ record env inp replyMsg bs
                     blockingResponse wstat $ inputToSender $ Output bs inputPendingOp inputPeerInfo
                 CResultDenied _replyErr -> do
@@ -167,17 +186,18 @@ cacherLogic env wstat fromReceiver toWorker = handledLoop env "cacher" $ do
 
 workerLogic :: Env -> WorkerStatOP -> IO FromCacher -> IO ()
 workerLogic env wstat fromCacher = handledLoop env "worker" $ do
-    inp@Input{..} <- blockingRequest wstat fromCacher
-    let qs = question inputQuery
-        blockingEnqueue_ tag = blockingEnqueue wstat $ "worker: " ++ tag
-    contextSetQuery wstat inputDoX qs
-    ex <- inputFoldIterative Left (curry Right) env wstat inputQuery
+    inp@Input{inputQuery = queryMsg@DNSMessage{question = qq, flags = qflags, ednsHeader = qeh},..}
+        <- blockingRequest wstat fromCacher
+    let blockingEnqueue_ tag = blockingEnqueue wstat $ "worker: " ++ tag
+    logQuery env "worker" qq qflags qeh
+    contextSetQuery wstat inputDoX qq
+    ex <- inputFoldIterative Left (curry Right) env wstat queryMsg
     duration <- diffUsec <$> currentTimeUsec_ env <*> pure inputRecvTime
     updateHistogram_ env duration (stats_ env)
     case ex of
         Right (vr, replyMsg) -> do
             mapM_ (incStats $ stats_ env) [statsIxOfVR vr, CacheMiss, QueriesAll]
-            let bs = encodeWithTC env inputPeerInfo (ednsHeader inputQuery) replyMsg
+            let bs = encodeWithTC env inputPeerInfo qeh replyMsg
             blockingEnqueue_ "dnstap" $ record env inp replyMsg bs
             blockingResponse wstat $ inputToSender $ Output bs inputPendingOp inputPeerInfo
         Left _e -> logicDenied env inp
@@ -735,6 +755,9 @@ exceptionCase logLn' body = do
 {- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
+
+logLines :: Env -> Log.Level -> [String] -> IO ()
+logLines env level = logLines_ env level Nothing
 
 logLn :: Env -> Log.Level -> String -> IO ()
 logLn env level = logLines_ env level Nothing . (: [])
