@@ -144,23 +144,15 @@ resolveLogic
     -> (Domain -> TYPE -> m (Either (Domain, RRset) (ResultRRS' a)))
     -> Question
     -> m (([RRset], Domain), b)
-resolveLogic logMark left right cnameHandler typeHandler (Question n0 typ cls) =
-    called >> notLocal
+resolveLogic logMark left right cnameHandler typeHandler (Question n0 typ cls)
+    | cls /= IN        = pure (([], n0), left (DNS.NoErr, [], []))  {- not support other than IN -}
+    | typ == Cache.ERR = pure (([], n0), left (DNS.NoErr, [], []))
+    | typ == ANY       = pure (([], n0), left (DNS.NotImpl, [], []))
+    | typ == CNAME     = justCNAME n0
+    | otherwise        = recCNAMEs 0 n0 id
   where
-    notLocal
-        | cls /= IN        = pure (([], n0), left (DNS.NoErr, [], []))  {- not support other than IN -}
-        | typ == Cache.ERR = pure (([], n0), left (DNS.NoErr, [], []))
-        | typ == ANY       = pure (([], n0), left (DNS.NotImpl, [], []))
-        | typ == CNAME     = justCNAME n0
-        | otherwise        = recCNAMEs 0 n0 id
     logLines__ lv = logLines lv . pindents ("resolve: " ++ logMark)
     logLn_ lv s = logLines__ lv [s]
-    called = do
-        let qbitstr tag sel tbl = ((tag ++ ":") ++) . fromMaybe "" . (`lookup` tbl) <$> asksQP sel
-        do_ <- qbitstr "DnssecOK"           requestDO_  [(DnssecOK,           "1"), (NoDnssecOK,           "0")]
-        cd_ <- qbitstr "CheckDisabled"      requestCD_  [(CheckDisabled,      "1"), (NoCheckDisabled,      "0")]
-        ad_ <- qbitstr "AuthenticatedData"  requestAD_  [(AuthenticatedData,  "1"), (NoAuthenticatedData,  "0")]
-        logLines__ Log.DEMO [unwords [show n0, show typ, show cls], intercalate ", " [do_, cd_, ad_]]
     justCNAME bn = withNegativeTrustAnchor bn $ do
         let result x = (([], bn), x)
 
