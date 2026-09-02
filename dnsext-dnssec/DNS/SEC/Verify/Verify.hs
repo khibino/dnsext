@@ -70,12 +70,12 @@ import DNS.SEC.Verify.Types
 -- >>> :seti -XOverloadedStrings
 
 -- | Calculating a Key Tag for a DNSKEY.
-keyTag :: RD_DNSKEY -> Word16
+keyTag :: RD_DNSKEY -> KeyTag
 keyTag dnskey = keyTagFromBS $ runBuilder (resourceDataSize dnskey) $ putResourceData Canonical dnskey
 
 {- FOURMOLU_DISABLE -}
 -- | Implementation for the Key Tag algorithm from https://datatracker.ietf.org/doc/html/rfc4034#appendix-B
-keyTagFromBS :: ByteString -> Word16
+keyTagFromBS :: ByteString -> KeyTag
 keyTagFromBS (BS.BS ftpr (I# len#)) =
     fromIntegral $ unsafeDupablePerformIO $ withForeignPtr ftpr $ return . go 0 0
   where
@@ -104,7 +104,7 @@ keyTagFromBS (BS.BS ftpr (I# len#)) =
 
 {- FOURMOLU_DISABLE -}
 -- | Check if the Key Tag matches the calculated Key Tag of DNSKEY.
-checkKeyTag :: RD_DNSKEY -> Word16 -> Either String ()
+checkKeyTag :: RD_DNSKEY -> KeyTag -> Either String ()
 checkKeyTag dnskey@RD_DNSKEY{..} tag = do
     let keyTag_ = keyTag dnskey
     when (dnskey_pubalg == RSAMD5) $

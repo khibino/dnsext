@@ -6,7 +6,6 @@ module DNS.ZoneFile.ParserDNSSEC where
 import Control.Applicative
 import Data.ByteString (ByteString)
 import Data.ByteString.Short (fromShort)
-import Data.Word
 
 -- dnsext-* packages
 import DNS.SEC
@@ -58,7 +57,7 @@ part = fromShort . cs_cs <$> lstring
 parts :: MonadParser Token s m => m ByteString
 parts = (mconcat <$>) $ (:) <$> part <*> many (blank *> part)
 
-keytag :: MonadParser Token s m => m Word16
+keytag :: MonadParser Token s m => m KeyTag
 keytag = readCString "keytag"
 
 pubalg :: MonadParser Token s m => m PubAlg

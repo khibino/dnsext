@@ -49,7 +49,7 @@ mkRData typ =
     case typ of
         DS ->
             rd_ds
-                <$> genWord16
+                <$> genKeyTag
                 <*> (toPubAlg <$> genWord8)
                 <*> (toDigestAlg <$> genWord8)
                 <*> genOpaque
@@ -127,8 +127,8 @@ genDomain =
     elements
         [".", "a.", "a.b.", "abc.", "a.b.c.", "a\\.b.c.", "\\001.a.b.", "\\$.a.b."]
 
-genWord16 :: Gen Word16
-genWord16 = arbitrary
+genKeyTag :: Gen KeyTag
+genKeyTag = arbitrary
 
 genTTL :: Gen TTL
 genTTL = Seconds <$> arbitrary

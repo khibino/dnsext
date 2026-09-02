@@ -60,7 +60,7 @@ spec = do
 -----
 -- KeyTag cases
 
-type KeyTag_Case = (ResourceRecord, Word16)
+type KeyTag_Case = (ResourceRecord, KeyTag)
 
 caseKeyTag :: KeyTag_Case -> Expectation
 caseKeyTag (dnskeyRR, tag) = either expectationFailure (const $ pure ()) $ do
@@ -1356,7 +1356,7 @@ rd_rrsig'
     -> TTL
     -> DNSTime
     -> DNSTime
-    -> Word16
+    -> KeyTag
     -> String
     -> String
     -> RData

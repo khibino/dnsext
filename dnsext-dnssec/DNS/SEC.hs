@@ -16,6 +16,7 @@ module DNS.SEC (
     ),
 
     -- ** DNSEC resource data
+    KeyTag,
 
     -- *** RRSIG RR
     RD_RRSIG (..),

@@ -29,7 +29,6 @@ import qualified Control.Exception as E
 import Data.ByteString ()
 import Data.List
 import Data.Maybe
-import Data.Word (Word16)
 
 data SignFailure = SignFailure deriving (Show)
 
@@ -154,7 +153,7 @@ prepareDNSSEC info@DNSSECinfo{..} = do
             let signRRs = signZone prikey rrsigTemp
             return (pubkey, prikey, rrdnskey, rrds, signRRs)
 
-makeRRSIGtemplate :: DNSSECinfo -> Word16 -> IO RD_RRSIG
+makeRRSIGtemplate :: DNSSECinfo -> KeyTag -> IO RD_RRSIG
 makeRRSIGtemplate DNSSECinfo{..} tag = do
     inception <- toDNSTime <$> getCurrentTime
     let expiration = inception + dnssecInfoDuration

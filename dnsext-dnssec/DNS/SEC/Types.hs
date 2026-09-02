@@ -50,6 +50,8 @@ pattern CDNSKEY = TYPE 60 -- RFC 7344
 
 ----------------------------------------------------------------
 
+type KeyTag = Word16
+
 {- FOURMOLU_DISABLE -}
 -- | DNSSEC signature
 --
@@ -86,7 +88,7 @@ data RD_RRSIG = RD_RRSIG
     -- ^ Time last valid
     , rrsig_inception  :: DNSTime
     -- ^ Time first valid
-    , rrsig_key_tag    :: Word16
+    , rrsig_key_tag    :: KeyTag
     -- ^ Signing key tag
     , rrsig_zone       :: Domain
     -- ^ Signing domain
@@ -149,7 +151,7 @@ rd_rrsig
     -> TTL
     -> DNSTime
     -> DNSTime
-    -> Word16
+    -> KeyTag
     -> Domain
     -> Opaque
     -> RData
@@ -160,7 +162,7 @@ rd_rrsig a b c d e f g h i = toRData $ RD_RRSIG a b c d e f g h i
 {- FOURMOLU_DISABLE -}
 -- | Delegation Signer (RFC4034)
 data RD_DS = RD_DS
-    { ds_key_tag   :: Word16
+    { ds_key_tag   :: KeyTag
     , ds_pubalg    :: PubAlg
     , ds_digestalg :: DigestAlg
     , ds_digest    :: Opaque
@@ -192,7 +194,7 @@ get_ds len rbuf ref = do
 {- FOURMOLU_ENABLE -}
 
 -- | Smart constructor.
-rd_ds :: Word16 -> PubAlg -> DigestAlg -> Opaque -> RData
+rd_ds :: KeyTag -> PubAlg -> DigestAlg -> Opaque -> RData
 rd_ds a b c d = toRData $ RD_DS a b c d
 
 ----------------------------------------------------------------
@@ -390,7 +392,7 @@ rd_nsec3param a b c d = toRData $ RD_NSEC3PARAM a b c d
 {- FOURMOLU_DISABLE -}
 -- | Child DS (RFC7344)
 data RD_CDS = RD_CDS
-    { cds_key_tag   :: Word16
+    { cds_key_tag   :: KeyTag
     , cds_pubalg    :: PubAlg
     , cds_digestalg :: DigestAlg
     , cds_digest    :: Opaque
@@ -422,7 +424,7 @@ get_cds len rbuf ref = do
 {- FOURMOLU_ENABLE -}
 
 -- | Smart constructor.
-rd_cds :: Word16 -> PubAlg -> DigestAlg -> Opaque -> RData
+rd_cds :: KeyTag -> PubAlg -> DigestAlg -> Opaque -> RData
 rd_cds a b c d = toRData $ RD_CDS a b c d
 
 ----------------------------------------------------------------
