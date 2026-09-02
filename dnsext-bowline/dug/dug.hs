@@ -13,6 +13,7 @@ import DNS.Do53.Client (
     adFlag,
     cdFlag,
     doFlag,
+    ednsSetUdpSize,
     rdFlag,
  )
 import qualified DNS.Do53.Client as Do53
@@ -452,6 +453,8 @@ toFlag "+cdflag"    = return $ cdFlag FlagSet
 toFlag "+nocdflag"  = return $ cdFlag FlagClear
 toFlag "+adflag"    = return $ adFlag FlagSet
 toFlag "+noadflag"  = return $ adFlag FlagClear
+toFlag x
+  | "+udpsize=" `isPrefixOf` x = return $ ednsSetUdpSize (Just $ read $ drop 9 $ x)
 toFlag x            = do
     putStrLn $ "Unrecognized query control " ++ x
     exitFailure
@@ -475,6 +478,7 @@ help = do
             , "  +[no]doflag: [un]set DO (DNSSEC OK) bit, +[no]dnssec"
             , "  +[no]cdflag: [un]set CD (Checking Disabled) bit"
             , "  +[no]adflag: [un]set AD (Authentic Data) bit"
+            , "  +udpsize=<size>: set UDP size"
             , ""
             , "options:"
             ]
