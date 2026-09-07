@@ -20,6 +20,7 @@ import System.Posix (GroupID, UserID)
 import DNS.Config
 import DNS.Iterative.Internal (Address, LocalZoneType (..))
 import qualified DNS.Log as Log
+import DNS.Transport.Types (Synthesis (SynthNone, SynthDNS64))
 import DNS.Types (DNSError, Domain, OD_NSID (..), ResourceRecord (..), isSubDomainOf, maxUdpSize, minUdpSize)
 import DNS.ZoneFile (Context (cx_name, cx_zone), defaultContext, parseLineRR)
 
@@ -49,6 +50,7 @@ data Config = Config
     , cnf_version :: Maybe String
     , cnf_version_option :: [String]
     , cnf_local_zones :: [(Domain, LocalZoneType, [ResourceRecord])]
+    , cnf_local_synth_zones :: [(Synthesis, [(Domain, LocalZoneType, [ResourceRecord])])]
     , cnf_stub_zones :: [(Domain, [Domain], [Address])]
     , cnf_domain_insecures :: [Domain]
     , cnf_nsid :: Maybe OD_NSID
@@ -123,6 +125,7 @@ defaultConfig =
         , cnf_version = Nothing
         , cnf_version_option = []
         , cnf_local_zones = []
+        , cnf_local_synth_zones = []
         , cnf_stub_zones = []
         , cnf_domain_insecures = []
         , cnf_nsid = Nothing
@@ -299,6 +302,7 @@ makeConfig def conf = do
     cnf_version <- get "version" cnf_version
     cnf_version_option <- get "version-option" cnf_version_option
     cnf_local_zones <- localZones
+    cnf_local_synth_zones <- localSynthZones
     cnf_stub_zones <- stubZones
     cnf_domain_insecures <- domainInsecures
     cnf_dns_addrs <- get "dns-addrs" cnf_dns_addrs
@@ -359,6 +363,10 @@ makeConfig def conf = do
         either left pure et
     --
     localZones = prefLocalZone ""
+    localSynthZones =
+        (\e1 e2 -> [e1, e2])
+        <$> ((,) SynthNone  <$> prefLocalZone "main-")
+        <*> ((,) SynthDNS64 <$> prefLocalZone "dns64-")
     prefLocalZone pref = unfoldrM (getLocalZone pref) conf >>= \zs -> case mapM parseLocalZone zs of
         Right zones -> pure zones
         Left es -> fail $ "parse error during " ++ pref ++ "local-data: " ++ es
