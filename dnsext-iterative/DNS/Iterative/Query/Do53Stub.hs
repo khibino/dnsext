@@ -4,6 +4,7 @@
 module DNS.Iterative.Query.Do53Stub where
 
 -- GHC packages
+import Control.Concurrent (myThreadId)
 import Control.Exception (SomeException (..), bracket, fromException, throwIO)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
@@ -69,6 +70,7 @@ timeoutDNS' tag micro action = maybe (throwIO $ DNSErrorInfo TimeoutExpired tag)
 --   fallback once for NoEDNS case
 udpTcpResolver1 :: OneshotResolver
 udpTcpResolver1 ri@ResolveInfo{rinfoActions = ResolveActions{..}} q qctl0 = timeout' $ do
+    WStats.setThreadId ractionBlockingStat =<< myThreadId
     er1 <- udpResolver1 ri q qctl0
     case er1 of
         e1@(Left {})                  -> return e1
