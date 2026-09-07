@@ -13,4 +13,4 @@ data DoX
 data Synthesis
     = SynthNone
     | SynthDNS64
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)

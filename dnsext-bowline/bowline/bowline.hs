@@ -118,6 +118,7 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
                         , disableV6NS_ = disable_v6_ns
                         , chaosZones_ = chaosZones
                         , localZones_ = getLocalZones cnf_local_zones
+                        , localSynthZones_ = getLocalSynthZones cnf_local_synth_zones
                         , stubZones_ = stubZones
                         , negativeTrustAnchors_ = getNegTrustAnchors cnf_domain_insecures
                         , maxNegativeTTL_ = cropMaxNegativeTTL cnf_cache_max_negative_ttl
