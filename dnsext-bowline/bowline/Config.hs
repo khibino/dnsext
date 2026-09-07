@@ -358,9 +358,10 @@ makeConfig def conf = do
                 ioError e'
         either left pure et
     --
-    localZones = unfoldrM (getLocalZone "") conf >>= \zs -> case mapM parseLocalZone zs of
+    localZones = prefLocalZone ""
+    prefLocalZone pref = unfoldrM (getLocalZone pref) conf >>= \zs -> case mapM parseLocalZone zs of
         Right zones -> pure zones
-        Left es -> fail $ "parse error during local-data: " ++ es
+        Left es -> fail $ "parse error during " ++ pref ++ "local-data: " ++ es
     parseLocalZone (d, zt, xs) = evalStateT ((,,) d zt . subdoms d <$> mapM getRR xs) defaultContext{cx_zone = d, cx_name = d}
     subdoms d rrs = [rr | rr <- rrs, rrname rr `isSubDomainOf` d]
     getRR s = StateT $ parseLineRR $ fromString s
