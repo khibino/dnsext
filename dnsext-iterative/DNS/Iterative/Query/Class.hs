@@ -63,6 +63,7 @@ import qualified DNS.Log as Log
 import DNS.RRCache (Cache, Ranking)
 import qualified DNS.RRCache as Cache
 import qualified DNS.TAP.Schema as DNSTAP
+import DNS.Transport.Types (Synthesis)
 import DNS.WorkerStats (WorkerStatOP)
 
 -- dnsext-do53
@@ -114,6 +115,7 @@ data Env = Env
     , rootHint_ :: Delegation
     , chaosZones_ :: LocalZones
     , localZones_ :: LocalZones
+    , localSynthZones_ :: Map Synthesis LocalZones
     , stubZones_ :: StubZones
     , negativeTrustAnchors_ :: NegTrustAnchors
     , maxNegativeTTL_ :: TTL

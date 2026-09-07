@@ -108,6 +108,7 @@ newEmptyEnv = do
         , rootHint_ = rootHint
         , chaosZones_ = mempty
         , localZones_ = mempty
+        , localSynthZones_ = mempty
         , stubZones_ = mempty
         , negativeTrustAnchors_ = mempty
         , maxNegativeTTL_ = 3600
