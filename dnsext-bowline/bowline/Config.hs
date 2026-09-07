@@ -358,7 +358,7 @@ makeConfig def conf = do
                 ioError e'
         either left pure et
     --
-    localZones = unfoldrM getLocalZone conf >>= \zs -> case mapM parseLocalZone zs of
+    localZones = unfoldrM (getLocalZone "") conf >>= \zs -> case mapM parseLocalZone zs of
         Right zones -> pure zones
         Left es -> fail $ "parse error during local-data: " ++ es
     parseLocalZone (d, zt, xs) = evalStateT ((,,) d zt . subdoms d <$> mapM getRR xs) defaultContext{cx_zone = d, cx_name = d}
@@ -381,18 +381,18 @@ getTrustAnchorFile = mapM (fromConf . snd) . filter ((== "trust-anchor-file") . 
 
 {- FOURMOLU_DISABLE -}
 -- |
--- >>> getLocalZone [("foo",CV_Int 4),("local-zone",CV_Strings ["example.", "static"]),("local-data",CV_String "a.example. A 203.0.113.5"),("bar",CV_Bool True)]
+-- >>> getLocalZone "" [("foo",CV_Int 4),("local-zone",CV_Strings ["example.", "static"]),("local-data",CV_String "a.example. A 203.0.113.5"),("bar",CV_Bool True)]
 -- Just (("example.",LZ_Static,["a.example. A 203.0.113.5"]),[("bar",CV_Bool True)])
-getLocalZone :: [Conf] -> IO (Maybe ((Domain, LocalZoneType, [String]), [Conf]))
-getLocalZone [] = pure Nothing
-getLocalZone ((k, v):xs)
-    | k == "local-zone" = do
+getLocalZone :: String -> [Conf] -> IO (Maybe ((Domain, LocalZoneType, [String]), [Conf]))
+getLocalZone _prefix  [] = pure Nothing
+getLocalZone  prefix ((k, v):xs)
+    | k == (prefix ++ "local-zone") = do
           cstrs <- fromConf v
           let err = fail $ "unknown local-zone pattern: " ++ show cstrs
           (zone, zt) <- maybe err pure $ getLocalZone' cstrs
           (ds, ys) <- getLocalData id xs
           pure $ Just ((zone, zt, ds), ys)
-    | otherwise = getLocalZone xs
+    | otherwise = getLocalZone prefix xs
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
