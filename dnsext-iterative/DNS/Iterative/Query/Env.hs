@@ -23,6 +23,7 @@ module DNS.Iterative.Query.Env (
     --
     getChaosZones,
     getLocalZones,
+    getLocalSynthZones,
     getStubZones,
     negateTrustAnchors,
     getNegTrustAnchors,
@@ -69,6 +70,7 @@ import DNS.SEC
 import DNS.TimeCache (TimeCache (..), getTime, noneTimeCache)
 import DNS.Types
 import DNS.Types.Time (getCurrentTimeUsec)
+import DNS.Transport.Types (Synthesis)
 import DNS.ZoneFile (Record (R_RR))
 import qualified DNS.ZoneFile as Zone
 
@@ -302,6 +304,9 @@ getLocalZones lzones0 = localZones $ Local.unionZones defaultLocal lzones0
 
 localZones :: [(Domain, LocalZoneType, [RR])] -> LocalZones
 localZones lzones | localName <- Local.nameMap lzones = (Local.apexMap localName lzones, localName)
+
+getLocalSynthZones :: [(Synthesis, [(Domain, LocalZoneType, [RR])])] -> Map Synthesis LocalZones
+getLocalSynthZones szones = foldr (\(synth, lzones) m -> Map.insert synth (localZones lzones) m) mempty szones
 
 {- FOURMOLU_DISABLE -}
 identityRefuse  :: IO [(Domain, LocalZoneType, [RR])]
