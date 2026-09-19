@@ -121,6 +121,18 @@ spanning p = do
             putInput s'
             pure ts
 
+-- | 'many', with the alternative covering one turn, so that the input held
+--   for backtracking is let go as each turn succeeds.
+{-# INLINEABLE repeatedly #-}
+repeatedly :: MonadParser t s m => m a -> m [a]
+repeatedly p = go id
+  where
+    go acc = do
+        m <- optional p
+        case m of
+            Nothing -> pure (acc [])
+            Just x -> go (acc . (x :))
+
 {-# INLINEABLE token #-}
 token :: MonadParser t s m => m t
 token = caseCons cons nil =<< getInput
