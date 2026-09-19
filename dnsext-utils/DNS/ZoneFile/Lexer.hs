@@ -265,4 +265,4 @@ lexLine = lexLineAt 1
 -- | The same, told which line of the file this is, so that what it has
 --   to say about a line names the right one.
 lexLineAt :: Int -> LB.ByteString -> Either String [Token]
-lexLineAt lin = (fst <$>) . runParserAt (lin, 0) (many lexerToken <* eof)
+lexLineAt lin = (fst <$>) . runParserAt (lin, 0) (repeatedly lexerToken <* eof)

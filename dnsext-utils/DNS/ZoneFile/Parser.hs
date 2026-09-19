@@ -361,7 +361,7 @@ record =
 
 {- FOURMOLU_DISABLE -}
 file :: Parser [Record]
-file = many $ do
+file = repeatedly $ do
     r <- record <* this RSep
     r `seq` pure r
 {- FOURMOLU_ENABLE -}
