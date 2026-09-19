@@ -10,6 +10,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LB
 import Data.Char (chr)
 import Data.Functor
+import Data.List (foldl')
 import Data.Proxy (Proxy (..))
 import Data.Word (Word8)
 
@@ -28,6 +29,17 @@ class ParserToken t where
 
 class ParserToken t => CaseCons t s | s -> t where
     caseCons :: (t -> s -> a) -> a -> s -> a
+    -- | The longest run of tokens the predicate takes, and what is left after
+    --   it: one at a time by default, by a scan where the input can.
+    spanCons :: (t -> Bool) -> s -> ([t], s)
+    spanCons p = loop
+      where
+        loop s = caseCons taken ([], s) s
+          where
+            taken t ts
+                | p t = let (us, s') = loop ts in (t : us, s')
+                | otherwise = ([], s)
+    {-# INLINEABLE spanCons #-}
 
 class (Monad m, Alternative m, CaseCons t s) => MonadParser t s m | m -> s where
     getInput     :: m s
@@ -63,11 +75,13 @@ instance CaseCons Word8 BS.ByteString where
     caseCons c n bs
         | BS.null bs  = n
         | otherwise   = c (BS.head bs) (BS.tail bs)
+    spanCons p bs = case BS.span p bs of (run, rest) -> (BS.unpack run, rest)
 
 instance CaseCons Word8 LB.ByteString where
     caseCons c n bs
         | LB.null bs  = n
         | otherwise   = c (LB.head bs) (LB.tail bs)
+    spanCons p bs = case LB.span p bs of (run, rest) -> (LB.unpack run, rest)
 
 instance ParserToken a => CaseCons a [a] where
     caseCons c n xxs = case xxs of
@@ -93,6 +107,19 @@ parseError s = do
     showPos lin col
         | lin < 0    = ""
         | otherwise  = "line " ++ show lin ++ ", " ++ posUnit (Proxy :: Proxy t) ++ " " ++ show col ++ ": "
+
+-- | As many tokens in a row as the predicate takes, taken at once: the
+--   input and the position are read and written once for the run.
+{-# INLINEABLE spanning #-}
+spanning :: MonadParser t s m => (t -> Bool) -> m [t]
+spanning p = do
+    s <- getInput
+    case spanCons p s of
+        (ts, s') -> do
+            pos <- getPos
+            putPos $ foldl' (flip proceed) pos ts
+            putInput s'
+            pure ts
 
 {-# INLINEABLE token #-}
 token :: MonadParser t s m => m t
