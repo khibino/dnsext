@@ -9,6 +9,7 @@ import Control.Exception (SomeException (..), bracket, fromException, throwIO)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.List.NonEmpty as NE
+import System.Posix.Types (Fd)
 import System.Timeout (timeout)
 
 -- dnsext-types
@@ -224,6 +225,11 @@ withSockBucket :: Socket -> (Int -> String -> IO a) -> IO a
 withSockBucket sock k = do
     bucket <- withFdSocket sock $ \fdi -> pure (fromIntegral $ fdi `rem` 32 :: Int)
     k bucket (show sock ++ ", bn: " ++ show bucket)
+
+withFdBucket :: Fd -> (Int -> String -> a) -> a
+withFdBucket fd k = k bucket ("fd: " ++ show fd ++ ", bn: " ++ show bucket)
+  where
+    bucket = fromIntegral $ fd `rem` 32 :: Int
 
 raBlockingIO :: ResolveActions -> String -> IO a -> IO a
 raBlockingIO ResolveActions{..} = WStats.blockingIO ractionBlockingStat
