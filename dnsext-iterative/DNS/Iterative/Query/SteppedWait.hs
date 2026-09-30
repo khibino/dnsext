@@ -21,7 +21,9 @@ import DNS.Types (DNSError (NetworkFailure))
 
 -- dnsext-utils
 import DNS.ThreadStats (forkIO)
-import DNS.WorkerStats (WorkerStatOP, addTasks, blockingIO, blockingKillThread, getBlockingStatOP)
+import DNS.WorkerStats
+    (WorkerStatOP, BlockingStatOP, OpBlockingStat (..),
+     addTasks, blockingIO, blockingKillThread, getBlockingStatOP)
 
 -- $setup
 -- >>> :seti -XNumericUnderscores
@@ -216,7 +218,7 @@ steppedWaitLoop wstat vrun vrem qres exTimeout uusec timer0 tids lastE0 xxs = ev
     fork (tag, ax) = do
         bstatOP <- getBlockingStatOP
         addTasks wstat [bstatOP]
-        doFork vrun qres (tag, blockingIO bstatOP tag ax)
+        doFork vrun qres (tag, bstatOP, blockingIO bstatOP tag ax)
     waitEV timer = waitEvent vrem qres vrun timer
 
     eventLoop timer lastE = waitEV timer >>= dispatchEV timer lastE
@@ -263,11 +265,11 @@ newtype Running = Running Int deriving (Eq, Ord, Num, Show)
 {- FOURMOLU_DISABLE -}
 doFork
   :: TVar Running -> TQueue (Either e a)
-  -> (String, IO (Either e a)) -> IO ThreadId
-doFork vrun qres (label, x) = do
+  -> (String, BlockingStatOP, IO (Either e a)) -> IO ThreadId
+doFork vrun qres (label, bstatOP, x) = do
     let bgn = atomically $ modifyTVar vrun (+ 1)
         end = atomically $ modifyTVar vrun (subtract 1)
-    bgn >> forkIO label (E.finally (x >>= \e -> atomically $ writeTQueue qres e) end)
+    bgn >> forkIO label (E.finally (myThreadId >>= setThreadId bstatOP >> x >>= \e -> atomically $ writeTQueue qres e) end)
 {- FOURMOLU_ENABLE -}
 
 --------------------------------------------------------------------------------
