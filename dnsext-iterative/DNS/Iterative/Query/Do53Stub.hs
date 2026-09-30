@@ -71,6 +71,7 @@ timeoutDNS' tag micro action = maybe (throwIO $ DNSErrorInfo TimeoutExpired tag)
 udpTcpResolver1 :: OneshotResolver
 udpTcpResolver1 ri@ResolveInfo{rinfoActions = ResolveActions{..}} q qctl0 = timeout' $ do
     WStats.setThreadId ractionBlockingStat =<< myThreadId
+    WStats.setThreadId ractionNestedBS =<< myThreadId
     er1 <- udpResolver1 ri q qctl0
     case er1 of
         e1@(Left {})                  -> return e1
@@ -226,3 +227,6 @@ withSockBucket sock k = do
 
 raBlockingIO :: ResolveActions -> String -> IO a -> IO a
 raBlockingIO ResolveActions{..} = WStats.blockingIO ractionBlockingStat
+
+raNestedBlockingIO :: ResolveActions -> String -> IO a -> IO a
+raNestedBlockingIO ResolveActions{..} = WStats.blockingIO ractionNestedBS
