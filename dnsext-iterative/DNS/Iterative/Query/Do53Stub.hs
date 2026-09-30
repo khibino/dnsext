@@ -106,8 +106,8 @@ udpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl0 = 
     tag = nameTag ri "UDP"
     ~qtag = queryTag q tag qctl0
     blockingIO n = raBlockingIO ra ("udp-rslv." ++ n ++ ": " ++ qtag)
-    sblockingIO sock n action = withSockBucket sock $ \sbucket ->
-        blockingIO (n ++ "." ++ show sock ++ "." ++ show sbucket) action
+    sblockingIO sock n action = withSockBucket sock $ \_sbucket stag ->
+        blockingIO (n ++ "." ++ stag) action
 
     -- Using only one socket and the same identifier.
     go qctl = bracket open close_ $ \sock -> do
@@ -179,8 +179,8 @@ tcpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl =
   where
     tag = nameTag ri "TCP"
     blockingIO n = raBlockingIO ra ("tcp-rslv." ++ n ++ ": " ++ fromNameTag tag)
-    sblockingIO sock n action = withSockBucket sock $ \sbucket ->
-        blockingIO (n ++ "." ++ show sock ++ "." ++ show sbucket) action
+    sblockingIO sock n action = withSockBucket sock $ \_sbucket stag ->
+        blockingIO (n ++ "." ++ stag) action
     open = blockingIO "openTCP" (openTCP rinfoIP rinfoPort)
     close_ s = sblockingIO s "close" (close s)
 {- FOURMOLU_ENABLE -}
@@ -220,10 +220,10 @@ vcResolver1 tag send recv ResolveInfo{rinfoActions = ResolveActions{..}} q qctl0
                             }
                 Just err -> E.throwIO err
 
-withSockBucket :: Socket -> (Int -> IO a) -> IO a
+withSockBucket :: Socket -> (Int -> String -> IO a) -> IO a
 withSockBucket sock k = do
-    sbucket <- withFdSocket sock (\fd -> pure (fromIntegral $ fd `rem` 32)) :: IO Int
-    k sbucket
+    bucket <- withFdSocket sock $ \fdi -> pure (fromIntegral $ fdi `rem` 32 :: Int)
+    k bucket (show sock ++ ", bn: " ++ show bucket)
 
 raBlockingIO :: ResolveActions -> String -> IO a -> IO a
 raBlockingIO ResolveActions{..} = WStats.blockingIO ractionBlockingStat
