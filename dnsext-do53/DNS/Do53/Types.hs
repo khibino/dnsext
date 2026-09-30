@@ -295,6 +295,8 @@ data ResolveActions = ResolveActions
     -- ^ flag for short-log mode
     , ractionBlockingStat :: BlockingStatOP
     -- ^ blocking state store for thread
+    , ractionNestedBS :: BlockingStatOP
+    -- ^ nested blocking state store for thread
     , ractionKeyLog :: String -> IO ()
     -- ^ Logging for TLS main secrets.
     , ractionResumptionInfo :: NameTag -> IO [ByteString]
@@ -333,6 +335,7 @@ defaultResolveActions =
         , ractionLog = \_ _ ~_ -> return ()
         , ractionShortLog = False
         , ractionBlockingStat = noopBlockingStat
+        , ractionNestedBS = noopBlockingStat
         , ractionKeyLog = defaultKeyLogger
         , ractionResumptionInfo = \_ -> return []
         , ractionOnResumptionInfo = \_ _ -> return ()
