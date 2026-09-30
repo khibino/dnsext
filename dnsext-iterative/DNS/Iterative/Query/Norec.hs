@@ -59,26 +59,27 @@ norec_
     :: Int -> Env -> WorkerStatOP -> Bool -> NonEmpty Address
     -> Domain -> TYPE -> IO (Either DNSError DNSMessage)
 norec_ utimeout cxt wstat dnssecOK aservers name typ = do
-    asps@(x:|xs) <- sequence [ (,) x <$> getBlockingStatOP | x <- aservers ]
-    addTasks wstat [bstat | (_, bstat) <- x:xs]
-    let riActions bstatOP =
+    asps@(x:|xs) <- sequence [ (,,) x <$> getBlockingStatOP <*> getBlockingStatOP | x <- aservers ]
+    addTasks wstat [bs | (_, bstat, nbstat) <- x:xs, bs <- [bstat, nbstat]]
+    let riActions bstatOP nbstatOP =
             defaultResolveActions
                 { ractionGenId        = idGen_ cxt
                 , ractionGetTime      = currentSeconds_ cxt
                 , ractionLog          = logLines_ cxt
                 , ractionShortLog     = shortLog_ cxt
                 , ractionBlockingStat = bstatOP
+                , ractionNestedBS     = nbstatOP
                 , ractionTimeoutTime  = utimeout
                 }
         ris =
             [ defaultResolveInfo
                 { rinfoIP        = aserver
                 , rinfoPort      = port
-                , rinfoActions   = riActions bstatOP
+                , rinfoActions   = riActions bstatOP nbstatOP
                 , rinfoUDPRetry  = 1
                 , rinfoVCLimit   = 8 * 1024
                 }
-            | ((aserver, port), bstatOP) <- asps
+            | ((aserver, port), bstatOP, nbstatOP) <- asps
             ]
         renv =
             ResolveEnv
