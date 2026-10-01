@@ -30,6 +30,7 @@ import qualified Network.Socket.ByteString as NSB
 
 -- this package
 import DNS.Iterative.Imports
+import DNS.Iterative.Query.SocketClose (withClose, closeFd)
 
 -- | Check response for a matching identifier and question.  If we ever do
 -- pipelined TCP, we'll need to handle out of order responses.  See:
@@ -106,9 +107,12 @@ udpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl0 = 
     logNoShort s = unless ractionShortLog (blockingIO "log" $ ractionLog Log.DEMO Nothing [s])
     tag = nameTag ri "UDP"
     ~qtag = queryTag q tag qctl0
-    blockingIO n = raBlockingIO ra ("udp-rslv." ++ n ++ ": " ++ qtag)
+    bioTag n = ("udp-rslv." ++ n ++ ": " ++ fromNameTag tag)
+    blockingIO n = raBlockingIO ra (bioTag n)
     sblockingIO sock n action = withSockBucket sock $ \_sbucket stag ->
         blockingIO (n ++ "." ++ stag) action
+    nestedSBIO fd n action = withFdBucket fd $ \_fbucket ftag ->
+        raNestedBlockingIO ra (bioTag $ n ++ "." ++ ftag) action
 
     -- Using only one socket and the same identifier.
     go qctl = bracket open close_ $ \sock -> do
@@ -164,7 +168,8 @@ udpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl0 = 
             sblockingIO s "connect" (connect s sa)
             return s
 
-    close_ s = sblockingIO s "close" (close s)
+    close_ s = sblockingIO s "close" (rawClose s)
+    rawClose = withClose (\fd -> nestedSBIO fd "c_close" (closeFd fd))
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -179,11 +184,15 @@ tcpResolver1 ri@ResolveInfo{rinfoActions = ra@ResolveActions{..}, ..} q qctl =
         vcResolver1 tag send recv ri q qctl
   where
     tag = nameTag ri "TCP"
-    blockingIO n = raBlockingIO ra ("tcp-rslv." ++ n ++ ": " ++ fromNameTag tag)
+    bioTag n = "tcp-rslv." ++ n ++ ": " ++ fromNameTag tag
+    blockingIO n = raBlockingIO ra (bioTag n)
     sblockingIO sock n action = withSockBucket sock $ \_sbucket stag ->
         blockingIO (n ++ "." ++ stag) action
+    nestedSBIO fd n action = withFdBucket fd $ \_fbucket ftag ->
+        raNestedBlockingIO ra (bioTag $ n ++ "." ++ ftag) action
     open = blockingIO "openTCP" (openTCP rinfoIP rinfoPort)
-    close_ s = sblockingIO s "close" (close s)
+    close_ s = sblockingIO s "close" (rawClose s)
+    rawClose = withClose (\fd -> nestedSBIO fd "c_close" (closeFd fd))
 {- FOURMOLU_ENABLE -}
 
 -- | Generic resolver for virtual circuit.
