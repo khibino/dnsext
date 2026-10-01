@@ -123,7 +123,7 @@ doHTTP name sbracket incQuery env toCacher dox synth foldCached foldIterative Se
             let peerInfo = PeerInfoStream sioPeerSockAddr (toSuperStream sprstrm)
             einp <- getInput req
             case einp of
-                Left emsg -> logLn env Log.WARN $ "http.decode-error: " ++ name ++ ": " ++ emsg
+                Left emsg -> logLn env Log.WARN $ "http.decode-error: " ++ name ++ ": " ++ show sioPeerSockAddr ++ ": " ++ emsg
                 Right bs -> pendingOp pendings i $ \add pop -> do
                     let inp = mkInput sioMySockAddr toSender dox synth foldCached foldIterative bs peerInfo pop ts
                     add
