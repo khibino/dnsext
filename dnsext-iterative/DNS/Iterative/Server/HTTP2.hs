@@ -157,11 +157,11 @@ getInput :: H2.Request -> IO (Either String C8.ByteString)
 getInput req
     | method == Just "GET" = case H2.requestPath req of
         Just path | "/dns-query?dns=" `C8.isPrefixOf` path -> return $ Right $ decodeLenient $ C8.drop 15 path
-        _ -> return $ Left "illegal URL"
+        e -> return $ Left $ "illegal URL: path=" ++ show e ++ ", req=" ++ show req
     | method == Just "POST" = do
         bs <- recvHTTP2 req
         return $ Right bs
-    | otherwise = return $ Left "illegal method"
+    | otherwise = return $ Left $ "illegal method: method=" ++ show method
   where
     method = H2.requestMethod req
 
