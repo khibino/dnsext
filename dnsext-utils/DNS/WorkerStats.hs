@@ -91,11 +91,13 @@ _pprChecker start waiting done q = do
 
 {- FOURMOLU_DISABLE -}
 data BlockingStat
-    = StatBlocking
+    = StatUnused
+    | StatBlocking
     | StatUnblocked
     deriving Eq
 
 instance Show BlockingStat where
+    show StatUnused     = " <unused>"
     show StatBlocking   = " blocking"
     show StatUnblocked  = "unblocked"
 
@@ -282,7 +284,7 @@ noopBlockingStat =
     { setBlocking_       = \_ -> return ()
     , setUnblocked_      = return ()
     , setThreadId_       = \_ -> return ()
-    , withBlockingStat_  = \k -> k Nothing StatBlocking CauseUndef (DiffT (-1))
+    , withBlockingStat_  = \k -> k Nothing StatUnused CauseUndef (DiffT (-1))
     }
 {- FOURMOLU_ENABLE -}
 
@@ -305,7 +307,7 @@ noopWorkerStat =
 getBlockingStatOP :: IO BlockingStatOP
 getBlockingStatOP = do
     tidRef  <- newIORef Nothing
-    blkRef  <- newIORef =<< newBlkStore CauseUndef
+    blkRef  <- newIORef =<< newBlkStore StatUnused CauseUndef
     return
         BlockingStatOP
         { setBlocking_       = blocking  blkRef
@@ -315,11 +317,11 @@ getBlockingStatOP = do
         }
   where
     mkBsStore bstat = WBStatStore bstat <$> getTimeStamp
-    newBlkStore cause = do
-        ref <- newIORef =<< mkBsStore StatBlocking
+    newBlkStore bstat cause = do
+        ref <- newIORef =<< mkBsStore bstat
         return WBStore{wbkStatRef = ref, wbkCause = cause}
     blocking blkRef cause = do
-        store <- newBlkStore cause
+        store <- newBlkStore StatBlocking cause
         writeIORef blkRef store
     unblocked bkRef = do
         WBStore{wbkStatRef = ref} <- readIORef bkRef
