@@ -26,6 +26,7 @@ module DNS.SEC.Verify.Verify (
     detectWildcardExpansionNSEC3,
     hashNSEC3,
     hashNSEC3PARAM,
+    maxNSEC3Iterations,
     detectNSEC3,
 
     -- * NSEC
@@ -273,6 +274,12 @@ verifyDS owner dnskey ds =
 
 ---
 
+-- | Choose a conservative limit, considering that
+--   <https://datatracker.ietf.org/doc/html/rfc9276#section-3.1>
+--   requires the iteration count to be 0.
+maxNSEC3Iterations :: Word16
+maxNSEC3Iterations = 16
+
 hashNSEC3with' :: NSEC3Impl -> Word16 -> Opaque -> Domain -> Opaque
 hashNSEC3with' NSEC3Impl{..} iter osalt domain =
     Opaque.fromByteString $ recurse iter
@@ -296,8 +303,21 @@ hashNSEC3PARAMwith impl RD_NSEC3PARAM{..} domain =
 
 ---
 
+-- | Refusing to spend the processor a proof asks for when it asks for
+--   too much.  Checked before anything is hashed, which is the point.
+checkNSEC3Iterations :: Word16 -> Either String ()
+checkNSEC3Iterations iterations =
+    unless (iterations <= maxNSEC3Iterations) $
+        Left $
+            "NSEC3: "
+                ++ show iterations
+                ++ " iterations asked for, more than the "
+                ++ show maxNSEC3Iterations
+                ++ " which will be done"
+
 hashNSEC3 :: RD_NSEC3 -> Domain -> Either String Opaque
-hashNSEC3 nsec3 domain =
+hashNSEC3 nsec3 domain = do
+    checkNSEC3Iterations $ nsec3_iterations nsec3
     maybe (Left $ "hashNSEC3: unsupported algorithm: " ++ show alg) (Right . hash) $
         getNSEC3Impl alg
   where
@@ -349,6 +369,9 @@ getNSEC3Result hl zone cs qname =
   where
     withImpls h = h =<< mapM addImpl cs
     addImpl r@(_, nsec3) = do
+        -- Before a name is hashed, not after: what this refuses is the
+        -- work, not the answer.
+        checkNSEC3Iterations $ nsec3_iterations nsec3
         let alg = nsec3_hashalg nsec3
         impl <- maybe (Left $ "NSEC3: unsupported algorithm: " ++ show alg) Right $ getNSEC3Impl alg
         return (impl, r)

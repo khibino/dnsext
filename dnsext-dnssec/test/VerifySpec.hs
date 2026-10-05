@@ -10,8 +10,8 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Short (ShortByteString)
 import qualified Data.ByteString.Short as Short
-import Data.Either (fromRight)
-import Data.List (sortOn)
+import Data.Either (fromRight, isLeft, isRight)
+import Data.List (isInfixOf, sortOn)
 import Data.Maybe (fromJust)
 import Data.String (fromString)
 import Data.Word
@@ -86,6 +86,18 @@ spec = do
         it "does not depend on the case at all" $
             map (canonical . mx) (canonicalOrder [shout "B.example.", "a.example."])
                 `shouldBe` map (canonical . mx) (canonicalOrder ["b.example.", "A.example."])
+
+    -- Test excessive iteration counts.
+    describe "NSEC3 iterations" $ do
+        it "hashes with as many as are allowed" $
+            hashNSEC3 (nsec3With maxNSEC3Iterations) "a.example." `shouldSatisfy` isRight
+
+        it "refuses one more than that" $
+            hashNSEC3 (nsec3With (maxNSEC3Iterations + 1)) "a.example." `shouldSatisfy` isLeft
+
+        it "refuses a proof which asks for the most a zone can ask for" $
+            nameErrorNSEC3 "example." [("x.example.", nsec3With 65535)] "nope.example."
+                `shouldSatisfy` refusedForIterations
 
     describe "verify RRSIG" $ do
         it "RSA/SHA1 alias NSEC3_SHA1" $ caseRRSIG rsaSHA1NSEC3SHA1
@@ -329,6 +341,19 @@ caseRRSIG RRSIG_CASE{..} = do
     ts =
         (fromDNSTime (rrsig_inception rrsig) + fromDNSTime (rrsig_expiration rrsig))
             `div` 2
+
+-- | Refused for the reason we are looking for, rather than for one of
+--   the other things wrong with a proof made of one fabricated record.
+refusedForIterations :: Either String a -> Bool
+refusedForIterations (Left e) = "iterations" `isInfixOf` e
+refusedForIterations _ = False
+
+-- | An NSEC3 record which asks for the given number of iterations.
+nsec3With :: Word16 -> RD_NSEC3
+nsec3With iterations =
+    fromJust $
+        fromRData $
+            rd_nsec3 Hash_SHA1 [] iterations (Opaque.fromByteString "abcd") (Opaque.fromByteString "") []
 
 p256Key :: Integer -> PubKey
 p256Key d = fromRight (error "p256Key") $ p256toPubKey (i2osp d)
