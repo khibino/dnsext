@@ -57,12 +57,7 @@ spec = do
         it "pads a signature of P-256" $ signaturesAreWide ECDSAP256SHA256 64 500
         it "pads a signature of P-384" $ signaturesAreWide ECDSAP384SHA384 96 500
 
-    -- Each iteration of the NSEC3 hash is a hash of the one before, the
-    -- count is a Word16, and the proof of a name which does not exist
-    -- needs several names hashed.  A zone which asks for the maximum
-    -- buys a good deal of somebody else's processor for every query.
-    -- RFC 9276 Sec 3.2 has a validating resolver stop believing a proof
-    -- which asks for more than a hundred.
+    -- Test excessive iteration counts.
     describe "NSEC3 iterations" $ do
         it "hashes with as many as are allowed" $
             hashNSEC3 (nsec3With maxNSEC3Iterations) "a.example." `shouldSatisfy` isRight
