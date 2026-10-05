@@ -172,7 +172,9 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
        The 'dumper' thread separated by forkIO automatically terminates
        when the 'main' thread ends, so there's no need for cleanup.          -}
     sequence_ [TStat.forkIO "bw.dumper" (TStat.dumper $ putLines Log.SYSTEM Nothing) | cnf_threads_dumper]
-    race_ concServer (conc monitor)
+    {- `monitor` is empty,
+        when `monitor-stdio` is `False` and `monitor-addrs` is `null`. -}
+    (if null monitor then concServer else race_ concServer (conc monitor))
         -- Teardown
         `finally` do
             mapM_ killThread $ tidA ++ tidW
