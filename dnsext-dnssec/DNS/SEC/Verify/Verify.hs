@@ -274,22 +274,11 @@ verifyDS owner dnskey ds =
 
 ---
 
--- | Most iterations of the NSEC3 hash this will do for a proof
---   somebody else sent us.
---
---   Each iteration is a hash of the one before, the count in the record
---   is a Word16, and proving that a name does not exist needs several
---   names hashed.  Ten names at the 65535 a zone may ask for take 860
---   ms of processor here, against 0.85 ms at a hundred: a zone which
---   asks for the maximum buys 86 ms of somebody else's time for every
---   name it makes them prove does not exist, which is a cheap way to
---   spend a validator.
---
---   RFC 9276 Sec 3.2 (BCP 236) has a validating resolver stop believing
---   a proof which asks for more than a hundred, and Sec 3.1 tells a
---   zone to ask for none at all.
+-- | Choose a conservative limit, considering that
+--   <https://datatracker.ietf.org/doc/html/rfc9276#section-3.1>
+--   requires the iteration count to be 0.
 maxNSEC3Iterations :: Word16
-maxNSEC3Iterations = 100
+maxNSEC3Iterations = 16
 
 hashNSEC3with' :: NSEC3Impl -> Word16 -> Opaque -> Domain -> Opaque
 hashNSEC3with' NSEC3Impl{..} iter osalt domain =
