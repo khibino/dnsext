@@ -172,13 +172,8 @@ runConfig tcache gcache@GlobalCache{..} mng0 reloadInfo ruid conf@Config{..} = d
        The 'dumper' thread separated by forkIO automatically terminates
        when the 'main' thread ends, so there's no need for cleanup.          -}
     sequence_ [TStat.forkIO "bw.dumper" (TStat.dumper $ putLines Log.SYSTEM Nothing) | cnf_threads_dumper]
-    {- The monitor is a way in for an operator rather than a reason to be
-       running, so it is raced against only when there is one.  `conc []`
-       finishes at once, so racing the servers against no monitor ended the
-       run before it had begun; and since a monitor is configured by naming
-       an address for it to listen on, and nothing is named by default, that
-       is what a configuration which does not mention one did -- silently,
-       and after the sockets had been opened. -}
+    {- `monitor` is empty,
+        when `monitor-stdio` is `False` and `monitor-addrs` is `null`. -}
     (if null monitor then concServer else race_ concServer (conc monitor))
         -- Teardown
         `finally` do
