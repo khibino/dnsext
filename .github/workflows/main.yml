@@ -56,10 +56,8 @@ jobs:
     env:
       cache-name: cabal-ghc
       build-targets: all:libs all:exes all:tests --disable-benchmarks
-      ## doctest version constraint, to preserve stable behavior
-      ## e.g. avoiding errors on doctest-0.25.0 like "doctest: unrecognized option '--make'"
-      install-doctest-param: --ignore-project --overwrite-policy=always --constraint='doctest<0.25'
-      repl-doctest-param: --with-compiler=doctest --disable-benchmarks
+      install-doctest-param: --ignore-project --overwrite-policy=always
+      repl-doctest-param: --with-repl=doctest --disable-benchmarks
 
     steps:
     - run: git config --global core.autocrlf false
