@@ -65,7 +65,7 @@ build_with_ghcup() {
     $N docker image tag ${tag_bowline} ${tag_ghcup}
     if [ "${ghc_version}" = 9.6.7 ]; then
         $N docker image tag ${tag_ghcup} bowline:${result_tag_debian}
-        if [ "${result_tag_debian}" = bookworm ]; then
+        if [ "${result_tag_debian}" = trixie ]; then
             $N docker image tag bowline:${result_tag_debian} bowline:latest
         fi
     fi
@@ -134,7 +134,7 @@ set +x
 case "$BOWLINE_BUILD_METHOD" in
     ghcup)
         [ x"$GHC_VERSION" != x ] || GHC_VERSION=9.6.7
-        [ x"$DEBIAN_REVISION" != x ] || DEBIAN_REVISION=bookworm
+        [ x"$DEBIAN_REVISION" != x ] || DEBIAN_REVISION=trixie
         #--
         set -x
         debian_rev="$DEBIAN_REVISION"
