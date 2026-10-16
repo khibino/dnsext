@@ -327,13 +327,13 @@ getCheckEnabled = noCD <$> asksQP requestCD_
 -- >>> Right dummyDS_ = Opaque.fromBase16 "0123456789ABCD0123456789ABCD0123456789ABCD0123456789ABCD"
 -- >>> dummyDS = RD_DS 0 RSASHA256 SHA256 dummyDS_
 -- >>> withNS2 dom h1 a1 h2 a2 ds = Delegation dom (DEwithA4 h1 (a1:|[]) :| [DEwithA4 h2 (a2:|[])]) ds [dummyDNSKEY] FreshD
--- >>> parent = withNS2 "org." "a0.org.afilias-nst.info." "199.19.56.1" "a2.org.afilias-nst.info." "199.249.112.1" (FilledDS [dummyDS])
--- >>> mkChild ds = withNS2 "mew.org." "ns1.mew.org." "202.238.220.92" "ns2.mew.org." "210.155.141.200" ds
+-- >>> parent = withNS2 "example." "ns1.example." "192.0.2.1" "ns2.example." "192.0.2.2" (FilledDS [dummyDS])
+-- >>> mkChild ds = withNS2 "a.example." "ns1.a.example." "192.0.2.3" "ns2.a.example." "192.0.2.4" ds
 -- >>> isFilled d = case (delegationDS d) of { NotFilledDS {} -> False; FilledDS {} -> True; AnchorSEP {} -> True }
 -- >>> env <- _newTestEnv _noLogging
 -- >>> newtype ParentIO a = ParentIO { runParentIO :: IO a } deriving (Functor, Applicative, Monad, MonadIO)
 -- >>> instance MonadQuery (QueryT ParentIO) where { queryNorec _ _ name typ = pure $ Right defaultResponse{question = Question name typ IN, answer = []} }
--- >>> runChild child = runParentIO $ evalQueryT (fillDelegationDS 0 parent child) env noopWorkerStat (queryParamIN "ns1.mew.example." A mempty)
+-- >>> runChild child = runParentIO $ evalQueryT (fillDelegationDS 0 parent child) env noopWorkerStat (queryParamIN "ns1.a.example." A mempty)
 -- >>> fmap isFilled <$> (runChild $ mkChild $ NotFilledDS CachedDelegation)
 -- Right True
 -- >>> fmap isFilled <$> (runChild $ mkChild $ NotFilledDS ServsChildZone)
