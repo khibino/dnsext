@@ -68,6 +68,7 @@ import DNS.Iterative.Query.TestEnv
 -- $setup
 -- >>> :seti -XFlexibleContexts
 -- >>> :seti -XFlexibleInstances
+-- >>> :seti -XGeneralizedNewtypeDeriving
 -- >>> :seti -XMonadComprehensions
 -- >>> :seti -XOverloadedStrings
 -- >>> :seti -Wno-incomplete-uni-patterns
@@ -331,7 +332,9 @@ getCheckEnabled = noCD <$> asksQP requestCD_
 -- >>> mkChild ds = withNS2 "mew.org." "ns1.mew.org." "202.238.220.92" "ns2.mew.org." "210.155.141.200" ds
 -- >>> isFilled d = case (delegationDS d) of { NotFilledDS {} -> False; FilledDS {} -> True; AnchorSEP {} -> True }
 -- >>> env <- _newTestEnv _noLogging
--- >>> runChild child = runDNSQuery (fillDelegationDS 0 parent child) env noopWorkerStat (queryParamIN "ns1.mew.org." A mempty)
+-- >>> newtype ParentIO a = ParentIO { runParentIO :: IO a } deriving (Functor, Applicative, Monad, MonadIO)
+-- >>> instance MonadQuery (QueryT ParentIO) where { queryNorec _ _ name typ = pure $ Right defaultResponse{question = Question name typ IN, answer = []} }
+-- >>> runChild child = runParentIO $ evalQueryT (fillDelegationDS 0 parent child) env noopWorkerStat (queryParamIN "ns1.mew.example." A mempty)
 -- >>> fmap isFilled <$> (runChild $ mkChild $ NotFilledDS CachedDelegation)
 -- Right True
 -- >>> fmap isFilled <$> (runChild $ mkChild $ NotFilledDS ServsChildZone)
