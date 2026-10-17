@@ -10,9 +10,7 @@ where
 
 -- GHC packages
 
-import Control.Concurrent (killThread)
 import Control.Concurrent.STM
-import qualified Control.Exception as E
 import Control.Monad
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -68,7 +66,9 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
         logLn env Log.DEBUG $ "tls-srv: accept: " ++ show peersa
         inpq <- newTQueueIO
         (vcSess, toSender, fromX, senderQ) <- initVcSession' (return $ checkInp inpq)
-        E.bracket (TStat.forkIO "bw.tls-reader" $ reader backend inpq) killThread $ \_ -> do
+
+        {- bowline アプリ側: 将来的に STM 通信経由で切り離す -}
+        _rsTid <- TStat.forkIO "bw.tls-recv-send" $
             withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) $ \vcTimer -> do
                 let recv = getInp inpq
                 let onRecv bs = do
@@ -85,7 +85,9 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
                         dequeueVcPendings pendings senderQ
                     sender = hsend $ senderVC "tls-send" env vcSess send fromX
                 TAsync.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
-            logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
+
+        reader backend inpq
+        logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 
 reader :: H2.IOBackend -> TQueue ByteString -> IO ()
 reader backend inpq = loop
