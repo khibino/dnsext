@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-131.2 -131.2 262.3 262.3" width="512" height="512">
+<title>Clove hitch</title>
+<rect x="-131.2" y="-131.2" width="262.3" height="262.3" fill="#FFFFFF"/>
+<g fill="none" transform="rotate(0)">
+<rect x="-33.79562043795621" y="-88.0" width="67.59124087591242" height="176.0" fill="#9DD0EE" stroke="#FFFFFF" stroke-width="4.22"/>
+<path d="M -88.00 -12.63 L 37.18 -12.63" stroke="#FFFFFF" stroke-width="27.369999999999997" stroke-linecap="round"/><path d="M -88.00 -12.63 L 37.18 -12.63" stroke="#2792C3" stroke-width="23.15" stroke-linecap="round"/>
+<path d="M -37.18 12.63 L 88.00 12.63" stroke="#FFFFFF" stroke-width="27.369999999999997" stroke-linecap="round"/><path d="M -37.18 12.63 L 88.00 12.63" stroke="#2792C3" stroke-width="23.15" stroke-linecap="round"/>
+<path d="M -37.18 -41.68 L 37.18 41.68" stroke="#FFFFFF" stroke-width="27.369999999999997" stroke-linecap="round"/><path d="M -37.18 -41.68 L 37.18 41.68" stroke="#2792C3" stroke-width="23.15" stroke-linecap="round"/>
+</g>
+</svg>
