@@ -14,4 +14,4 @@ rank: 1
 
 Future readings:
 
-- Status report: [Developing a full resolver](https://www.iijlab.net/en/projects/Underpinning/dns.html)
+- Status report: [Developing DNS servers](https://www.iijlab.net/en/projects/Underpinning/dns.html)
