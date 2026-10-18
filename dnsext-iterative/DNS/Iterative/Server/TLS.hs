@@ -64,7 +64,7 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
             peersa = H2.peerSockAddr backend
             peerInfo = PeerInfoVC peersa
         logLn env Log.DEBUG $ "tls-srv: accept: " ++ show peersa
-        inpq <- newTQueueIO
+        inpq <- newTBQueueIO 8
         (vcSess, toSender, fromX, senderQ) <- initVcSession' (return $ checkInp inpq)
 
         {- bowline アプリ側: 将来的に STM 通信経由で切り離す -}
@@ -89,19 +89,19 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
         reader backend inpq
         logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 
-reader :: H2.IOBackend -> TQueue ByteString -> IO ()
+reader :: H2.IOBackend -> TBQueue ByteString -> IO ()
 reader backend inpq = loop
   where
     loop = do
         pkt <- H2.recv backend
-        atomically $ writeTQueue inpq pkt
+        atomically $ writeTBQueue inpq pkt
         when (pkt /= mempty) loop -- breaks loop on EOF
 
-checkInp :: TQueue ByteString -> STM ()
-checkInp inpq = peekTQueue inpq $> ()
+checkInp :: TBQueue ByteString -> STM ()
+checkInp inpq = peekTBQueue inpq $> ()
 
-getInp :: TQueue ByteString -> Int -> IO ByteString
+getInp :: TBQueue ByteString -> Int -> IO ByteString
 getInp inpq len = atomically $ do
-    (bs1, bs2) <- BS.splitAt len <$> readTQueue inpq
-    when (bs2 /= mempty) $ unGetTQueue inpq bs2
+    (bs1, bs2) <- BS.splitAt len <$> readTBQueue inpq
+    when (bs2 /= mempty) $ unGetTBQueue inpq bs2
     return bs1
