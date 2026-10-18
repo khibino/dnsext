@@ -11,6 +11,7 @@ where
 -- GHC packages
 
 import Control.Concurrent.STM
+import Control.Exception (finally)
 import Control.Monad
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -40,6 +41,8 @@ tlsServers conf synth env toCacher ss =
   where
     (_synth, foldCached, foldIterative) = extendSynthesis synth
 
+type VsRunning = Bool
+
 tlsServer :: VcServerConfig -> Env -> Synthesis
     -> (forall p . DNSQuery p -> FoldResponse IO p)
     -> (forall q . FoldResponse IO q)
@@ -64,12 +67,13 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
             peersa = H2.peerSockAddr backend
             peerInfo = PeerInfoVC peersa
         logLn env Log.DEBUG $ "tls-srv: accept: " ++ show peersa
+        vsRunning <- newTVarIO True
         inpq <- newTBQueueIO 8
         (vcSess, toSender, fromX, senderQ) <- initVcSession' (return $ checkInp inpq)
 
         {- bowline アプリ側: 将来的に STM 通信経由で切り離す -}
         _rsTid <- TStat.forkIO "bw.tls-recv-send" $
-            withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) $ \vcTimer -> do
+            withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) ( \vcTimer -> do
                 let recv = getInp inpq
                 let onRecv bs = do
                         checkReceived vc_slowloris_size vcTimer bs
@@ -85,12 +89,15 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
                         dequeueVcPendings pendings senderQ
                     sender = hsend $ senderVC "tls-send" env vcSess send fromX
                 TAsync.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
+           )
+           `finally`
+           atomically (writeTVar vsRunning False)
 
-        reader backend inpq
+        reader backend (readTVar vsRunning) inpq
         logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
 
-reader :: H2.IOBackend -> TBQueue ByteString -> IO ()
-reader backend inpq = loop
+reader :: H2.IOBackend -> STM VsRunning -> TBQueue ByteString -> IO ()
+reader backend vsRunning inpq = loop
   where
     loop = do
         pkt <- H2.recv backend
