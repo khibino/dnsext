@@ -9,7 +9,7 @@ module DNS.Iterative.Server.TLS (
 where
 
 -- GHC packages
-
+import Control.Applicative
 import Control.Concurrent.STM
 import Control.Exception (finally)
 import Control.Monad
@@ -100,9 +100,18 @@ reader :: H2.IOBackend -> STM VsRunning -> TBQueue ByteString -> IO ()
 reader backend vsRunning inpq = loop
   where
     loop = do
-        pkt <- H2.recv backend
-        atomically $ writeTBQueue inpq pkt
-        when (pkt /= mempty) loop -- breaks loop on EOF
+        let proceed = do
+                pkt <- H2.recv backend
+                atomically $ writeTBQueue inpq pkt
+                if pkt /= mempty
+                    then loop
+                    else atomically (guard . not =<< vsRunning)  -- wait session on EOF
+        --
+        next <- atomically $
+                (guard . not =<< vsRunning)          $> return ()  -- breaks, not running
+                <|>
+                (guard . not =<< isFullTBQueue inpq) $> proceed    -- proceed only not full
+        next
 
 checkInp :: TBQueue ByteString -> STM ()
 checkInp inpq = peekTBQueue inpq $> ()
