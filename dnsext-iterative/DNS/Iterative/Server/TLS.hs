@@ -53,7 +53,7 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
     tmicro = vc_idle_timeout * 1_000_000
     settings =
         H2.defaultSettings
-            { H2.settingsTimeout = vc_idle_timeout
+            { H2.settingsTimeout = vc_idle_timeout + 5 {- margin to avoid Timeout exception race -}
             , H2.settingsSlowlorisSize = vc_slowloris_size
             , H2.settingsSessionManager = vc_session_manager
             , H2.settingsEarlyDataSize = vc_early_data_size
