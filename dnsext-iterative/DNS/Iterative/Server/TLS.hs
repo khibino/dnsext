@@ -9,10 +9,9 @@ module DNS.Iterative.Server.TLS (
 where
 
 -- GHC packages
-
-import Control.Concurrent (killThread)
+import Control.Applicative
 import Control.Concurrent.STM
-import qualified Control.Exception as E
+import Control.Exception (finally)
 import Control.Monad
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -42,6 +41,8 @@ tlsServers conf synth env toCacher ss =
   where
     (_synth, foldCached, foldIterative) = extendSynthesis synth
 
+type VsRunning = Bool
+
 tlsServer :: VcServerConfig -> Env -> Synthesis
     -> (forall p . DNSQuery p -> FoldResponse IO p)
     -> (forall q . FoldResponse IO q)
@@ -55,7 +56,7 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
     tmicro = vc_idle_timeout * 1_000_000
     settings =
         H2.defaultSettings
-            { H2.settingsTimeout = vc_idle_timeout
+            { H2.settingsTimeout = vc_idle_timeout + 5 {- margin to avoid Timeout exception race -}
             , H2.settingsSlowlorisSize = vc_slowloris_size
             , H2.settingsSessionManager = vc_session_manager
             , H2.settingsEarlyDataSize = vc_early_data_size
@@ -66,10 +67,13 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
             peersa = H2.peerSockAddr backend
             peerInfo = PeerInfoVC peersa
         logLn env Log.DEBUG $ "tls-srv: accept: " ++ show peersa
-        inpq <- newTQueueIO
+        vsRunning <- newTVarIO True
+        inpq <- newTBQueueIO 8
         (vcSess, toSender, fromX, senderQ) <- initVcSession' (return $ checkInp inpq)
-        E.bracket (TStat.forkIO "bw.tls-reader" $ reader backend inpq) killThread $ \_ -> do
-            withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) $ \vcTimer -> do
+
+        {- bowline アプリ側: 将来的に STM 通信経由で切り離す -}
+        _rsTid <- TStat.forkIO "bw.tls-recv-send" $
+            withVcTimer tmicro (atomically $ enableVcTimeout $ vcTimeout_ vcSess) ( \vcTimer -> do
                 let recv = getInp inpq
                 let onRecv bs = do
                         checkReceived vc_slowloris_size vcTimer bs
@@ -85,21 +89,35 @@ tlsServer VcServerConfig{..} env synth foldCached foldIterative toCacher s = do
                         dequeueVcPendings pendings senderQ
                     sender = hsend $ senderVC "tls-send" env vcSess send fromX
                 TAsync.concurrently_ "bw.tls-send" sender "bw.tls-recv" receiver
-            logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
+           )
+           `finally`
+           atomically (writeTVar vsRunning False)
 
-reader :: H2.IOBackend -> TQueue ByteString -> IO ()
-reader backend inpq = loop
+        reader backend (readTVar vsRunning) inpq
+        logLn env Log.DEBUG $ "tls-srv: close: " ++ show peersa
+
+reader :: H2.IOBackend -> STM VsRunning -> TBQueue ByteString -> IO ()
+reader backend vsRunning inpq = loop
   where
     loop = do
-        pkt <- H2.recv backend
-        atomically $ writeTQueue inpq pkt
-        when (pkt /= mempty) loop -- breaks loop on EOF
+        let proceed = do
+                pkt <- H2.recv backend
+                atomically $ writeTBQueue inpq pkt
+                if pkt /= mempty
+                    then loop
+                    else atomically (guard . not =<< vsRunning)  -- wait session on EOF
+        --
+        next <- atomically $
+                (guard . not =<< vsRunning)          $> return ()  -- breaks, not running
+                <|>
+                (guard . not =<< isFullTBQueue inpq) $> proceed    -- proceed only not full
+        next
 
-checkInp :: TQueue ByteString -> STM ()
-checkInp inpq = peekTQueue inpq $> ()
+checkInp :: TBQueue ByteString -> STM ()
+checkInp inpq = peekTBQueue inpq $> ()
 
-getInp :: TQueue ByteString -> Int -> IO ByteString
+getInp :: TBQueue ByteString -> Int -> IO ByteString
 getInp inpq len = atomically $ do
-    (bs1, bs2) <- BS.splitAt len <$> readTQueue inpq
-    when (bs2 /= mempty) $ unGetTQueue inpq bs2
+    (bs1, bs2) <- BS.splitAt len <$> readTBQueue inpq
+    when (bs2 /= mempty) $ unGetTBQueue inpq bs2
     return bs1
