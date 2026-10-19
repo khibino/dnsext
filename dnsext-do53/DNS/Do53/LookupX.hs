@@ -153,7 +153,7 @@ lookupMX = lookupX MX
 --   >>> import Data.List (sort)
 --   >>> ips <- withLookupConf defaultLookupConf $ \env -> lookupAviaMX env "iij.ad.jp"
 --   >>> fmap sort ips
---   Right [202.32.171.213,202.232.173.185,202.238.203.238,202.238.236.88]
+--   Right [202.238.203.238,202.238.236.88]
 --
 --   Since there is more than one result, it is necessary to sort the
 --   list in order to check for equality.
