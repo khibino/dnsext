@@ -52,7 +52,7 @@ spec = do
         -- Sec 4.3.3.  The key name is given in mixed case to show that
         -- what goes in is the canonical, lower case form.
         it "lays out the variables" $
-            hex (tsigVariables "KEY.Example.JP." rd)
+            hex (tsigVariables "KEY.Example.JP." sampleRD)
                 `shouldBe` "036b6579076578616d706c65026a70"
                     ++ "0000ff"
                     ++ "00000000"
@@ -64,23 +64,23 @@ spec = do
 
         -- Sec 4.3.1
         it "puts a length in front of a MAC" $
-            hex (tsigMacField mac) `shouldBe` "0020" ++ hex (opaqueBytes mac)
+            hex (tsigMacField sampleMAC) `shouldBe` "0020" ++ hex (opaqueBytes sampleMAC)
 
         -- Sec 5.3.1
         it "lays out the timers" $
-            hex (tsigTimers rd) `shouldBe` "0000f1e2d3c4" ++ "012c"
+            hex (tsigTimers sampleRD) `shouldBe` "0000f1e2d3c4" ++ "012c"
 
         it "signs a request as the message then the variables" $
-            tsigDigest Nothing body "key.example.jp." rd
-                `shouldBe` body <> tsigVariables "key.example.jp." rd
+            tsigDigest Nothing body "key.example.jp." sampleRD
+                `shouldBe` body <> tsigVariables "key.example.jp." sampleRD
 
         it "signs a response with the request's MAC in front" $
-            tsigDigest (Just mac) body "key.example.jp." rd
-                `shouldBe` tsigMacField mac <> body <> tsigVariables "key.example.jp." rd
+            tsigDigest (Just sampleMAC) body "key.example.jp." sampleRD
+                `shouldBe` tsigMacField sampleMAC <> body <> tsigVariables "key.example.jp." sampleRD
 
         it "signs a later message of a response with the timers alone" $
-            tsigDigestCont mac [body, body] rd
-                `shouldBe` tsigMacField mac <> body <> body <> tsigTimers rd
+            tsigDigestCont sampleMAC [body, body] sampleRD
+                `shouldBe` tsigMacField sampleMAC <> body <> body <> tsigTimers sampleRD
 
     -- RFC 8945 Sec 4.3.2: what is signed is the message before the
     -- TSIG record was added to it and before ARCOUNT counted it.  A
@@ -113,7 +113,7 @@ spec = do
 
         it "refuses one with a TSIG in an earlier section" $
             let m = withTSIG plain
-                m' = m{answer = answer m ++ [tsigRR]}
+                m' = m{answer = answer m ++ [sampleRR]}
              in stripTSIG (encode m') `shouldBe` Nothing
 
         it "refuses anything too short to be a message" $
@@ -147,10 +147,10 @@ aRR d = ResourceRecord d A IN 3600 $ rd_a "192.0.2.1"
 
 -- | The same message with a TSIG at the end of it, as it would be sent.
 withTSIG :: DNSMessage -> DNSMessage
-withTSIG m = m{additional = additional m ++ [tsigRR]}
+withTSIG m = m{additional = additional m ++ [sampleRR]}
 
-tsigRR :: ResourceRecord
-tsigRR =
+sampleRR :: ResourceRecord
+sampleRR =
     ResourceRecord
         { rrname = "key.example.jp."
         , rrtype = TSIG
@@ -159,13 +159,13 @@ tsigRR =
         , rdata = sample
         }
 
-rd :: RD_TSIG
-rd = case fromRData sample of
+sampleRD :: RD_TSIG
+sampleRD = case fromRData sample of
     Just t -> t
     Nothing -> error "sample is not a TSIG"
 
-mac :: Opaque
-mac = Opaque.fromByteString $ BS.pack [1 .. 32]
+sampleMAC :: Opaque
+sampleMAC = Opaque.fromByteString $ BS.pack [1 .. 32]
 
 body :: BS.ByteString
 body = BS.pack $ concat $ replicate 7 [0xab, 0xcd, 0xef]

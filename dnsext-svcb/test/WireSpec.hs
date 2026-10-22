@@ -16,13 +16,13 @@ import DNS.Types.Decode (decode)
 svcbWith :: [ByteString] -> ByteString
 svcbWith params =
     BS.pack [0, 1, 0x80, 0, 0, 1, 0, 1, 0, 0, 0, 0]
-        <> qname
+        <> qname_
         <> BS.pack [0, 64, 0, 1]
         <> BS.pack [0xc0, 0x0c, 0, 64, 0, 1, 0, 0, 0, 60]
         <> BS.pack [0, fromIntegral (BS.length rdata_)]
         <> rdata_
   where
-    qname = BS.pack [3] <> "www" <> BS.pack [7] <> "example" <> BS.pack [0]
+    qname_ = BS.pack [3] <> "www" <> BS.pack [7] <> "example" <> BS.pack [0]
     rdata_ = BS.pack [0, 1] <> BS.pack [0 {- the root as TargetName -}] <> BS.concat params
 
 param :: Int -> ByteString -> ByteString

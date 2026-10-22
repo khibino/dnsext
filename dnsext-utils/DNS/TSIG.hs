@@ -50,7 +50,7 @@ import qualified Crypto.MAC.HMAC as HMAC
 import Data.Bits (shiftR, xor, (.|.))
 import Data.ByteArray (convert)
 import qualified Data.ByteString as BS
-import Data.List (foldl')
+import qualified Data.List as L
 import Data.Word (Word16, Word64)
 
 import DNS.Types
@@ -185,7 +185,7 @@ checkMAC key digest arrived
 constantTimeEq :: BS.ByteString -> BS.ByteString -> Bool
 constantTimeEq a b =
     BS.length a == BS.length b
-        && 0 == foldl' (\acc (x, y) -> acc .|. (x `xor` y)) 0 (BS.zip a b)
+        && 0 == L.foldl' (\acc (x, y) -> acc .|. (x `xor` y)) 0 (BS.zip a b)
 
 -- | Checking the time a message was signed at (RFC 8945 Sec 5.2.3).
 --   The two clocks must agree to within the fudge the sender asked for.

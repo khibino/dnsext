@@ -4,7 +4,6 @@ module HTTP2Spec (spec) where
 
 import Control.Concurrent
 import qualified Control.Exception as E
-import Control.Monad
 import DNS.Do53.Internal
 import DNS.DoX.Internal
 import DNS.Types
@@ -141,7 +140,7 @@ wholeBody req = go id
 withH2CServer :: Server -> (PortNumber -> IO a) -> IO a
 withH2CServer server body = E.bracket open close $ \sock -> do
     port <- socketPort sock
-    E.bracket (forkIO $ run sock) killThread $ \_ -> body port
+    E.bracket (forkIO $ runServer sock) killThread $ \_ -> body port
   where
     open = do
         sock <- socket AF_INET Stream defaultProtocol
@@ -149,4 +148,4 @@ withH2CServer server body = E.bracket open close $ \sock -> do
         bind sock $ SockAddrInet 0 $ tupleToHostAddress (127, 0, 0, 1)
         listen sock 5
         return sock
-    run sock = H2TLS.runH2CWithSocket H2TLS.defaultSettings sock server
+    runServer sock = H2TLS.runH2CWithSocket H2TLS.defaultSettings sock server
