@@ -241,7 +241,7 @@ spec = do
                 `shouldBe` TSIGOk (macOf bs)
 
         it "gives our own time in the other data of one" $ do
-            let Just rd = tsigOf $ refusal badtime server
+            let rd = maybe (error "no TSIG") id $ tsigOf $ refusal badtime server
             tsig_time_signed rd `shouldBe` fromIntegral now
             tsig_fudge rd `shouldBe` defaultFudge
             Opaque.length (tsig_other rd) `shouldBe` 6
