@@ -17,12 +17,12 @@ where
 
 -- crypton
 
-import Crypto.Hash (HashAlgorithm)
+import Crypto.Hash (HashAlgorithm, hashWith)
 import Crypto.Hash.Algorithms (SHA1 (..), SHA256 (..), SHA512 (..))
 import Crypto.Number.Serialize (i2osp, os2ip)
 import Crypto.PubKey.RSA (PrivateKey (..), PublicKey (..))
 import qualified Crypto.PubKey.RSA as RSA
-import Crypto.PubKey.RSA.PKCS15 (HashAlgorithmASN1, signSafer, verify)
+import Crypto.PubKey.RSA.PKCS15 (HashAlgorithmASN1, signSaferDigest, verifyDigest)
 import Crypto.Random.Types (MonadRandom)
 
 import DNS.SEC.Types (PubKey (..))
@@ -141,7 +141,7 @@ rsaVerify
     -> ByteString
     -> Either String Bool
 rsaVerify alg pubkey sig msg =
-    Right $ verify (Just alg) pubkey msg sig
+    Right $ verifyDigest pubkey (hashWith alg msg) sig
 
 unsafeRsaSign
     :: (HashAlgorithm hash, HashAlgorithmASN1 hash, MonadRandom m)
@@ -150,7 +150,7 @@ unsafeRsaSign
     -> ByteString
     -> m Signature
 unsafeRsaSign alg prikey msg = do
-    ex <- signSafer (Just alg) prikey msg
+    ex <- signSaferDigest prikey (hashWith alg msg)
     case ex of
         Left e -> error $ show e
         Right s -> return s
