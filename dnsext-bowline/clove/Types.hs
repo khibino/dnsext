@@ -12,7 +12,6 @@ import Network.Socket
 import DNS.Auth.Algorithm
 import DNS.Auth.DB (NSEC3Config (..), ZoneCheck (..))
 import DNS.Log
-import DNS.SEC
 import DNS.SEC.Verify
 import DNS.TSIG (TSIGKey)
 import DNS.Types
