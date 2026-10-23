@@ -12,7 +12,7 @@ where
 import Control.Monad (unless)
 import Crypto.Hash (HashAlgorithm)
 import Crypto.Hash.Algorithms (SHA256 (..), SHA384 (..))
-import Crypto.Number.Serialize (i2ospOf_, os2ip)
+import Crypto.Number.Serialize (i2osp, os2ip)
 import Crypto.PubKey.ECC.ECDSA (PrivateKey (..), PublicKey (..), Signature)
 import qualified Crypto.PubKey.ECC.ECDSA as ECDSA
 import Crypto.PubKey.ECC.Generate (generate, generateQ)
@@ -55,34 +55,18 @@ ecdsaHelper cn hash len =
 curveSizeBytes :: Curve -> Int
 curveSizeBytes curve = (ECC.curveSizeBits curve + 7) `div` 8
 
--- | An integer of a curve as a fixed length octet string.
---
---   RFC 6605 Sec 4 gives every integer of ECDSA -- the two halves of a
---   public key, the two halves of a signature -- a length equal to the
---   length of the curve's field size, zeroes in front and all.  The
---   plain 'Crypto.Number.Serialize.i2osp' writes the fewest octets it
---   can, which for one integer in 256 is one octet short: the peer, and
---   'ecdsaDecodeSignature' here, refuses the result.
---
---   Truncation cannot happen: every integer put through this is less
---   than the curve's order or its field prime, and so fits.
-fixedWidth :: Curve -> Integer -> ByteString
-fixedWidth curve = i2ospOf_ (curveSizeBytes curve)
-
 ecdsaGenKeyPair :: Curve -> IO (PublicKey, PrivateKey)
 ecdsaGenKeyPair = generate
 
 ecdsaEncodePriKey :: PrivateKey -> PriKey
-ecdsaEncodePriKey PrivateKey{..} = fixedWidth private_curve private_d
+ecdsaEncodePriKey PrivateKey{..} = i2osp private_d
 
 ecdsaDecodePriKey :: Curve -> PriKey -> Either String PrivateKey
 ecdsaDecodePriKey curve prikey = Right $ PrivateKey{private_curve = curve, private_d = os2ip prikey}
 
 ecdsaEncodePubKey :: PublicKey -> PubKey
-ecdsaEncodePubKey PublicKey{..} =
-    PubKey $ Opaque.fromByteString (wide x `BS.append` wide y)
+ecdsaEncodePubKey PublicKey{..} = PubKey $ Opaque.fromByteString (i2osp x `BS.append` i2osp y)
   where
-    wide = fixedWidth public_curve
     (x, y) = case public_q of
         ECC.Point x' y' -> (x', y')
         ECC.PointO -> error "ecdsaEncodePubKey"
@@ -111,10 +95,7 @@ ecdsaDecodePubKey len cn curve (PubKey o) = do
     point = ECC.Point (os2ip $ Opaque.toByteString xs) (os2ip $ Opaque.toByteString ys)
 
 ecdsaEncodeSignature :: Curve -> Signature -> Opaque
-ecdsaEncodeSignature curve ECDSA.Signature{..} =
-    Opaque.fromByteString (wide sign_r `BS.append` wide sign_s)
-  where
-    wide = fixedWidth curve
+ecdsaEncodeSignature _ ECDSA.Signature{..} = Opaque.fromByteString (i2osp sign_r `BS.append` i2osp sign_s)
 
 ecdsaDecodeSignature :: Curve -> Opaque -> Either String Signature
 ecdsaDecodeSignature curve ss = do
