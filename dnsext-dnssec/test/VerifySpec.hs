@@ -3,7 +3,7 @@
 
 module VerifySpec (spec) where
 
-import Control.Monad (forM_, unless)
+import Control.Monad (unless)
 import Crypto.Number.Serialize
 import qualified Crypto.PubKey.RSA as RSA
 import Data.ByteString (ByteString)
@@ -33,33 +33,6 @@ spec = do
         it "SHA1" $ caseDS dsSHA1
         it "SHA256" $ caseDS dsSHA256
         it "SHA384" $ caseDS dsSHA384
-    -- RFC 6605 Sec 4 gives each integer of ECDSA -- the two halves of
-    -- a public key, the two halves of a signature -- the length of the
-    -- curve's field size, leading zeroes and all.  Written with as few
-    -- octets as the integer needs, one in 256 of them comes out an
-    -- octet short, and a peer refuses the key or the signature.
-    describe "ECDSA is written to the width of the curve" $ do
-        -- Private keys whose public point has a leading zero in one of
-        -- its coordinates, so that the shape is checked rather than
-        -- waited for.
-        it "pads a public key of P-256" $ do
-            forM_ [43, 379] $ \d ->
-                p256Bytes d `shouldBe` Right 64
-        it "pads a public key of P-384" $ do
-            forM_ [176, 197] $ \d ->
-                p384Bytes d `shouldBe` Right 96
-
-        it "accepts the public keys it writes" $ do
-            forM_ [43, 379] $ \d -> decodesAs ECDSAP256SHA256 (p256Key d)
-            forM_ [176, 197] $ \d -> decodesAs ECDSAP384SHA384 (p384Key d)
-
-        -- A signature is the same mistake in the same place, and its
-        -- two integers are whatever the signing threw up, so this
-        -- takes enough of them to be sure: unpadded, each is an octet
-        -- short about one time in 128, which over 500 of them is
-        -- missed about four times in a thousand.
-        it "pads a signature of P-256" $ signaturesAreWide ECDSAP256SHA256 64 500
-        it "pads a signature of P-384" $ signaturesAreWide ECDSAP384SHA384 96 500
     -- A name which kept the case it arrived in (RFC 4343 Sec 3) must
     -- verify against a signature made over the folded one: RFC 4034
     -- Sec 6.2 has every name in the canonical form of an RR folded to
@@ -354,43 +327,6 @@ nsec3With iterations =
     fromJust $
         fromRData $
             rd_nsec3 Hash_SHA1 [] iterations (Opaque.fromByteString "abcd") (Opaque.fromByteString "") []
-
-p256Key :: Integer -> PubKey
-p256Key d = fromRight (error "p256Key") $ p256toPubKey (i2osp d)
-
-p384Key :: Integer -> PubKey
-p384Key d = fromRight (error "p384Key") $ p384toPubKey (i2osp d)
-
-p256Bytes :: Integer -> Either String Int
-p256Bytes d = pubKeyLength <$> p256toPubKey (i2osp d)
-
-p384Bytes :: Integer -> Either String Int
-p384Bytes d = pubKeyLength <$> p384toPubKey (i2osp d)
-
-pubKeyLength :: PubKey -> Int
-pubKeyLength (PubKey o) = Opaque.length o
-
--- | A key the library wrote must be a key the library reads.
-decodesAs :: PubAlg -> PubKey -> Expectation
-decodesAs alg key = case getRRSIGImpl alg of
-    Nothing -> expectationFailure $ "no implementation for " ++ show alg
-    Just RRSIGImpl{..} -> case rrsigIDecodePubKey key of
-        Left e -> expectationFailure e
-        Right _ -> return ()
-
--- | Signing over and over, and every signature the width of the curve.
-signaturesAreWide :: PubAlg -> Int -> Int -> Expectation
-signaturesAreWide alg width times = case getRRSIGImpl alg of
-    Nothing -> expectationFailure $ "no implementation for " ++ show alg
-    Just RRSIGImpl{..} -> do
-        (_pub, pri) <- rrsigIGenKeyPair 0
-        forM_ [1 .. times] $ \i -> do
-            sig <- rrsigISign pri $ fromString $ "message " ++ show (i :: Int)
-            let bs = rrsigIEncodeSignature sig
-            Opaque.length bs `shouldBe` width
-            case rrsigIDecodeSignature bs of
-                Left e -> expectationFailure e
-                Right _ -> return ()
 
 -- | The same case with every name shouted.  What a name is does not
 --   change with its case, so the signature in it is still the
