@@ -74,16 +74,16 @@ tcpAllowAXFR sa sender msg zoneAlist = case List.lookup dom zoneAlist of -- exac
         if not (zoneReady zone)
             then return TransferRefused
             else return $ case zoneTransferKey zone of
-                -- Holding the key is what grants the transfer, so the
-                -- addresses are not asked about as well.
+                -- With addresses listed as well, both have to hold.
                 Just key
-                    | senderKey sender == Just key -> TransferOk zone
+                    | senderKey sender == Just key, unlisted zone || byAddress zone -> TransferOk zone
                     | otherwise -> TransferRefused
                 Nothing
                     | byAddress zone -> TransferOk zone
                     | otherwise -> TransferRefused
   where
     dom = qname $ question msg
+    unlisted zone = null (T.toList $ zoneAllowTransfer4 zone) && null (T.toList $ zoneAllowTransfer6 zone)
     -- A route table is asked for one family or the other, so which
     -- one the peer is has to be decided first, and an IPv4 peer seen
     -- through a v6 socket is an IPv4 peer.  Without 'unmap' the
