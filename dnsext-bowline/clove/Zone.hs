@@ -126,6 +126,8 @@ newZone zcheck env keys signedChildren zoneconf@ZoneConf{..} = do
     unusedUnder "allow-transfer" cnf_allow_transfer cnf_allow_transfer_key cnf_allow_transfer_addrs
     unusedUnder "allow-notify" cnf_allow_notify cnf_allow_notify_key cnf_allow_notify_addrs
     unusedUnder "notify" cnf_notify cnf_notify_key cnf_notify_addrs
+    when (fromFile source && not (null cnf_source_key)) $
+        envPutLines env WARNING Nothing [zoneLabel zone ++ "source is a file, so source-key is not used"]
     (wakeup, wait) <- initSync
     -- Nothing has been read yet, so the expire is counted from now: a
     -- source which never answers must not leave the zone waiting for a
