@@ -159,7 +159,7 @@ transfer Env{..} Proto{..} seal zone sender sa query = do
         (`E.onException` told unfinished) $ do
             duringTransfer $ case sender of
                 Unsigned -> mapM_ (send . encode . withAnswer) batches
-                SignedWith key requestMAC now -> signAndSend send now key (AtFirst $ Just requestMAC) batches
+                SignedWith key requestMAC _ -> signAndSend send key (AtFirst $ Just requestMAC) batches
             told finished
 
     zoneRep = toRepresentation $ zoneName zone
@@ -176,13 +176,14 @@ transfer Env{..} Proto{..} seal zone sender sa query = do
     -- unsigned; signing all of them is simpler and is what it asks for.
     signAndSend
         :: (BS.ByteString -> IO ())
-        -> EpochTime
         -> TSIGKey
         -> Chain
         -> [[ResourceRecord]]
         -> IO ()
-    signAndSend _ _ _ _ [] = return ()
-    signAndSend send now key chain (batch : rest) = do
+    signAndSend _ _ _ [] = return ()
+    signAndSend send key chain (batch : rest) = do
+        -- RFC 8945 Sec 5.3.1: each message carries the time it is signed.
+        now <- currentTime
         let body = encode $ withAnswer batch
             (rr, mac) = case chain of
                 -- The first message answers the request and is bound to
@@ -190,7 +191,7 @@ transfer Env{..} Proto{..} seal zone sender sa query = do
                 AtFirst mrequest -> signTSIG key now defaultFudge mrequest body
                 AfterFirst prior _ -> signTSIGCont key now defaultFudge prior [body]
         send $ encode (withAnswer batch){additional = [rr]}
-        signAndSend send now key (AfterFirst mac []) rest
+        signAndSend send key (AfterFirst mac []) rest
 
 -- | A TSIG of the largest a TSIG can be: a key name of the longest a
 --   name may be, the longest algorithm name there is, and an untruncated
