@@ -166,10 +166,10 @@ withScenario name body = do
         -- have to keep an example. about merely to be waited for.
         ready <- firstZone $ dir </> "clove.conf"
         withDaemon dir "clove" "clove" (cloveArgs ++ [dir </> "clove.conf"]) $ do
-            waitFor "clove" $ answered auth authPort ready SOA
+            waitForDaemon dir "clove" $ answered auth authPort ready SOA
             fillDS (dir </> "clove") (dir </> "root.zone")
             withDaemon dir "root" "clove" (rootArgs ++ [dir </> "root.conf"]) $ do
-                waitFor "root" $ answered rootAddr authPort "." SOA
+                waitForDaemon dir "root" $ answered rootAddr authPort "." SOA
                 writeFile (dir </> "anchor.zone") =<< trustAnchor (dir </> "root" </> "root.")
                 withDaemon dir "bowline" "bowline" [dir </> "bowline.conf"] $ do
                     -- The root, and nothing of the scenario's own: what
@@ -177,7 +177,7 @@ withScenario name body = do
                     -- reaching its hint, and a scenario about a zone
                     -- which does not resolve should fail as a test
                     -- rather than as a world which never came up.
-                    waitFor "bowline" $ answered rootAddr resolverPort "." SOA
+                    waitForDaemon dir "bowline" $ answered rootAddr resolverPort "." SOA
                     body
                         Scenario
                             { scenarioDir = dir
@@ -388,13 +388,15 @@ resolveInfo addr port =
         }
 
 -- | Whether a server at this address has an answer for this question
---   yet.
-answered :: String -> PortNumber -> Domain -> TYPE -> IO Bool
+--   yet, and what it came to where it has not.
+answered :: String -> PortNumber -> Domain -> TYPE -> IO (Either String ())
 answered addr port dom typ = do
     er <- udpResolver (resolveInfo addr port) (Question dom typ IN) (rdFlag FlagSet)
     pure $ case er of
-        Right Reply{..} -> rcode replyDNSMessage == NoErr
-        Left _ -> False
+        Right Reply{..}
+            | rcode replyDNSMessage == NoErr -> Right ()
+            | otherwise -> Left $ show $ rcode replyDNSMessage
+        Left e -> Left $ show e
 
 ----------------------------------------------------------------
 
@@ -415,11 +417,24 @@ withDaemon dir part prog args body = withFile (dir </> part ++ ".log") WriteMode
 
 -- | Waiting for a daemon to be able to answer.  Each of them reads its
 --   configuration, binds its sockets and loads or signs a zone before it
---   can, and how long that takes is the machine's business.
-waitFor :: String -> IO Bool -> IO ()
-waitFor what ready = void $ waitForValue what $ boolToMaybe <$> ready
+--   can, and how long that takes is the machine's business.  Where it
+--   never does, what it last came to and the end of its log are said,
+--   since on CI they are all there is to go on.
+waitForDaemon :: FilePath -> String -> IO (Either String ()) -> IO ()
+waitForDaemon dir part check = go (300 :: Int) "nothing asked yet"
   where
-    boolToMaybe ok = if ok then Just () else Nothing
+    go 0 why = do
+        logged <- readFile (dir </> part ++ ".log")
+        fail $
+            part
+                ++ ": waited for it and it never came, the last try said: "
+                ++ why
+                ++ "\n--- the end of "
+                ++ part
+                ++ ".log:\n"
+                ++ unlines (lastOf 20 $ lines logged)
+    go n _ = check >>= either (\why -> threadDelay 100000 >> go (n - 1) why) pure
+    lastOf k xs = drop (length xs - k) xs
 
 -- | The same wait, for something with a value: whatever is being waited
 --   for is asked for until it is there.
