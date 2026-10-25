@@ -409,11 +409,13 @@ axfrQuery _env mkey ip port dom = withUpstream ip port dom "AXFR" $ do
                     let (rr, mac) = signTSIG key now defaultFudge Nothing bare
                     return (encode m{additional = additional m ++ [rr]}, Just mac)
         sendVC (sendTCP sock) asked
-        collect now sock BS.empty (AtFirst mrequestMAC) []
+        collect sock BS.empty (AtFirst mrequestMAC) []
     -- The records come back reversed, so the head is the last one seen:
     -- the transfer is over once that is the closing SOA.
-    collect now sock rest chain racc = do
+    collect sock rest chain racc = do
         (bs, rest') <- recvMessage vcLimitMax sock rest
+        -- Each message is checked against the time it arrives at.
+        now <- currentTime
         msg <- case decode bs of
             Left e -> E.ioError $ E.userError $ show e
             Right m -> return m
@@ -431,7 +433,7 @@ axfrQuery _env mkey ip port dom = withUpstream ip port dom "AXFR" $ do
         chain' <- checkChain mkey now chain bs msg done
         if done
             then return $ opening $ reverse racc'
-            else collect now sock rest' chain' racc'
+            else collect sock rest' chain' racc'
     -- RFC 5936 Sec 2.2: the first record is the SOA and the last is the
     -- same one again.  The copy at the end is dropped here, which is
     -- what the rest of clove expects of a zone.
