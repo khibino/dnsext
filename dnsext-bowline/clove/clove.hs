@@ -429,9 +429,16 @@ syncZone env zoneref = do
     load False
     loopLogErrIn env WARNING label go
   where
+    -- The secondaries are told only when the serial has moved, which
+    -- is all they would look at (RFC 1996 Sec 4.7).
     load rolled = do
+        before <- served <$> readIORef zoneref
         updateZone env rolled zoneref
-        notifyWithZone env zoneref
+        after <- served <$> readIORef zoneref
+        when (after /= before) $ notifyWithZone env zoneref
+    served Zone{..}
+        | zoneReady = Just $ soa_serial $ dbRD_SOA zoneDB
+        | otherwise = Nothing
     go = do
         Zone{..} <- readIORef zoneref
         let refresh
