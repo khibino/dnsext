@@ -49,7 +49,7 @@ data KeyConfig = KeyConfig
     , keyConfTTL       :: TTL
     -- ^ TTL for DNSKEY and DS
     , keyConfLifetime  :: DNSTime
-    -- ^ Lifetime of RRSIG. This value is added to inception to
+    -- ^ Lifetime of RRSIG. This value is added to the signing time to
     -- calculate expiration.
     , keyConfType      :: KeyType
     , keyConfSize      :: Int
@@ -278,10 +278,20 @@ prepareDNSSEC conf@KeyConfig{..} = do
             let signRRs = signZone prikey rrsigTemp
             return (pubkey, prikey, rrdnskey, rrds, signRRs)
 
+-- | How long before the signing time an RRSIG is valid from, for a
+--   validator whose clock is behind (RFC 6781 Sec 4.4.2).
+inceptionOffset :: DNSTime
+inceptionOffset = 3600
+
+-- |
+-- >>> r <- makeRRSIGtemplate defaultKeyConfig 0
+-- >>> rrsig_expiration r - rrsig_inception r == keyConfLifetime defaultKeyConfig + inceptionOffset
+-- True
 makeRRSIGtemplate :: KeyConfig -> KeyTag -> IO RD_RRSIG
 makeRRSIGtemplate KeyConfig{..} tag = do
-    inception <- toDNSTime <$> getCurrentTime
-    let expiration = inception + keyConfLifetime
+    now <- toDNSTime <$> getCurrentTime
+    let inception = now - inceptionOffset
+        expiration = now + keyConfLifetime
     return $
         RD_RRSIG
             { rrsig_type = A -- overridden
