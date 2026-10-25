@@ -215,9 +215,12 @@ handleNotify Proto{..} seal zoneAlist sa sender query = case lookup dom zoneAlis
         wake
     refuse = sendReply sa $ seal $ refusal query
 
--- | We will not answer this one.
+-- | We will not answer this one.  Not authoritative: nothing is said
+--   about the name.
 refusal :: DNSMessage -> DNSMessage
-refusal query = (fromQuery query){rcode = Refused}
+refusal query = reply{rcode = Refused, flags = (flags reply){authAnswer = False}}
+  where
+    reply = fromQuery query
 
 -- | The TSIG on the request was not good (RFC 8945 Sec 5.2).  The
 --   answer carries a TSIG of its own saying which of the checks failed,
