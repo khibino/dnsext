@@ -378,6 +378,25 @@ loadSourceWithSigning env rolled z = case zoneSigning z of
             (Unreachable, False) -> kept False
             _ -> signWith signing $ said got
 
+    -- A ZSK is published for one rollover duration before it signs and
+    -- one after, which covers the caches only if every TTL is shorter.
+    -- The DNSKEY RRset takes the TTL of the SOA, which is among these.
+    warnTTL duration rrs =
+        when (longest >= fromIntegral duration) $
+            envPutLines
+                env
+                WARNING
+                Nothing
+                [ zoneLabel zone
+                    ++ "the longest TTL in the zone, "
+                    ++ show (fromIntegral longest :: Int)
+                    ++ ", is not shorter than zsk-rollover-duration ("
+                    ++ show duration
+                    ++ "), so resolvers may fail to validate across a rollover"
+                ]
+      where
+        longest = maximum $ map rrttl rrs
+
     -- A file read again the same has nothing new either.
     renewed (Transferred rrs) | rrs == oldRRs = Unchanged
     renewed got = got
@@ -396,6 +415,7 @@ loadSourceWithSigning env rolled z = case zoneSigning z of
         (soa0, soarr0, rrs) <- checkRRs rrs0
         checkUnsigned rrs
         when (zoneCheck z == Checked) $ checkChildDS rrs
+        warnTTL signingZSKRollover $ soarr0 : rrs
         let soa = soa0{soa_serial = nextSerial (soa_serial soa0) mserial}
             soarr = soarr0{rdata = toRData soa}
             -- TTL of the DNSKEY RRset: the zone's own, taken from the
