@@ -191,11 +191,13 @@ initSync = do
 
 ----------------------------------------------------------------
 
-updateZone :: Env -> IORef Zone -> IO ()
-updateZone env zoneref = do
+-- | The flag says whether a key rollover was due, which is when a
+--   signed zone is signed again even if its source has nothing new.
+updateZone :: Env -> Bool -> IORef Zone -> IO ()
+updateZone env rolled zoneref = do
     zone <- readIORef zoneref
     now <- currentTime
-    er <- trySync $ loadSourceWithSigning env zone
+    er <- trySync $ loadSourceWithSigning env rolled zone
     case er of
         -- Nothing was read, so the zone stays as it was -- for as long
         -- as it may.
@@ -287,16 +289,16 @@ data Loaded = Loaded
     , loadedAnswered :: Bool
     -- ^ Whether the source answered.  False when it could not be reached
     --   or would not be believed, in which case what is here is what was
-    --   here before, signed again where the zone is signed.
+    --   here before, signed again where a rollover was due.
     }
 
 -- | Rebuilding the zone database, signing it again if it is a signed
 --   one.  The records passed in are the ones obtained last time; they
 --   are used again when the source turns out to have nothing new, so
---   that signing again never waits on the source changing.
+--   that signing again at a rollover never waits on the source changing.
 --   This function throws 'AuthException'.
-loadSourceWithSigning :: Env -> Zone -> IO Loaded
-loadSourceWithSigning env z = case zoneSigning z of
+loadSourceWithSigning :: Env -> Bool -> Zone -> IO Loaded
+loadSourceWithSigning env rolled z = case zoneSigning z of
     Nothing -> unsigned
     Just signing -> signed signing
   where
@@ -365,11 +367,32 @@ loadSourceWithSigning env z = case zoneSigning z of
         ours = [c | c <- zoneSignedChildren z, not (cutAbove c)]
         cutAbove c = or [c /= m && c `isSubDomainOf` m | m <- cuts]
 
-    signed Signing{..} = do
+    signed signing = do
         createDirectoryIfMissing True zoneDir
-        mserial <- loadSerial zoneDir
         mupstream <- loadUpstreamSerial zoneDir
-        (answered, rrs0) <- reloadSource env key zone mupstream source oldRRs
+        got <- renewed <$> loadSource env key zone (sinceSerial oldRRs mupstream) source
+        -- Signed again only for something new or a rollover, so that the
+        -- serial moves exactly when the zone does (#312).
+        case (got, rolled) of
+            (Unchanged, False) -> kept True
+            (Unreachable, False) -> kept False
+            _ -> signWith signing $ said got
+
+    -- A file read again the same has nothing new either.
+    renewed (Transferred rrs) | rrs == oldRRs = Unchanged
+    renewed got = got
+
+    kept = return . Loaded (zoneDB z) (zoneBatches z) oldRRs
+
+    -- Falling back on the records obtained last time when the source
+    -- has nothing new, or nothing to say at all.  The flag says whether
+    -- it answered: one which did not leaves the zone nearer its expire.
+    said (Transferred rrs) = (True, rrs)
+    said Unchanged = (True, oldRRs)
+    said Unreachable = (False, oldRRs)
+
+    signWith Signing{..} (answered, rrs0) = do
+        mserial <- loadSerial zoneDir
         (soa0, soarr0, rrs) <- checkRRs rrs0
         checkUnsigned rrs
         when (zoneCheck z == Checked) $ checkChildDS rrs
@@ -426,25 +449,6 @@ checkUnsigned rrs
 byMySelf :: Source -> Bool
 byMySelf (FromFile _) = True
 byMySelf _ = False
-
--- | Reading the source, falling back on the records obtained last time
---   when the source has nothing new -- or nothing to say at all.  The
---   flag says which of the two it was: a source which did not answer
---   leaves the zone one refresh nearer its expire.
-reloadSource
-    :: Env
-    -> Maybe TSIGKey
-    -> Domain
-    -> Maybe Serial
-    -> Source
-    -> [ResourceRecord]
-    -> IO (Bool, [ResourceRecord])
-reloadSource env key zone mserial source oldRRs =
-    said <$> loadSource env key zone (sinceSerial oldRRs mserial) source
-  where
-    said (Transferred rrs) = (True, rrs)
-    said Unchanged = (True, oldRRs)
-    said Unreachable = (False, oldRRs)
 
 -- | With nothing to fall back on there is nothing to be gained by
 --   asking only for what is newer: fetch the zone whatever the stored

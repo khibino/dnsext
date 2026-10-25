@@ -211,21 +211,24 @@ rolloverMargin duration = duration `shiftR` 6
 -- | Generating the next ZSK once the newest one has been in use for
 --   the rollover duration.  That duration is how long a key is used,
 --   which is a different thing from how long an RRSIG stays valid.
-rolloverZSK :: FilePath -> Int -> Int -> KeyConfig -> IO ()
+--   Whether a key was due is returned.
+rolloverZSK :: FilePath -> Int -> Int -> KeyConfig -> IO Bool
 rolloverZSK zoneDir duration preserve keyConf = do
     zsks <- keyFiles zoneDir ".zsk"
     case sortBy (flip compare) zsks of -- decreasing order
     -- No key to roll over yet.  Not an error: loading the zone is
     -- what creates the first set, and it may not have got that far.
-        [] -> return ()
+        [] -> return False
         fn : _ -> do
             ut0 <- fromEpochTime . modificationTime <$> getFileStatus (zoneDir </> fn)
             ut1 <- getUnixTime
             let CTime diff = udtSeconds (ut1 `diffUnixTime` ut0)
                 margin = fromIntegral $ rolloverMargin duration
-            when (diff + margin > fromIntegral duration) $
+                due = diff + margin > fromIntegral duration
+            when due $
                 void $
                     generateZSK zoneDir preserve keyConf
+            return due
 
 ----------------------------------------------------------------
 

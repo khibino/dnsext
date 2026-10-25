@@ -426,11 +426,11 @@ syncZone env zoneref = do
     label <- zoneLabel . zoneName <$> readIORef zoneref
     -- The zone is loaded before the first wait rather than in newZone,
     -- so that the servers can start listening straight away.
-    load
+    load False
     loopLogErrIn env WARNING label go
   where
-    load = do
-        updateZone env zoneref
+    load rolled = do
+        updateZone env rolled zoneref
         notifyWithZone env zoneref
     go = do
         Zone{..} <- readIORef zoneref
@@ -459,14 +459,15 @@ syncZone env zoneref = do
         -- A signal or timeout breaks this wait.
         zoneTimeoutWait mtm
         -- A rollover which goes wrong must not stop the zone from
-        -- being loaded: that is how it would recover.
-        case zoneSigning of
-            Nothing -> return ()
+        -- being loaded: that is how it would recover.  Its signatures
+        -- are made again all the same, so that they do not run out.
+        rolled <- case zoneSigning of
+            Nothing -> return False
             Just Signing{..} ->
-                handleLogErrIn env WARNING (zoneLabel zoneName) () $
+                handleLogErrIn env WARNING (zoneLabel zoneName) True $
                     rolloverZSK (zoneDirectory zoneName) signingZSKRollover signingZSKPreserve signingZSKConfig
         -- reading zone source, and telling the secondaries about it
-        load
+        load rolled
 
 notifyWithZone :: Env -> IORef Zone -> IO ()
 notifyWithZone env zoneref = do
