@@ -115,6 +115,10 @@ newZone zcheck env keys signedChildren zoneconf@ZoneConf{..} = do
         allow_notify_addrs
             | cnf_allow_notify = readIP cnf_allow_notify_addrs
             | otherwise = []
+    -- A switch which is off leaves what is under it unused, which is
+    -- said rather than refused (design/CONFIG.md).
+    unusedUnder "allow-transfer" cnf_allow_transfer cnf_allow_transfer_key cnf_allow_transfer_addrs
+    unusedUnder "allow-notify" cnf_allow_notify cnf_allow_notify_key cnf_allow_notify_addrs
     (wakeup, wait) <- initSync
     -- Nothing has been read yet, so the expire is counted from now: a
     -- source which never answers must not leave the zone waiting for a
@@ -152,6 +156,13 @@ newZone zcheck env keys signedChildren zoneconf@ZoneConf{..} = do
     zone = fromRepresentation cnf_zone
     source = readSource zoneconf
     gated allowed mkey = if allowed then mkey else Nothing
+    unusedUnder switch allowed key addrs =
+        unless (allowed || (null key && null addrs)) $
+            envPutLines
+                env
+                WARNING
+                Nothing
+                [zoneLabel zone ++ switch ++ " is no, so " ++ switch ++ "-key and " ++ switch ++ "-addrs are not used"]
     withZoneName action =
         action `E.catchIOError` \e ->
             E.ioError $ E.ioeSetErrorString e (zoneLabel zone ++ E.ioeGetErrorString e)
