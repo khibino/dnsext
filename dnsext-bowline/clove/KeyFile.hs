@@ -114,6 +114,21 @@ loadZSKInfo
         , (KeyInfo, ResourceRecord) -- next
         )
 loadZSKInfo env fresh zoneDir preserve keyConf = do
+    found <- length <$> keyFiles zoneDir ".zsk"
+    -- Fewer than the three published: those left keep their places by
+    -- age and only the missing newer ones are made, so with two left the
+    -- zone is still signed with a key which was published already.
+    when (found < 3) $ do
+        unless fresh $
+            warn env keyConf $
+                show found
+                    ++ " ZSK(s) where three are published, so "
+                    ++ show (3 - found)
+                    ++ " new one(s) are being made."
+                    ++ if found < 2
+                        then "  Resolvers holding the old DNSKEY RRset cannot validate until it expires from their caches."
+                        else ""
+        replicateM_ (3 - found) $ generateZSK zoneDir preserve keyConf
     zsks <- keyFiles zoneDir ".zsk"
     case sortBy (flip compare) zsks of -- decreasing order
         fn2 : fn1 : fn0 : _ -> do
@@ -121,23 +136,7 @@ loadZSKInfo env fresh zoneDir preserve keyConf = do
             ki1 <- loadKey zoneDir keyConf fn1
             ki2 <- loadKey zoneDir keyConf fn2
             return (ki0, ki1, ki2)
-        -- Fewer than the three which are published: some have gone
-        -- missing, since nothing here leaves one or two.  A whole new
-        -- set is made, which is valid DNSSEC -- the KSK has not changed,
-        -- so the DS still matches -- but a resolver holding the old
-        -- DNSKEY RRset cannot check what the new keys sign until that
-        -- RRset expires from its cache.  Worth a sentence rather than
-        -- the silence it had.
-        found -> do
-            unless fresh $
-                warn env keyConf $
-                    show (length found)
-                        ++ " ZSK(s) where three are published, so a new set of three is being made."
-                        ++ "  Resolvers holding the old DNSKEY RRset cannot validate until it expires from their caches."
-            ki0 <- generateZSK zoneDir preserve keyConf
-            ki1 <- generateZSK zoneDir preserve keyConf
-            ki2 <- generateZSK zoneDir preserve keyConf
-            return (ki0, ki1, ki2)
+        _ -> E.ioError $ E.userError "fewer than three ZSKs after making them"
 
 -- | The key files of one kind a zone has.
 keyFiles :: FilePath -> String -> IO [FilePath]
