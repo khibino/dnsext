@@ -13,7 +13,7 @@ module Zone (
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Data.Function (on)
 import Data.IORef
 import Data.IP
@@ -368,7 +368,8 @@ loadSourceWithSigning env z = case zoneSigning z of
     signed Signing{..} = do
         createDirectoryIfMissing True zoneDir
         mserial <- loadSerial zoneDir
-        (answered, rrs0) <- reloadSource env key zone mserial source oldRRs
+        mupstream <- loadUpstreamSerial zoneDir
+        (answered, rrs0) <- reloadSource env key zone mupstream source oldRRs
         (soa0, soarr0, rrs) <- checkRRs rrs0
         checkUnsigned rrs
         when (zoneCheck z == Checked) $ checkChildDS rrs
@@ -376,7 +377,7 @@ loadSourceWithSigning env z = case zoneSigning z of
                 | byMySelf source = case mserial of
                     Nothing -> soa0 -- No serial file, serial from zone file
                     Just sr -> soa0{soa_serial = sr <> Serial 1}
-                | otherwise = soa0
+                | otherwise = soa0{soa_serial = nextSerial (soa_serial soa0) mserial}
             soarr = soarr0{rdata = toRData soa}
             -- TTL of the DNSKEY RRset: the zone's own, taken from the
             -- apex SOA.  Not the SOA minimum, which RFC 2308 Sec 4
@@ -402,6 +403,7 @@ loadSourceWithSigning env z = case zoneSigning z of
         -- Stored only after the zone has been built successfully so
         -- that a failure does not inflate the serial.
         saveSerial zoneDir $ soa_serial soa
+        unless (byMySelf source) $ saveUpstreamSerial zoneDir $ soa_serial soa0
         loadedWith db rrs0 answered
 
 -- | Refusing to sign a zone which is signed already.
