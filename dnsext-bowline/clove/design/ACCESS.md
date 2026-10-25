@@ -10,7 +10,7 @@ clove が、どの相手のどの求めに応じるか、そして TSIG をど�
 | ふつうの問い合わせ | 誰にでも | 持っていないゾーンの名前には REFUSED |
 | AXFR と IXFR | `allow-transfer` で許した相手だけ（後述） | REFUSED |
 | NOTIFY | `allow-notify` で許した相手だけ（後述） | REFUSED |
-| それ以外の opcode | 応じない | REFUSED |
+| それ以外の opcode | 応じない | NOTIMP（RFC 8906 Sec 3.1.4） |
 
 - ふつうの問い合わせは、その名前を含むゾーンのうち、最も近いもので答えます。
 - AXFR、IXFR、NOTIFY は、名前がゾーンの頂点と一致するときだけ応じます。

@@ -135,7 +135,7 @@ server env@Env{..} keys proto@Proto{..} zoneAlist = loop 0
                                             TransferRefused ->
                                                 sendReply sa $ seal $ refusal query
                                     else response proto seal zoneAlist sa query dom
-                            _ -> sendReply sa $ seal $ refusal query
+                            _ -> sendReply sa $ seal $ notImplemented query
 
 response :: Proto -> Seal -> ZoneAlist -> SockAddr -> DNSMessage -> Domain -> IO ()
 response Proto{..} seal zoneAlist sa query dom = case findZoneFor (qtype $ question query) dom zoneAlist of -- isSubDomainOf
@@ -215,9 +215,18 @@ handleNotify Proto{..} seal zoneAlist sa sender query = case lookup dom zoneAlis
         wake
     refuse = sendReply sa $ seal $ refusal query
 
--- | We will not answer this one.
+-- | We will not answer this one.  Not authoritative: nothing is said
+--   about the name.
 refusal :: DNSMessage -> DNSMessage
-refusal query = (fromQuery query){rcode = Refused}
+refusal query = reply{rcode = Refused, flags = (flags reply){authAnswer = False}}
+  where
+    reply = fromQuery query
+
+-- | An opcode we do not implement (RFC 8906 Sec 3.1.4).
+notImplemented :: DNSMessage -> DNSMessage
+notImplemented query = reply{rcode = NotImpl, flags = (flags reply){authAnswer = False}}
+  where
+    reply = fromQuery query
 
 -- | The TSIG on the request was not good (RFC 8945 Sec 5.2).  The
 --   answer carries a TSIG of its own saying which of the checks failed,
