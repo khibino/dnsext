@@ -92,9 +92,10 @@ newZone zcheck env keys signedChildren zoneconf@ZoneConf{..} = do
     msigning <- withZoneName $ readSigning zcheck env zone zoneconf
     spoof <- withZoneName $ readSpoof zcheck zoneconf
     notifyKey <- withZoneName $ namedKey keys "notify-key" cnf_notify_key
-    allowNotifyKey <- withZoneName $ namedKey keys "allow-notify-key" cnf_allow_notify_key
+    -- Each switch gates its key as it does its address list below.
+    allowNotifyKey <- gated cnf_allow_notify <$> withZoneName (namedKey keys "allow-notify-key" cnf_allow_notify_key)
     sourceKey <- withZoneName $ namedKey keys "source-key" cnf_source_key
-    transferKey <- withZoneName $ namedKey keys "allow-transfer-key" cnf_allow_transfer_key
+    transferKey <- gated cnf_allow_transfer <$> withZoneName (namedKey keys "allow-transfer-key" cnf_allow_transfer_key)
     -- The source is not read here.  Reading it can block for as long as
     -- an unreachable upstream takes to time out, and nothing is
     -- listening yet at this point, so every other zone would be
@@ -114,6 +115,10 @@ newZone zcheck env keys signedChildren zoneconf@ZoneConf{..} = do
         allow_notify_addrs
             | cnf_allow_notify = readIP cnf_allow_notify_addrs
             | otherwise = []
+    -- A switch which is off leaves what is under it unused, which is
+    -- said rather than refused (design/CONFIG.md).
+    unusedUnder "allow-transfer" cnf_allow_transfer cnf_allow_transfer_key cnf_allow_transfer_addrs
+    unusedUnder "allow-notify" cnf_allow_notify cnf_allow_notify_key cnf_allow_notify_addrs
     (wakeup, wait) <- initSync
     -- Nothing has been read yet, so the expire is counted from now: a
     -- source which never answers must not leave the zone waiting for a
@@ -150,6 +155,14 @@ newZone zcheck env keys signedChildren zoneconf@ZoneConf{..} = do
   where
     zone = fromRepresentation cnf_zone
     source = readSource zoneconf
+    gated allowed mkey = if allowed then mkey else Nothing
+    unusedUnder switch allowed key addrs =
+        unless (allowed || (null key && null addrs)) $
+            envPutLines
+                env
+                WARNING
+                Nothing
+                [zoneLabel zone ++ switch ++ " is no, so " ++ switch ++ "-key and " ++ switch ++ "-addrs are not used"]
     withZoneName action =
         action `E.catchIOError` \e ->
             E.ioError $ E.ioeSetErrorString e (zoneLabel zone ++ E.ioeGetErrorString e)

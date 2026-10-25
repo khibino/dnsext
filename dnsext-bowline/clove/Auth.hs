@@ -200,17 +200,16 @@ handleNotify Proto{..} seal zoneAlist sa sender query = case lookup dom zoneAlis
     Just zoneref -> do
         Zone{..} <- readIORef zoneref
         case zoneAllowNotifyKey of
-            -- Holding the key is what says who this is, so the
-            -- addresses are not asked about as well.
+            -- With addresses listed as well, both have to hold.
             Just key
-                | senderKey sender == Just key -> heard zoneWakeUp
+                | senderKey sender == Just key, null zoneAllowNotifyAddrs || listed zoneAllowNotifyAddrs -> heard zoneWakeUp
                 | otherwise -> refuse
-            Nothing -> case fromSockAddr sa of
-                Just (ip, _)
-                    | ip `elem` zoneAllowNotifyAddrs -> heard zoneWakeUp
-                _ -> refuse
+            Nothing
+                | listed zoneAllowNotifyAddrs -> heard zoneWakeUp
+                | otherwise -> refuse
   where
     dom = qname $ question query
+    listed addrs = maybe False ((`elem` addrs) . fst) $ fromSockAddr sa
     heard wake = do
         sendReply sa $ seal $ fromQuery query
         wake
