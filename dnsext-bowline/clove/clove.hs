@@ -323,8 +323,8 @@ tcpServer env keys zoneAlist port TCPConf{..} addr =
                         , allowAXFR = Auth.tcpAllowAXFR
                         , protoName = "TCP"
                         , recvErrorFatal = True
-                        , -- A two byte length prefix: nothing to truncate.
-                          replyLimit = const Nothing
+                        , -- What a two byte length prefix can say.
+                          replyLimit = const $ Just 65535
                         , duringTransfer = handingOver tcpTransferLimit alive
                         , transferSlot = takeSlot tcpTransfers
                         }
