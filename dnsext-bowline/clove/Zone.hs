@@ -95,6 +95,12 @@ newZone zcheck env keys signedChildren zoneconf@ZoneConf{..} = do
     -- Each switch gates its key as it does its address list below.
     allowNotifyKey <- gated cnf_allow_notify <$> withZoneName (namedKey keys "allow-notify-key" cnf_allow_notify_key)
     sourceKey <- withZoneName $ namedKey keys "source-key" cnf_source_key
+    -- Refused rather than dropped, whether the switch above them is on
+    -- or not (design/CONFIG.md).
+    withZoneName $ do
+        readable "notify-addrs" isIP cnf_notify_addrs
+        readable "allow-notify-addrs" isIP cnf_allow_notify_addrs
+        readable "allow-transfer-addrs" isRange cnf_allow_transfer_addrs
     transferKey <- gated cnf_allow_transfer <$> withZoneName (namedKey keys "allow-transfer-key" cnf_allow_transfer_key)
     -- The source is not read here.  Reading it can block for as long as
     -- an unreachable upstream takes to time out, and nothing is
@@ -119,6 +125,9 @@ newZone zcheck env keys signedChildren zoneconf@ZoneConf{..} = do
     -- said rather than refused (design/CONFIG.md).
     unusedUnder "allow-transfer" cnf_allow_transfer cnf_allow_transfer_key cnf_allow_transfer_addrs
     unusedUnder "allow-notify" cnf_allow_notify cnf_allow_notify_key cnf_allow_notify_addrs
+    unusedUnder "notify" cnf_notify cnf_notify_key cnf_notify_addrs
+    when (fromFile source && not (null cnf_source_key)) $
+        envPutLines env WARNING Nothing [zoneLabel zone ++ "source is a file, so source-key is not used"]
     (wakeup, wait) <- initSync
     -- Nothing has been read yet, so the expire is counted from now: a
     -- source which never answers must not leave the zone waiting for a
@@ -513,6 +522,18 @@ checkRRs (soarr : rrs) = case fromRData $ rdata soarr of
     Just soa -> return (soa, soarr, rrs)
 
 ----------------------------------------------------------------
+
+-- | Refusing what a setting holds where it is not an address.
+readable :: String -> (String -> Bool) -> [String] -> IO ()
+readable setting ok ss = case filter (not . ok) ss of
+    [] -> return ()
+    bad -> E.ioError $ E.userError $ setting ++ ": not an address: " ++ unwords bad
+
+isIP :: String -> Bool
+isIP s = isJust (readMaybe s :: Maybe IP)
+
+isRange :: String -> Bool
+isRange s = isJust (readMaybe s :: Maybe (AddrRange IPv6)) || isJust (readMaybe s :: Maybe (AddrRange IPv4))
 
 readIP :: [String] -> [IP]
 readIP ss = mapMaybe readMaybe ss
