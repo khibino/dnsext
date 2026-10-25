@@ -60,6 +60,7 @@ clove が、接続、転送、メッセージの大きさに、どんな上限�
 - UDP の応答の 1232 は、IPv6 の最小 MTU に収まる大きさで、主な権威サーバの既定値と同じです。
 - UDP の応答が上限を超えるときは、次の順に小さくします（RFC 2181 Sec 9）。
   1. additional を空にする。additional が入らないだけでは、TC を立てません。
+     - ただし、参照応答では、in-domain の glue（委任先のゾーンの中にある NS の A と AAAA）だけは残します（RFC 9471 Sec 3.1）。sibling の glue などは捨てます。
   2. それでも入らなければ、answer、authority、additional を空にして、TC を立てます。
 - TSIG を付ける応答は、TSIG の大きさを先に上限から差し引いてから、上の手順で小さくします。
 

@@ -353,16 +353,22 @@ encodeReply Proto{..} query reply = encode $ fitting (replyLimit query) reply
 --   additional data did not fit, so that section goes first and the
 --   answer is still sent as a complete one.  Only when the answer
 --   itself does not fit is TC set, with the sections emptied, so that
---   the client asks again over TCP.
+--   the client asks again over TCP.  A referral keeps its in-domain
+--   glue, or is truncated without it (RFC 9471 Sec 3.1).
 fitting :: Maybe Int -> DNSMessage -> DNSMessage
 fitting Nothing reply = reply
 fitting (Just lim) reply
     | size reply <= lim = reply
-    | size noAdditional <= lim = noAdditional
+    | size trimmed <= lim = trimmed
     | otherwise = truncated
   where
     size = BS.length . encode
-    noAdditional = reply{additional = []}
+    trimmed = reply{additional = filter inDomainGlue $ additional reply}
+    -- The zones a referral hands off to; none for any other reply.
+    cuts
+        | null (answer reply) = [rrname r | r <- authority reply, rrtype r == NS]
+        | otherwise = []
+    inDomainGlue r = rrtype r `elem` [A, AAAA] && any (rrname r `isSubDomainOf`) cuts
     truncated =
         reply
             { flags = (flags reply){trunCation = True}
