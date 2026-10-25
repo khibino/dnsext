@@ -135,7 +135,7 @@ server env@Env{..} keys proto@Proto{..} zoneAlist = loop 0
                                             TransferRefused ->
                                                 sendReply sa $ seal $ refusal query
                                     else response proto seal zoneAlist sa query dom
-                            _ -> sendReply sa $ seal $ refusal query
+                            _ -> sendReply sa $ seal $ notImplemented query
 
 response :: Proto -> Seal -> ZoneAlist -> SockAddr -> DNSMessage -> Domain -> IO ()
 response Proto{..} seal zoneAlist sa query dom = case findZoneFor (qtype $ question query) dom zoneAlist of -- isSubDomainOf
@@ -219,6 +219,12 @@ handleNotify Proto{..} seal zoneAlist sa sender query = case lookup dom zoneAlis
 --   about the name.
 refusal :: DNSMessage -> DNSMessage
 refusal query = reply{rcode = Refused, flags = (flags reply){authAnswer = False}}
+  where
+    reply = fromQuery query
+
+-- | An opcode we do not implement (RFC 8906 Sec 3.1.4).
+notImplemented :: DNSMessage -> DNSMessage
+notImplemented query = reply{rcode = NotImpl, flags = (flags reply){authAnswer = False}}
   where
     reply = fromQuery query
 
