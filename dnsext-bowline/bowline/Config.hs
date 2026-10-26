@@ -9,13 +9,12 @@ module Config (
 ) where
 
 import qualified Control.Exception as E
-import Control.Monad
 import Control.Monad.Trans.State (StateT (..), evalStateT)
 import Data.List
-import Data.Maybe
 import Data.String (fromString)
 import Network.Socket (PortNumber)
 import Network.TLS (Credentials (..), credentialLoadX509)
+import System.IO (hPutStr, stderr)
 import System.IO.Error (ioeGetErrorString, ioeSetErrorString, tryIOError)
 import System.Posix (GroupID, UserID)
 
@@ -344,9 +343,16 @@ makeConfig def conf = do
     cnf_dnstap_socket_path <- get "dnstap-socket-path" cnf_dnstap_socket_path
     cnf_dnstap_reconnect_interval <- get "dnstap-reconnect-interval" cnf_dnstap_reconnect_interval
     cnf_webapi <- get "webapi" cnf_webapi
-    found_webapi_addr <- isJust <$> get "webapi-addr" (pure (Nothing :: Maybe String))
-    when found_webapi_addr $ fail "config: use `webapi-addrs` instead of `webapi-addr`"
-    cnf_webapi_addrs <- get "webapi-addrs" cnf_webapi_addrs
+    compat_webapi_addr <- get "webapi-addr" (pure Nothing) :: IO (Maybe String)
+    let fallback_webapi_addr ax = do
+            hPutStr stderr $ unlines
+                [ "***  config: WARNING!!                                                 ***"
+                , "* webapi-addr is a deprecated feature and will be removed in the future. *"
+                , "* Please use webapi-addrs instead.                                       *"
+                ]
+            return [ax]
+    cnf_webapi_addrs <-
+        maybe (get "webapi-addrs" cnf_webapi_addrs) fallback_webapi_addr compat_webapi_addr
     cnf_webapi_port <- get "webapi-port" cnf_webapi_port
     cnf_cache_max_negative_ttl <- get "cache-max-negative-ttl" cnf_cache_max_negative_ttl
     cnf_cache_failure_rcode_ttl <- get "cache-failure-rcode-ttl" cnf_cache_failure_rcode_ttl
