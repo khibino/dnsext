@@ -188,7 +188,7 @@ sed \
     -e 's@^cnf_dns_addrs: .*$@cnf_dns_addrs: 0.0.0.0@' \
     -e 's@^cnf_dns64_addrs: .*$@##cnf_dns64_addrs:@' \
     -e 's@^monitor-addrs: .*$@monitor-addrs: 0.0.0.0,::@' \
-    -e 's@^webapi-addr: .*$@webapi-addr: 0.0.0.0@' \
+    -e 's@^webapi-addrs: .*$@webapi-addrs: 0.0.0.0,::@' \
     -e 's@^cert-file: .*$@cert-file: etc/fullchain.pem@' \
     -e 's@^key-file: .*$@key-file: etc/privkey.pem@' \
     < etc/bowline.conf.dist > etc/bowline.conf
