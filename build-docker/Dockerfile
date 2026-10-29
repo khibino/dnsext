@@ -1,8 +1,9 @@
-
+# check=skip=InvalidDefaultArgInFrom
+## BUILDER_IMAGE and DEBIAN_TAG are required; build.sh always passes them.
 ARG BUILDER_IMAGE
 ARG DEBIAN_TAG
 
-FROM ${BUILDER_IMAGE} as builder
+FROM ${BUILDER_IMAGE} AS builder
 
 ARG BUILDER_IMAGE
 ARG GHC_VERSION
@@ -195,7 +196,7 @@ sed \
 chmod 444 etc/bowline.conf
 EOF
 
-ENV PATH /opt/bowline/bin:"$PATH"
+ENV PATH="/opt/bowline/bin:$PATH"
 
 EXPOSE 53/tcp
 EXPOSE 53/udp
