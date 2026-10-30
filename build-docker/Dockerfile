@@ -34,6 +34,12 @@ case ${BUILDER_IMAGE} in
     setup_cmd=:
     ;;
 
+  ghc-pie:*|*/ghc-pie:*)
+    ## GHC whose libraries are all built with -fPIC, so that static-pie
+    ## executables can be linked.  See ghc-pie-docker-image.
+    setup_cmd=:
+    ;;
+
   *)
     echo "unknown builder image: ${BUILDER_IMAGE}"
     exit 1
@@ -114,9 +120,26 @@ EOF
 ## and delete with
 ## % docker buildx prune --verbose --filter 'id=<ID-string>'
 ##
+## With the ghc-pie builder image, the executables are linked as static-pie
+## (statically linked, position-independent), so that ASLR applies to them.
+## Every object linked into a PIE must be PIC, so -fPIC is given to all the
+## packages, including the dependencies, via cabal.project.local.
 RUN --mount=type=cache,target=/root/.cabal <<EOF
 set -e -x
 [ ! -r ~/builder-path ] || . ~/builder-path
+static_pie=no
+case ${BUILDER_IMAGE} in
+  ghc-pie:*|*/ghc-pie:*)
+    static_pie=yes
+    cat <<PROJ > dnsext/cabal.project.local
+package *
+  ghc-options: -fPIC
+
+package dnsext-bowline
+  ghc-options: -pie -optl-static-pie
+PROJ
+    ;;
+esac
 cabal v2-update
 ( cd dnsext
   mkdir -p -m 755 /opt/bowline/bin
@@ -126,6 +149,15 @@ cabal v2-update
     --ghc-options="-j${GHC_PARALLEL} +RTS -qg -RTS" \
     -j${CABAL_PARALLEL} --install-method=copy --installdir /opt/bowline/bin/ )
 strip /opt/bowline/bin/*
+if [ ${static_pie} = yes ]; then
+  ## static-pie: ET_DYN, without PT_INTERP and DT_NEEDED
+  for exe in /opt/bowline/bin/* ; do
+    readelf -h ${exe} | grep -q 'Type: *DYN' || { echo "not PIE: ${exe}" ; exit 1 ; }
+    ! readelf -l ${exe} | grep -q 'INTERP' || { echo "not static: ${exe}" ; exit 1 ; }
+    ! readelf -d ${exe} | grep -q 'NEEDED' || { echo "not static: ${exe}" ; exit 1 ; }
+    echo "static-pie: ${exe}"
+  done
+fi
 EOF
 
 RUN <<EOF
@@ -141,6 +173,7 @@ PRIVKEY_ALG=${PRIVKEY_ALG}
 PRIVKEY_ALGOPT=${PRIVKEY_ALGOPT}
 CHAIN_SUBJ_CN=${CHAIN_SUBJ_CN}
 GHC_OPTIMIZE=${GHC_OPTIMIZE}
+STATIC_PIE=$(case ${BUILDER_IMAGE} in ghc-pie:*|*/ghc-pie:*) echo yes ;; *) echo no ;; esac)
 PULL_REQ_NUMBER=${PULL_REQ_NUMBER}
 META
 EOF

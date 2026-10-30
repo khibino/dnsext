@@ -71,6 +71,31 @@ build_with_ghcup() {
     fi
 }
 
+build_with_ghc_pie() {
+    tag_ghc_pie=bowline:${ghc_version}-${result_tag_debian}-ghc-pie
+    $N docker buildx build \
+           -t ${tag_ghc_pie} \
+           --build-arg GHC_OPTIMIZE=${GHC_OPTIMIZE} \
+           --build-arg GHC_PARALLEL=${GHC_PARALLEL} \
+           --build-arg CABAL_PARALLEL=${CABAL_PARALLEL} \
+           \
+           --build-arg BUILDER_IMAGE=${BUILDER_IMAGE} \
+           --build-arg DEBIAN_TAG=${DEBIAN_TAG} \
+           --build-arg PRIVKEY_ALG=${PRIVKEY_ALG} \
+           --build-arg PRIVKEY_ALGOPT=${PRIVKEY_ALGOPT} \
+           --build-arg CHAIN_SUBJ_CN=${CHAIN_SUBJ_CN} \
+           --build-arg CLONE_URL=${CLONE_URL} \
+           --build-arg DNSEXT_REV=${DNSEXT_REV} \
+           --build-arg PULL_REQ_NUMBER=${PULL_REQ_NUMBER} \
+           ${NO_CACHE} \
+           -f Dockerfile \
+           .
+
+    if [ "${ghc_version}" = 9.6.7 ]; then
+        $N docker image tag ${tag_ghc_pie} bowline:${result_tag_debian}-ghc-pie
+    fi
+}
+
 build_with_haskell() {
     $N docker buildx build \
            -t bowline:${ghc_version}-${result_tag_debian}-haskell \
@@ -170,6 +195,24 @@ EOF
         result_tag_debian=buster
 
         build_with_haskell
+        ;;
+
+    ghc-pie)
+        ## builder image ghcr.io/khibino/ghc-pie:<GHC_VERSION>-<DEBIAN_REVISION>, built from ghc-pie-docker-image,
+        ## whose GHC can link static-pie executables (ASLR applies to them)
+        [ x"$GHC_VERSION" != x ] || GHC_VERSION=9.6.7
+        [ x"$DEBIAN_REVISION" != x ] || DEBIAN_REVISION=trixie
+        [ x"$GHC_PIE_IMAGE" != x ] || GHC_PIE_IMAGE=ghcr.io/khibino/ghc-pie
+        ## e.g. GHC_PIE_TAG=9.6.7-bookworm-20261024 to pin a dated tag
+        [ x"$GHC_PIE_TAG" != x ] || GHC_PIE_TAG=${GHC_VERSION}-${DEBIAN_REVISION}
+        #--
+        set -x
+        BUILDER_IMAGE=${GHC_PIE_IMAGE}:${GHC_PIE_TAG}
+        DEBIAN_TAG=${DEBIAN_REVISION}-slim
+        ghc_version=${GHC_VERSION}
+        result_tag_debian=${DEBIAN_REVISION}
+
+        build_with_ghc_pie
         ;;
 
     *)
