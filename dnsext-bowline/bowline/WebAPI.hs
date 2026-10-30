@@ -7,9 +7,9 @@ module WebAPI (
 ) where
 
 import qualified Control.Exception as E
+import Control.Monad
 import Data.ByteString ()
 import Data.Functor
-import qualified Data.List.NonEmpty as NE
 import Data.String
 import qualified Network.HTTP.Types as HTTP
 import Network.Socket
@@ -19,6 +19,7 @@ import Network.Wai.Handler.Warp hiding (run)
 import DNS.Iterative.Server (withLocationIOE)
 
 import Config
+import SocketUtil (ainfosSkipError)
 import Types
 
 doStats :: Control -> IO Response
@@ -77,19 +78,13 @@ ng st = responseLBS st [] "NG\n"
 {- FOURMOLU_DISABLE -}
 bindAPIs :: Config -> IO [Socket]
 bindAPIs Config{..}
-    | cnf_webapi  = mapM (\a -> resolve a >>= open) cnf_webapi_addrs
+    | cnf_webapi  = ainfosSkipError putStrLn Stream cnf_webapi_port cnf_webapi_addrs >>= mapM open
     | otherwise   = return []
   where
-    resolve addr = do
-        let hints =
-                defaultHints
-                    { addrFlags = [AI_PASSIVE, AI_NUMERICHOST, AI_NUMERICSERV]
-                    , addrSocketType = Stream
-                    }
-        NE.head <$> getAddrInfo (Just hints) (Just addr) (Just $ show cnf_webapi_port)
     open ai@AddrInfo{addrAddress = a} = E.bracketOnError (openSocket ai) close $ \sock -> do
         withLocationIOE (show a ++ "/webapi") $ do
             setSocketOption sock ReuseAddr 1
+            when (addrFamily ai == AF_INET6) $ setSocketOption sock IPv6Only 1
             withFdSocket sock setCloseOnExecIfNeeded
             bind sock a
             listen sock 32
