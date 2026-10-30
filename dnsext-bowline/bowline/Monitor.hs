@@ -1,3 +1,4 @@
+{-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Monitor (
@@ -18,6 +19,7 @@ import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Char (toUpper)
 import Data.Functor (($>))
 import Data.List (find, isInfixOf)
+import Foreign.Ptr (FunPtr, castFunPtrToPtr)
 import System.IO (
     Handle,
     IOMode (ReadWriteMode),
@@ -311,6 +313,7 @@ getShowParam conf srvInfo monInfo =
         [ ("capabilities: " ++) . show <$> getNumCapabilities
         , ("euid: " ++) . show <$> getEffectiveUserID
         , ("egid: " ++) . show <$> getEffectiveGroupID
+        , pure ("hs-init-addr: " ++ show faddr)
         ]
   where
     format rtInfo =
@@ -320,4 +323,7 @@ getShowParam conf srvInfo monInfo =
         srvInfo                              ++
         monInfo                              ++
         rtInfo
+    faddr = castFunPtrToPtr hsInitAddr
 {- FOURMOLU_ENABLE -}
+
+foreign import ccall "&hs_init" hsInitAddr :: FunPtr (IO ())
