@@ -17,3 +17,12 @@ cert-file: `fullchain.pem` , key-file: `privkey.pem` , and `bowline.conf` under 
  % ./build.sh
  % ./example-run-custom.sh
 ```
+
+To build the executables as statically linked position-independent executables (static-pie),
+so that ASLR applies to them, use the builder image `ghcr.io/khibino/ghc-pie:<GHC_VERSION>-<DEBIAN_REVISION>`
+(built from `ghc-pie-docker-image`, whose GHC has all libraries compiled with `-fPIC`).
+
+```
+ % BOWLINE_BUILD_METHOD=ghc-pie ./build.sh -x
+ % docker run -ti bowline:9.6.7-bookworm-ghc-pie
+```
