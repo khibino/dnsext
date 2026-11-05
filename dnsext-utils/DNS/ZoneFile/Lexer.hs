@@ -246,18 +246,22 @@ ehash = do
     m <- optional (lookAhead cstringByte)
     maybe (pure ()) (const $ raise "ehash: more of a character-string after \\#") m
 
+-- | One token, chosen by the byte it starts with, which is read without being
+--   consumed: a dollar may still be a character-string, a backslash the @\\#@.
 {-# INLINEABLE lexerToken #-}
 lexerToken :: MonadParser W8 s m => m Token
-lexerToken =
-    Directive <$> directive     <|>
-    At <$ byte _at              <|>
-    LParen <$ byte _parenleft   <|>
-    RParen <$ byte _parenright  <|>
-    Blank <$ some spc           <|>
-    Dot <$ byte _period         <|>
-    EHash <$ ehash              <|>
-    CS <$> lex_cstring          <|>
-    Comment <$ comment
+lexerToken = caseCons starting (parseError "lexerToken: eof") =<< getInput
+  where
+    starting c _
+        | c == _at          = At <$ token
+        | c == _parenleft   = LParen <$ token
+        | c == _parenright  = RParen <$ token
+        | c == _period      = Dot <$ token
+        | isSpc c           = Blank <$ some spc
+        | c == _semicolon   = Comment <$ comment
+        | c == _dollar      = Directive <$> directive <|> CS <$> lex_cstring
+        | c == _backslash   = EHash <$ ehash          <|> CS <$> lex_cstring
+        | otherwise         = CS <$> lex_cstring
 {- FOURMOLU_ENABLE -}
 
 -- |
