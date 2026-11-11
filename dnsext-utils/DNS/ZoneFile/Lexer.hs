@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoStrict #-}
+{- A SPECIALIZE of a function from another module is an orphan rule. -}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module DNS.ZoneFile.Lexer where
 
@@ -20,6 +22,8 @@ import DNS.ZoneFile.Types
 type LBS = LB.ByteString
 type W8 = Word8
 type Parser a = Poly.Parser LBS a
+
+{-# SPECIALIZE repeatedly :: Parser a -> Parser [a] #-}
 
 byte_token :: Parser Word8
 byte_token = token
